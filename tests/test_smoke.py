@@ -408,3 +408,13 @@ def test_installments_aging_endpoint(auth_client):
         assert key in data
     for bar in ('0-30', '31-60', '61-90', '90+'):
         assert bar in data['summary']
+
+
+def test_project_schedule_endpoint(auth_client):
+    """الجدولة الزمنية (Gantt) تعيد المراحل والمؤشرات."""
+    pid = _mk_project(auth_client, 'مشروع جدولة')
+    resp = auth_client.get(f'/api/projects/{pid}/schedule')
+    assert resp.status_code == 200
+    data = resp.get_json()
+    for key in ('phases', 'overall_completion', 'on_track', 'late_phases'):
+        assert key in data

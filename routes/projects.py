@@ -242,6 +242,67 @@ def list_project_statements(project_id):
     return jsonify(out)
 
 
+@projects_bp.route("/<int:project_id>/schedule", methods=["GET"])
+@require_api("projects", "view")
+def project_schedule(project_id):
+    """الجدولة الزمنية للمشروع (بيانات Gantt) + مؤشرات التأخر.
+
+    يعيد: مراحل المشروع بأبعادها الزمنية، إجمالي المدة، التقدم الفعلي مقابل
+    المتوقع بحساب اليوم (SV زمني)، وأي مرحلة متأخرة عن خطتها.
+    """
+    from datetime import datetime as _dt
+    project = Project.query.get_or_404(project_id)
+    today = _dt.now().date()
+
+    phases = (ProjectPhase.query.filter_by(project_id=project_id)
+              .order_by(ProjectPhase.order.asc(), ProjectPhase.id.asc()).all())
+    rows, min_d, max_d = [], None, None
+    for ph in phases:
+        if ph.start_date and (min_d is None or ph.start_date < min_d):
+            min_d = ph.start_date
+        if ph.end_date and (max_d is None or ph.end_date > max_d):
+            max_d = ph.end_date
+        # المتوقع نظرياً: نسبة الوقت المنقضي من مدة المرحلة (مقيدة 0-100)
+        expected = None
+        if ph.start_date and ph.end_date:
+            span = (ph.end_date - ph.start_date).days or 1
+            elapsed = (min(today, ph.end_date) - ph.start_date).days
+            expected = max(0, min(100, round(elapsed / span * 100)))
+        late = bool(expected is not None and (ph.completion or 0) < expected - 10)
+        rows.append({
+            "id": ph.id,
+            "name": ph.name,
+            "order": ph.order,
+            "start_date": ph.start_date.isoformat() if ph.start_date else None,
+            "end_date": ph.end_date.isoformat() if ph.end_date else None,
+            "status": ph.status,
+            "completion": ph.completion or 0,
+            "expected_completion": expected,
+            "is_late": late,
+        })
+
+    total_days = ((max_d - min_d).days + 1) if (min_d and max_d) else None
+    elapsed_days = ((min(today, max_d) - min_d).days + 1) if (min_d and max_d and today >= min_d) else 0
+    overall_completion = round(sum(r["completion"] for r in rows) / len(rows)) if rows else 0
+    timeline_expected = round(elapsed_days / total_days * 100) if total_days and project.start_date else None
+
+    late_phases = [r["name"] for r in rows if r["is_late"]]
+    return jsonify({
+        "project_id": project_id,
+        "project_start": project.start_date.isoformat() if project.start_date else None,
+        "timeline_start": min_d.isoformat() if min_d else None,
+        "timeline_end": max_d.isoformat() if max_d else None,
+        "total_days": total_days,
+        "elapsed_days": elapsed_days,
+        "overall_completion": overall_completion,
+        "timeline_expected_completion": timeline_expected,
+        "schedule_variance": (overall_completion - timeline_expected) if timeline_expected is not None else None,
+        "late_phases": late_phases,
+        "on_track": not late_phases,
+        "phases": rows,
+    })
+
+
 @projects_bp.route("/<int:project_id>/job-costing", methods=["GET"])
 @require_api("projects", "view")
 def project_job_costing(project_id):

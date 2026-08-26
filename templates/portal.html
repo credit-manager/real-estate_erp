@@ -26,6 +26,14 @@
     <div class="kpi-card"><div class="kpi-label">الوحدة</div><div class="kpi-value" id="p-unit">—</div></div>
     <div class="kpi-card"><div class="kpi-label">الحالة</div><div class="kpi-value" id="p-status">—</div></div>
   </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);" id="p-summary-grid" style="display:none;">
+    <div class="kpi-card"><div class="kpi-label">إجمالي العقد</div><div class="kpi-value" id="p-total">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">المسدد</div><div class="kpi-value" id="p-paid">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">المتبقي</div><div class="kpi-value" id="p-remaining">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">متأخرات (عدد)</div><div class="kpi-value" id="p-overdue-count">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">إجمالي المتأخرات</div><div class="kpi-value" id="p-overdue-total">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">القسط القادم</div><div class="kpi-value" id="p-next-due">—</div></div>
+  </div>
   <div class="card">
     <div class="card-header"><h3>الأقساط</h3></div>
     <div class="table-wrapper"><table><thead><tr><th>#</th><th>المبلغ</th><th>المدفوع</th><th>الاستحقاق</th><th>الحالة</th></tr></thead><tbody id="p-installments"></tbody></table></div>
@@ -53,6 +61,18 @@ async function portalLookup(){
     document.getElementById('p-contract-no').textContent = data.contract.contract_number||'—';
     document.getElementById('p-unit').textContent = data.unit? data.unit.unit_code : '—';
     document.getElementById('p-status').textContent = data.contract.status||'—';
+    // ملخص الأقساط
+    const sm = data.summary;
+    if(sm){
+      document.getElementById('p-total').textContent = formatMoney(sm.total);
+      document.getElementById('p-paid').textContent = formatMoney(sm.paid);
+      document.getElementById('p-remaining').textContent = formatMoney(sm.remaining);
+      document.getElementById('p-overdue-count').textContent = sm.overdue_count||0;
+      const ot=document.getElementById('p-overdue-total');
+      ot.textContent = formatMoney(sm.overdue_total);
+      ot.style.color = (sm.overdue_total>0)? 'var(--danger, #e5484d)' : '';
+      document.getElementById('p-next-due').textContent = sm.next_due_date? `${formatMoney(sm.next_due_amount)} ← ${sm.next_due_date}` : '—';
+    }
     const itb=document.getElementById('p-installments');
     const inst=data.installments||[];
     itb.innerHTML = inst.length? inst.map(i=>`<tr><td>${i.installment_number||i.id}</td><td>${formatMoney(i.amount)}</td><td>${formatMoney(i.paid_amount)}</td><td>${i.due_date||'—'}</td><td><span class="badge badge-${i.status=='paid'?'success':i.status=='overdue'?'danger':'muted'}">${i.status}</span></td></tr>`).join('') : '<tr><td colspan="5">لا توجد أقساط</td></tr>';

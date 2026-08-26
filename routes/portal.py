@@ -88,11 +88,39 @@ def lookup():
     if unit:
         maintenance = [m.to_dict() for m in MaintenanceRequest.query.filter_by(unit_id=unit.id).order_by(MaintenanceRequest.id.desc()).limit(10).all()]
 
+    # ملخص الأقساط للعميل: الإجمالي، المسدد، المتأخر، القسط القادم
+    today = datetime.now().date()
+    summary = None
+    if plan:
+        total = sum(float(i.amount or 0) for i in plan.installments)
+        paid = sum(float(i.paid_amount or 0) for i in plan.installments)
+        overdue = [
+            i for i in plan.installments
+            if i.due_date and i.due_date < today.date() and float((i.amount or 0) - (i.paid_amount or 0)) > 0
+            and (i.status in ("pending", "partial", "overdue"))
+        ]
+        next_inst = min(
+            (i for i in plan.installments
+             if i.status in ("pending", "partial")
+             and float((i.amount or 0) - (i.paid_amount or 0)) > 0
+             and i.due_date),
+            key=lambda i: i.due_date, default=None)
+        summary = {
+            "total": round(total, 2),
+            "paid": round(paid, 2),
+            "remaining": round(total - paid, 2),
+            "overdue_count": len(overdue),
+            "overdue_total": round(sum(float((i.amount or 0) - (i.paid_amount or 0)) for i in overdue), 2),
+            "next_due_date": next_inst.due_date.isoformat() if next_inst else None,
+            "next_due_amount": round(float((next_inst.amount or 0) - (next_inst.paid_amount or 0)), 2) if next_inst else None,
+        }
+
     return jsonify({
         "contract": contract.to_dict(),
         "unit": unit.to_dict() if unit else None,
         "customer": {"full_name": contract.customer.full_name, "phone": contract.customer.phone} if contract.customer else None,
         "installments": installments,
+        "summary": summary,
         "maintenance": maintenance,
     })
 
