@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.trackingTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-tracking{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.trackingTitle') }}</h1>
+    <p>{{ t('mf.trackingSub') }}</p>
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon">📦</div>
+    <div class="kpi-label">{{ t('mf.totalOrders') }}</div>
+    <div class="kpi-value" id="kpi-total">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">📋</div>
+    <div class="kpi-label">{{ t('mf.planned') }}</div>
+    <div class="kpi-value" id="kpi-planned">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">⚙️</div>
+    <div class="kpi-label">{{ t('mf.inProgress') }}</div>
+    <div class="kpi-value" id="kpi-in-progress" style="color:var(--primary);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">✅</div>
+    <div class="kpi-label">{{ t('mf.completed') }}</div>
+    <div class="kpi-value" id="kpi-completed" style="color:var(--success);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🚫</div>
+    <div class="kpi-label">{{ t('mf.cancelled') }}</div>
+    <div class="kpi-value" id="kpi-cancelled" style="color:var(--danger);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🏭</div>
+    <div class="kpi-label">{{ t('mf.totalProduced') }}</div>
+    <div class="kpi-value" id="kpi-produced">0</div>
+  </div>
+</div>
+
+<!-- Tracking Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.trackingTitle') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.orderNumber') }}</th>
+            <th>{{ t('mf.product') }}</th>
+            <th>{{ t('mf.quantity') }}</th>
+            <th>{{ t('mf.producedQty') }}</th>
+            <th>{{ t('mf.progress') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('mf.startDate') }}</th>
+            <th>{{ t('mf.dueDate') }}</th>
+          </tr>
+        </thead>
+        <tbody id="tracking-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="tracking-empty" style="display:none;">
+      <div class="empty-icon">📦</div>
+      <div id="tracking-empty-text">{{ t('mf.noOrders') }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_tracking.js') }}"></script>
+{% endblock %}

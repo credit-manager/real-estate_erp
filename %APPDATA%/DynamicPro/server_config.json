@@ -1,0 +1,9 @@
+{
+    "port": 1111,
+    "access_password": "",
+    "auto_start": false,
+    "https_enabled": false,
+    "https_port": 5443,
+    "gemini_api_key": "",
+    "gemini_model": "gemini-2.0-flash"
+}

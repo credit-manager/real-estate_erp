@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.title') }}</h1>
+    <p>{{ t('accounting.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="goTo('reports')">{{ t('accounting.finReports') }}</button>
+    <button class="btn btn-primary" onclick="goTo('journal')">{{ t('accounting.newEntry') }}</button>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--success-tint);color:var(--success);">💰</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.cashBalance') }}</div>
+      <div class="stat-value" id="acc-cash">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--info-tint);color:var(--info);">🏦</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.bankBalance') }}</div>
+      <div class="stat-value" id="acc-banks">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--warning-tint);color:var(--warning);">📥</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.receivables') }}</div>
+      <div class="stat-value" id="acc-ar">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--danger-tint);color:var(--red);">📤</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.payables') }}</div>
+      <div class="stat-value" id="acc-ap">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--primary-tint);color:var(--primary);">📊</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.netIncome') }}</div>
+      <div class="stat-value" id="acc-net">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="module-grid">
+  <a class="module-card" href="/accounting/chart">
+    <div class="module-icon">📒</div>
+    <div class="module-title">{{ t('accounting.chartTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.chartSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/journal">
+    <div class="module-icon">🧾</div>
+    <div class="module-title">{{ t('accounting.journalTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.journalSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/cash">
+    <div class="module-icon">💰</div>
+    <div class="module-title">{{ t('accounting.cashTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.cashSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/banks">
+    <div class="module-icon">🏦</div>
+    <div class="module-title">{{ t('accounting.banksTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.banksSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/receivables">
+    <div class="module-icon">📥</div>
+    <div class="module-title">{{ t('accounting.receivablesTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.receivablesSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/expenses">
+    <div class="module-icon">💸</div>
+    <div class="module-title">{{ t('accounting.expensesTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.expensesSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/budget">
+    <div class="module-icon">🎯</div>
+    <div class="module-title">{{ t('accounting.budgetTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.budgetSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/reconciliations">
+    <div class="module-icon">🔄</div>
+    <div class="module-title">{{ t('accounting.reconcileTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.reconcileSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/fixed-assets">
+    <div class="module-icon">🏗️</div>
+    <div class="module-title">{{ t('accounting.assetsTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.assetsSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/cost-centers">
+    <div class="module-icon">📍</div>
+    <div class="module-title">{{ t('accounting.costCentersTitle') }}</div>
+    <div class="module-sub">{{ t('accounting.costCentersSub') }}</div>
+  </a>
+  <a class="module-card" href="/accounting/reports">
+    <div class="module-icon">📊</div>
+    <div class="module-title">{{ t('accounting.finReports') }}</div>
+    <div class="module-sub">{{ t('accounting.finReportsSub') }}</div>
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_home.js') }}"></script>
+{% endblock %}

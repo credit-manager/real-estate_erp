@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.rentals') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}rentals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('rentals.title') }}</h1>
+    <p>{{ t('rentals.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('rentals', 'create') %}
+    <button class="btn btn-primary" onclick="openRentalModal()">{{ t('rentals.newContract') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportRentals()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="tabs-scroll" id="rental-tabs">
+  <a href="/rentals" class="tab-btn active">{{ t('rentals.tabContracts') }}</a>
+  <a href="/rentals/tenants" class="tab-btn">{{ t('rentals.tabTenants') }}</a>
+  <a href="/rentals/renewals" class="tab-btn">{{ t('rentals.tabRenewals') }}</a>
+  <a href="/rentals/collections" class="tab-btn">{{ t('rentals.tabCollections') }}</a>
+  <a href="/rentals/notifications" class="tab-btn">{{ t('rentals.tabNotifications') }}</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.totalLabel') }}</div><div class="kpi-value" id="rental-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.activeLabel') }}</div><div class="kpi-value" id="rental-active" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.monthlyLabel') }}</div><div class="kpi-value" id="rental-monthly" style="color:var(--amber);">0</div></div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-year">
+    <option value="">{{ t('common.allYears') }}</option>
+  </select>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('rentals.colNumber') }}</th>
+          <th>{{ t('common.customer') }}</th>
+          <th>{{ t('common.unit') }}</th>
+          <th>{{ t('rentals.monthlyRent') }}</th>
+          <th>{{ t('common.start') }}</th>
+          <th>{{ t('common.end') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('workflow.title') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="rentals-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Rental Contract Modal -->
+<div class="modal-overlay" id="rental-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="rental-modal-title">{{ t('rentals.newContractTitle') }}</h3>
+      <button class="modal-close" onclick="closeRentalModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rental-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.numberLabel') }} *</label>
+          <input type="text" id="rental-number" placeholder="RC-1001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.customer') }}</label>
+          <select id="rental-customer">
+            <option value="">{{ t('rentals.selectCustomer') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.unitLabel') }}</label>
+          <select id="rental-unit">
+            <option value="">{{ t('rentals.selectUnit') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.monthlyRent') }}</label>
+          <input type="number" id="rental-monthly-input" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.startDate') }}</label>
+          <input type="date" id="rental-start">
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.endDate') }}</label>
+          <input type="date" id="rental-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('financialYears.year') }}</label>
+        <select id="rental-year"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveRental()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeRentalModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/rentals.js') }}"></script>
+{% endblock %}

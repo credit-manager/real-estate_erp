@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.ordersTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-orders{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.ordersTitle') }}</h1>
+    <p>{{ t('mf.ordersSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('manufacturing', 'create') %}
+    <button class="btn btn-primary" onclick="openOrderModal()">{{ t('mf.addOrder') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon">📦</div>
+    <div class="kpi-label">{{ t('mf.totalOrders') }}</div>
+    <div class="kpi-value" id="kpi-orders">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">📋</div>
+    <div class="kpi-label">{{ t('mf.planned') }}</div>
+    <div class="kpi-value" id="kpi-planned">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">⚙️</div>
+    <div class="kpi-label">{{ t('mf.inProgress') }}</div>
+    <div class="kpi-value" id="kpi-in-progress" style="color:var(--primary);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">✅</div>
+    <div class="kpi-label">{{ t('mf.completed') }}</div>
+    <div class="kpi-value" id="kpi-completed" style="color:var(--success);">0</div>
+  </div>
+</div>
+
+<!-- Orders Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.ordersTitle') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.orderNumber') }}</th>
+            <th>{{ t('mf.product') }}</th>
+            <th>{{ t('mf.quantity') }}</th>
+            <th>{{ t('mf.producedQty') }}</th>
+            <th>{{ t('mf.progress') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('mf.totalCost') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="orders-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="orders-empty" style="display:none;">
+      <div class="empty-icon">📦</div>
+      <div id="orders-empty-text">{{ t('mf.noOrders') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Order Modal -->
+<div class="modal-overlay" id="order-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="order-modal-title">{{ t('mf.addOrder') }}</div>
+      <button class="icon-btn modal-close" onclick="closeOrderModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="order-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.selectBom') }} *</label>
+          <select id="order-bom"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.selectWarehouse') }} *</label>
+          <select id="order-warehouse"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.quantity') }} *</label>
+          <input type="number" id="order-quantity" step="any" min="0" value="1">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.producedQty') }}</label>
+          <input type="number" id="order-produced-qty" step="any" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.startDate') }}</label>
+          <input type="date" id="order-start-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.dueDate') }}</label>
+          <input type="date" id="order-due-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.laborCost') }}</label>
+          <input type="number" id="order-labor-cost" step="any" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.overheadCost') }}</label>
+          <input type="number" id="order-overhead-cost" step="any" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="order-notes" maxlength="300">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeOrderModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveOrder()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_orders.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.bomTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-bom{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.bomTitle') }}</h1>
+    <p>{{ t('mf.bomSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('manufacturing', 'create') %}
+    <button class="btn btn-primary" onclick="openBomModal()">{{ t('mf.addBom') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- BOMs Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.bomTitle') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.bomCode') }}</th>
+            <th>{{ t('mf.bomName') }}</th>
+            <th>{{ t('mf.productItem') }}</th>
+            <th>{{ t('mf.version') }}</th>
+            <th>{{ t('mf.lines') }}</th>
+            <th>{{ t('mf.totalCost') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="boms-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="boms-empty" style="display:none;">
+      <div class="empty-icon">📋</div>
+      <div id="boms-empty-text">{{ t('mf.noBoms') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- BOM Modal -->
+<div class="modal-overlay" id="bom-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="bom-modal-title">{{ t('mf.addBom') }}</div>
+      <button class="icon-btn modal-close" onclick="closeBomModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bom-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.bomCode') }}</label>
+          <input type="text" id="bom-code" placeholder="BOM-0001" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.bomName') }} *</label>
+          <input type="text" id="bom-name" maxlength="150">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.productItem') }} *</label>
+          <select id="bom-product-item"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.version') }}</label>
+          <input type="text" id="bom-version" value="1.0" maxlength="20">
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('common.active') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="bom-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>{{ t('mf.lines') }}</label>
+        <div class="card" style="padding:0;">
+          <div class="card-body" style="padding:12px;">
+            <table class="table" id="bom-lines-table">
+              <thead>
+                <tr>
+                  <th>{{ t('mf.component') }}</th>
+                  <th>{{ t('mf.qtyPerUnit') }}</th>
+                  <th>{{ t('mf.costEstimate') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="bom-lines-body"></tbody>
+            </table>
+            <button class="btn btn-outline btn-sm" type="button" onclick="addBomLine()">+ {{ t('mf.addLine') }}</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="bom-notes" maxlength="300">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeBomModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveBom()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_bom.js') }}"></script>
+{% endblock %}

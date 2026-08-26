@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.reviews') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-reviews{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.reviews') }}</h1>
+    <p>{{ t('hr.reviewsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openReviewModal()">{{ t('hr.addReview') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.reviews') }} <span class="card-count" id="reviews-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.reviewDate') }}</th>
+            <th>{{ t('hr.period') }}</th>
+            <th>{{ t('hr.rating') }}</th>
+            <th>{{ t('hr.reviewer') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="reviews-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="reviews-empty" style="display:none;">
+      <div class="empty-icon">⭐</div>
+      <div>{{ t('hr.noReviews') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal-overlay" id="review-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="review-modal-title">{{ t('hr.addReview') }}</div>
+      <button class="icon-btn modal-close" onclick="closeReviewModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="review-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="review-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.reviewDate') }}</label>
+          <input type="date" id="review-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.period') }}</label>
+          <input type="text" id="review-period" placeholder="Q1 / 2026">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.rating') }}</label>
+          <input type="number" id="review-rating" step="0.5" min="0" max="5">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.reviewer') }}</label>
+          <input type="text" id="review-reviewer">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.strengths') }}</label>
+        <textarea id="review-strengths" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.weaknesses') }}</label>
+        <textarea id="review-weaknesses" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.goals') }}</label>
+        <textarea id="review-goals" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="review-status">
+          <option value="completed">{{ t('hr.trainingCompleted') }}</option>
+          <option value="pending">{{ t('hr.statusPending') }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeReviewModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveReview()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_reviews.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.dashboard') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('dashboard.title') }}</h1>
+    <p>{{ t('common.hello') }} {{ full_name }} - {{ t('dashboard.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="exportDashboard()">{{ t('common.exportReport') }}</button>
+    <button class="btn btn-primary" onclick="location.href='/projects'">{{ t('common.newProject') }}</button>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid">
+  <div class="kpi-card kpi-link" onclick="location.href='/projects'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiProjects') }}</div><div class="kpi-value" id="kpi-projects">—</div><div class="kpi-change up" id="kpi-projects-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-olive">👷</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/finance'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiRevenue') }}</div><div class="kpi-value" id="kpi-revenue">—</div><div class="kpi-change up" id="kpi-revenue-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-sage">💰</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/real-estate'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiUnits') }}</div><div class="kpi-value" id="kpi-units">—</div><div class="kpi-change up" id="kpi-units-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-brown">🏠</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/hr'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiEmployees') }}</div><div class="kpi-value" id="kpi-employees">—</div><div class="kpi-change up" id="kpi-employees-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-terracotta">👥</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/sales'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiCustomers') }}</div><div class="kpi-value" id="kpi-customers">—</div><div class="kpi-change up" id="kpi-customers-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-clay">🤝</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/procurement'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiSuppliers') }}</div><div class="kpi-value" id="kpi-suppliers">—</div><div class="kpi-change up" id="kpi-suppliers-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-moss">🚚</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/rentals'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiRentals') }}</div><div class="kpi-value" id="kpi-rentals">—</div><div class="kpi-change up" id="kpi-rentals-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-sand">🔑</div></div>
+  </div>
+  <div class="kpi-card kpi-link" onclick="location.href='/finance'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('dashboard.kpiPending') }}</div><div class="kpi-value" id="kpi-pending">—</div><div class="kpi-change down" id="kpi-pending-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-terra">⏳</div></div>
+  </div>
+  {% if can('workflow', 'view') %}
+  <div class="kpi-card kpi-link" onclick="location.href='/workflow/approvals'">
+    <div class="kpi-top"><div><div class="kpi-label">{{ t('workflow.title') }}</div><div class="kpi-value" id="kpi-approvals">—</div><div class="kpi-change down" id="kpi-approvals-sub">{{ t('common.loading') }}</div></div><div class="kpi-icon kpi-clay">✔</div></div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Dashboard Grid -->
+<div class="dashboard-grid">
+  <div class="section-mb">
+    <!-- Revenue trend with interactive period filter -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div class="card-title">{{ t('dashboard.trendTitle') }}</div>
+          <div class="card-subtitle">{{ t('dashboard.trendSubtitle') }}</div>
+        </div>
+        <div class="segmented" id="trend-period">
+          <button class="seg-btn" data-p="3" onclick="setPeriod(3)">{{ t('dashboard.period3') }}</button>
+          <button class="seg-btn" data-p="6" onclick="setPeriod(6)">{{ t('dashboard.period6') }}</button>
+          <button class="seg-btn active" data-p="12" onclick="setPeriod(12)">{{ t('dashboard.period12') }}</button>
+        </div>
+      </div>
+      <div class="card-body"><div class="chart-container"><canvas id="revenueChart"></canvas></div></div>
+    </div>
+
+    <!-- Projects -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="card-title">{{ t('dashboard.projectsTitle') }}</div>
+          <div class="card-subtitle">{{ t('dashboard.projectsSubtitle') }}</div>
+        </div>
+        <a href="/projects" style="font-size:12px;color:var(--primary);font-weight:600;">{{ t('common.viewAll') }} {{ '←' if lang == 'ar' else '→' }}</a>
+      </div>
+      <div class="card-body" id="projects-list">
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px;"><div class="skeleton" style="width:40%;height:12px;"></div><div class="skeleton" style="width:70%;height:8px;"></div></div><div class="skeleton" style="width:36px;height:14px;"></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px;"><div class="skeleton" style="width:50%;height:12px;"></div><div class="skeleton" style="width:60%;height:8px;"></div></div><div class="skeleton" style="width:36px;height:14px;"></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px;"><div class="skeleton" style="width:45%;height:12px;"></div><div class="skeleton" style="width:65%;height:8px;"></div></div><div class="skeleton" style="width:36px;height:14px;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <!-- Units status -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div class="card-title">{{ t('dashboard.unitsTitle') }}</div>
+        <div class="card-subtitle">{{ t('dashboard.unitsSubtitle') }}</div>
+      </div>
+      <div class="card-body"><div class="chart-container" style="height:220px;"><canvas id="unitsChart"></canvas></div></div>
+    </div>
+
+    <!-- Projects status distribution -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div class="card-title">{{ t('dashboard.projectsStatusTitle') }}</div>
+        <div class="card-subtitle">{{ t('dashboard.projectsStatusSubtitle') }}</div>
+      </div>
+      <div class="card-body"><div class="chart-container" style="height:220px;"><canvas id="projectsChart"></canvas></div></div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="card">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="card-title">{{ t('dashboard.activity') }}</div>
+          <div class="card-subtitle">{{ t('dashboard.activitySub') }}</div>
+        </div>
+        {% if role == 'admin' %}
+        <a href="/audit" style="font-size:12px;color:var(--primary);font-weight:600;">{{ t('common.viewAll') }} {{ '←' if lang == 'ar' else '→' }}</a>
+        {% endif %}
+      </div>
+      <div class="card-body act-list" id="recent-activity">
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:60%;height:12px;"></div></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:75%;height:12px;"></div></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:55%;height:12px;"></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

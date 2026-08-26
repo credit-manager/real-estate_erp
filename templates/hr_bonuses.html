@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.bonuses') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-bonuses{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.bonuses') }}</h1>
+    <p>{{ t('payroll.bonusesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-primary" onclick="openBonusModal()">{{ t('payroll.addBonus') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.bonuses') }} <span class="card-count" id="bonuses-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('payroll.bonusName') }}</th>
+            <th>{{ t('payroll.amount') }}</th>
+            <th>{{ t('payroll.bonusDate') }}</th>
+            <th>{{ t('common.notes') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="bonuses-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="bonuses-empty" style="display:none;">
+      <div class="empty-icon">🏆</div>
+      <div>{{ t('payroll.noBonuses') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bonus Modal -->
+<div class="modal-overlay" id="bonus-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="bonus-modal-title">{{ t('payroll.addBonus') }}</div>
+      <button class="icon-btn modal-close" onclick="closeBonusModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bonus-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="bonus-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.bonusName') }} *</label>
+        <input type="text" id="bonus-name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.amount') }}</label>
+          <input type="number" id="bonus-amount" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.bonusDate') }}</label>
+          <input type="date" id="bonus-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="bonus-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeBonusModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveBonus()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_bonuses.js') }}"></script>
+{% endblock %}

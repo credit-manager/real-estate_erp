@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ quote.quote_number }} | {{ system_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">{{ t('doc.print') }}</button>
+    <button class="btn-close" onclick="window.close()">{{ t('doc.close') }}</button>
+  </div>
+
+  <div class="doc">
+    <header class="doc-header">
+      <div class="brand">
+        <div class="brand-mark">
+          {% if system_logo %}<img src="{{ system_logo }}" alt="logo" style="width:52px;height:52px;border-radius:13px;object-fit:cover;">{% else %}DP{% endif %}
+        </div>
+        <div>
+          <div class="brand-name">{{ system_name }}</div>
+          <div class="brand-sub">{{ t('app.subtitle') }}</div>
+        </div>
+      </div>
+      <div class="doc-title">
+        <h1>{{ t('doc.quoteTitle') }}</h1>
+        <div class="doc-no">{{ quote.quote_number }}</div>
+      </div>
+    </header>
+
+    <section class="doc-meta">
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.issueDate') }}</div>
+        <div class="value">{{ fmt(quote.created_at.date() if quote.created_at else None) }}</div>
+      </div>
+      {% if quote.title %}
+      <div class="meta-cell">
+        <div class="label">{{ t('common.description') }}</div>
+        <div class="value">{{ quote.title }}</div>
+      </div>
+      {% endif %}
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.validUntil') }}</div>
+        <div class="value">{{ fmt(quote.valid_until) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.status') }}</div>
+        <div class="value">{{ t('status.' ~ quote.status) }}</div>
+      </div>
+      {% if quote.opportunity %}
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.opportunity') }}</div>
+        <div class="value">{{ quote.opportunity.title }}</div>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="doc-parties">
+      <div class="party-box">
+        <div class="party-label">{{ t('doc.customer') }}</div>
+        {% if quote.customer %}
+        <div class="party-name">{{ quote.customer.full_name }}</div>
+        {% if quote.customer.phone %}<div class="party-line">{{ t('common.phone') }}: {{ quote.customer.phone }}</div>{% endif %}
+        {% if quote.customer.email %}<div class="party-line">{{ quote.customer.email }}</div>{% endif %}
+        {% if quote.customer.address %}<div class="party-line">{{ quote.customer.address }}</div>{% endif %}
+        {% else %}
+        <div class="party-line">—</div>
+        {% endif %}
+      </div>
+      <div class="party-box">
+        <div class="party-label">{{ t('doc.issuedBy') }}</div>
+        <div class="party-name">{{ system_name }}</div>
+        <div class="party-line">{{ t('doc.companyInfo') }}</div>
+      </div>
+    </section>
+
+    {% if items %}
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:4%;">{{ t('doc.colNo') }}</th>
+          <th style="width:44%;">{{ t('doc.description') }}</th>
+          <th>{{ t('doc.qty') }}</th>
+          <th>{{ t('doc.price') }}</th>
+          <th>{{ t('doc.total') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td>{{ it.description }}</td>
+          <td class="num">{{ money(it.qty) }}</td>
+          <td class="num">{{ money(it.unit_price) }}</td>
+          <td class="num">{{ money(it.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="3">{{ t('doc.subtotal') }}</td>
+          <td class="num" colspan="2">{{ money(subtotal) }}</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3">{{ t('doc.discount') }}</td>
+          <td class="num" colspan="2">{{ money(quote.discount) }}</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3">{{ t('doc.totalTax') }} <span class="tax-rate">{{ quote.tax_rate }}%</span></td>
+          <td class="num" colspan="2">{{ money(tax) }}</td>
+        </tr>
+        <tr>
+          <td colspan="3" style="border-top:2px solid var(--doc-ink);">{{ t('doc.grandTotal') }}</td>
+          <td class="num" colspan="2" style="border-top:2px solid var(--doc-ink);">{{ money(quote.total()) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+    {% else %}
+    <div class="party-line">—</div>
+    {% endif %}
+
+    {% if quote.notes %}
+    <section class="doc-terms">
+      <strong>{{ t('doc.notes') }}</strong>
+      <p>{{ quote.notes }}</p>
+    </section>
+    {% endif %}
+
+    <footer class="doc-sign">
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.sellerSign') }}</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.buyerSign') }}</div>
+      </div>
+    </footer>
+
+    <div class="doc-footer">{% if doc_footer_text %}{{ doc_footer_text }} — {% endif %}{{ system_name }} — {{ t('doc.generated') }} {{ fmt(quote.created_at.date() if quote.created_at else None) }}</div>
+  </div>
+
+  <script>window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 350); });</script>
+</body>
+</html>

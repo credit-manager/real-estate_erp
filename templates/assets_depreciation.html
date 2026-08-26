@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('assets.depreciation') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}assets-depreciation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('assets.depreciation') }}</h1>
+    <p>{{ t('assets.depreciationSub') }}</p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <select id="filter-asset" class="form-control" style="width:auto;" onchange="loadItems()">
+        <option value="">{{ t('assets.allAssets') }}</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('assets.code') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('assets.cost') }}</th>
+          <th>{{ t('assets.accumulated') }}</th>
+          <th>{{ t('assets.nbv') }}</th>
+          <th>{{ t('assets.monthlyDep') }}</th>
+          <th>{{ t('assets.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="items-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal سجل الإهلاك -->
+<div class="modal-overlay" id="dep-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="dep-modal-title">{{ t('assets.depreciationHistory') }}</h3>
+      <button class="modal-close" onclick="closeDepModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <table>
+        <thead><tr>
+          <th>{{ t('accounting.period') }}</th>
+          <th>{{ t('common.date') }}</th>
+          <th>{{ t('common.amount') }}</th>
+        </tr></thead>
+        <tbody id="dep-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/assets.js') }}"></script>
+<script src="{{ url_for('static', filename='js/assets_depreciation.js') }}"></script>
+{% endblock %}

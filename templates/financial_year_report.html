@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t('fyReport.title') }} {{ year.name }} | {{ system_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+  <style>
+    .report-kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+    .kpi-box {
+      border: 1px solid var(--doc-line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .kpi-box .kpi-label {
+      font-size: 10px;
+      color: var(--doc-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .kpi-box .kpi-value {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--doc-accent);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .report-section { margin-top: 22px; }
+    .report-section h2 {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--doc-ink);
+      border-bottom: 2px solid var(--doc-accent);
+      padding-bottom: 6px;
+      margin-bottom: 4px;
+    }
+    .section-count { float: left; font-size: 11px; color: var(--doc-muted); font-weight: 600; }
+    [dir="rtl"] .section-count { float: right; }
+    table.items { margin-top: 10px; }
+    .small-note { font-size: 10px; color: var(--doc-muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="saveReportPdf()">{{ t('fyReport.downloadPdf') }}</button>
+    <button class="btn-print" onclick="window.print()">{{ t('doc.print') }}</button>
+    <button class="btn-close" onclick="window.close()">{{ t('doc.close') }}</button>
+  </div>
+
+  <script>
+  function saveReportPdf() {
+    const url = "/documents/financial-year/{{ year.id }}/pdf";
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_pdf) {
+      pywebview.api.save_pdf("financial-year", {{ year.id }}, "{{ lang }}").then((res) => {
+        if (res && !res.ok && !res.cancelled) alert("{{ t('doc.downloadFailed') }}");
+      });
+    } else {
+      window.location.href = url;
+    }
+  }
+  </script>
+
+  <div class="doc">
+    <header class="doc-header">
+      <div class="brand">
+        <div class="brand-mark">
+          {% if system_logo %}<img src="{{ system_logo }}" alt="logo" style="width:52px;height:52px;border-radius:13px;object-fit:cover;">{% else %}DP{% endif %}
+        </div>
+        <div>
+          <div class="brand-name">{{ system_name }}</div>
+          <div class="brand-sub">{{ t('app.subtitle') }}</div>
+        </div>
+      </div>
+      <div class="doc-title">
+        <h1>{{ t('fyReport.title') }}</h1>
+        <div class="doc-no">{{ year.name }}</div>
+      </div>
+    </header>
+
+    <section class="doc-meta">
+      <div class="meta-cell">
+        <div class="label">{{ t('fyReport.company') }}</div>
+        <div class="value">{{ company.name if company else '—' }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('fyReport.period') }}</div>
+        <div class="value">{{ fmt(year.start_date) }} → {{ fmt(year.end_date) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('fyReport.status') }}</div>
+        <div class="value">{% if year.is_active %}{{ t('financialYears.active') }}{% elif year.is_closed %}{{ t('financialYears.closed') }}{% else %}{{ t('financialYears.open') }}{% endif %}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.currency') }}</div>
+        <div class="value">{{ currency_code or '—' }}{% if currency_symbol and currency_symbol != currency_code %} {{ currency_symbol }}{% endif %}{% if currency_name and currency_name != currency_code %} · {{ currency_name }}{% endif %}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('financialYears.documents') }}</div>
+        <div class="value">{{ invoices|length }} / {{ orders|length }} / {{ contracts|length }} / {{ plans|length }}</div>
+      </div>
+    </section>
+
+    <section class="report-kpi">
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.totalSales') }}</div><div class="kpi-value">{{ moneyc(total_sales) }}</div></div>
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.totalPurchases') }}</div><div class="kpi-value">{{ moneyc(total_purchases) }}</div></div>
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.totalInvoices') }}</div><div class="kpi-value">{{ moneyc(total_invoices) }}</div></div>
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.totalOrders') }}</div><div class="kpi-value">{{ moneyc(total_orders) }}</div></div>
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.contractsMonthly') }}</div><div class="kpi-value">{{ moneyc(rental_monthly) }}</div></div>
+      <div class="kpi-box"><div class="kpi-label">{{ t('fyReport.plansPaid') }}</div><div class="kpi-value">{{ moneyc(plans_paid) }}</div></div>
+    </section>
+
+    {% if invoices %}
+    <section class="report-section">
+      <h2>{{ t('fyReport.invoices') }} <span class="section-count">{{ invoices|length }}</span></h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>{{ t('finance.numberLabel') }}</th>
+            <th>{{ t('common.type') }}</th>
+            <th>{{ t('fyReport.party') }}</th>
+            <th>{{ t('common.project') }}</th>
+            <th>{{ t('finance.issueDate') }}</th>
+            <th>{{ t('common.amount') }}</th>
+            <th>{{ t('common.paid') }}</th>
+            <th>{{ t('common.balance') }}</th>
+            <th>{{ t('common.status') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in invoices %}
+          <tr>
+            <td><strong>{{ i.invoice_number }}</strong></td>
+            <td>{{ t('finance.salesLabel') if i.invoice_type == 'sales' else t('finance.expensesLabel') }}</td>
+            <td>{% if i.invoice_type == 'sales' %}{{ i.customer.full_name if i.customer else '—' }}{% else %}{{ i.supplier.company_name if i.supplier else '—' }}{% endif %}</td>
+            <td>{{ i.project.name if i.project else '—' }}</td>
+            <td>{{ fmt(i.issue_date) }}</td>
+            <td class="num">{{ moneyc(i.amount) }}</td>
+            <td class="num">{{ moneyc(i.paid_amount) }}</td>
+            <td class="num">{{ moneyc((i.amount or 0) - (i.paid_amount or 0)) }}</td>
+            <td>{{ t('status.' ~ i.status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">{{ t('fyReport.totalInvoices') }}</td>
+            <td class="num" colspan="4">{{ moneyc(total_invoices) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if orders %}
+    <section class="report-section">
+      <h2>{{ t('fyReport.purchaseOrders') }} <span class="section-count">{{ orders|length }}</span></h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>{{ t('po.printTitle') }}</th>
+            <th>{{ t('po.supplierLabel') }}</th>
+            <th>{{ t('common.project') }}</th>
+            <th>{{ t('po.orderDate') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.status') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr>
+            <td><strong>{{ o.po_number }}</strong></td>
+            <td>{{ o.supplier.company_name if o.supplier else '—' }}</td>
+            <td>{{ o.project.name if o.project else '—' }}</td>
+            <td>{{ fmt(o.order_date) }}</td>
+            <td class="num">{{ moneyc(o.total) }}</td>
+            <td>{{ t('status.' ~ o.status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4">{{ t('fyReport.totalOrders') }}</td>
+            <td class="num" colspan="2">{{ moneyc(total_orders) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if contracts %}
+    <section class="report-section">
+      <h2>{{ t('fyReport.rentalContracts') }} <span class="section-count">{{ contracts|length }}</span></h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>{{ t('rentals.numberLabel') }}</th>
+            <th>{{ t('fyReport.colUnit') }}</th>
+            <th>{{ t('fyReport.colCustomer') }}</th>
+            <th>{{ t('fyReport.colMonthly') }}</th>
+            <th>{{ t('fyReport.colPeriod') }}</th>
+            <th>{{ t('common.status') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr>
+            <td><strong>{{ c.contract_number }}</strong></td>
+            <td>{{ c.unit.unit_code if c.unit else '—' }}</td>
+            <td>{{ c.customer.full_name if c.customer else '—' }}</td>
+            <td class="num">{{ moneyc(c.monthly_rent) }}</td>
+            <td>{{ fmt(c.start_date) }} → {{ fmt(c.end_date) }}</td>
+            <td>{{ t('status.' ~ c.status) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">{{ t('fyReport.contractsMonthly') }}</td>
+            <td class="num" colspan="3">{{ moneyc(rental_monthly) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if plans %}
+    <section class="report-section">
+      <h2>{{ t('fyReport.paymentPlans') }} <span class="section-count">{{ plans|length }}</span></h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>{{ t('fyReport.colUnit') }}</th>
+            <th>{{ t('fyReport.colCustomer') }}</th>
+            <th>{{ t('fyReport.colTotal') }}</th>
+            <th>{{ t('fyReport.colDown') }}</th>
+            <th>{{ t('fyReport.colMonthly') }}</th>
+            <th>{{ t('fyReport.colMonths') }}</th>
+            <th>{{ t('fyReport.colPaid') }}</th>
+            <th>{{ t('fyReport.colBalance') }}</th>
+            <th>{{ t('fyReport.colInstallments') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in plans %}
+          {% set paid_inst = p.installments|selectattr('status', 'equalto', 'paid')|list|length %}
+          {% set part_inst = p.installments|selectattr('status', 'equalto', 'partial')|list|length %}
+          <tr>
+            <td><strong>{{ p.unit.unit_code if p.unit else '—' }}</strong></td>
+            <td>{{ p.customer.full_name if p.customer else '—' }}</td>
+            <td class="num">{{ moneyc(p.total_amount) }}</td>
+            <td class="num">{{ moneyc(p.down_payment) }}</td>
+            <td class="num">{{ moneyc(p.monthly_amount) }}</td>
+            <td class="num">{{ p.months }}</td>
+            <td class="num">{{ moneyc(p.paid_total()) }}</td>
+            <td class="num">{{ moneyc((p.total_amount | float) - p.paid_total()) }}</td>
+            <td>{{ paid_inst }}/{{ p.installments|length }}{% if part_inst %} (+{{ part_inst }}){% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6">{{ t('fyReport.plansBalance') }}</td>
+            <td class="num" colspan="3">{{ moneyc(plans_balance) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="small-note">{{ t('fyReport.colInstallments') }}: X/Y = {{ t('common.paid') }} / {{ t('common.total') }}</div>
+    </section>
+    {% endif %}
+
+    <footer class="doc-sign">
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.firstPartySign') }}</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.secondPartySign') }}</div>
+      </div>
+    </footer>
+
+    <div class="doc-footer">{% if doc_footer_text %}{{ doc_footer_text }} — {% endif %}{{ system_name }} — {{ t('doc.generated') }} {{ fmt(today) }}</div>
+  </div>
+</body>
+</html>

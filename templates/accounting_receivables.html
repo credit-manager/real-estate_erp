@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.receivablesTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-receivables{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.receivablesTitle') }}</h1>
+    <p>{{ t('accounting.receivablesSub') }}</p>
+  </div>
+</div>
+
+<div class="tabs" id="ar-tabs">
+  <button class="tab-btn active" data-tab="ar">{{ t('accounting.receivables') }}</button>
+  <button class="tab-btn" data-tab="ap">{{ t('accounting.payables') }}</button>
+</div>
+
+<div class="stats-grid" style="margin-top:16px;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--warning-tint);color:var(--warning);">0-30</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.aging0') }}</div>
+      <div class="stat-value" id="aging-0">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--warning-tint);color:var(--warning);">31-60</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.aging1') }}</div>
+      <div class="stat-value" id="aging-1">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--danger-tint);color:var(--red);">61-90</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.aging2') }}</div>
+      <div class="stat-value" id="aging-2">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--danger-tint);color:var(--red);">90+</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.aging3') }}</div>
+      <div class="stat-value" id="aging-3">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--primary-tint);color:var(--primary);">∑</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.totalBalance') }}</div>
+      <div class="stat-value" id="aging-total">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.party') }}</th>
+          <th>{{ t('finance.colNumber') }}</th>
+          <th>{{ t('finance.issueDate') }}</th>
+          <th>{{ t('finance.dueDate') }}</th>
+          <th>{{ t('accounting.amount') }}</th>
+          <th>{{ t('accounting.paid') }}</th>
+          <th>{{ t('accounting.balance') }}</th>
+        </tr>
+      </thead>
+      <tbody id="ar-table">
+        <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_receivables.js') }}"></script>
+{% endblock %}

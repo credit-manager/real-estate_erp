@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{ system_name }} — Mobile</title>
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="/mobile/manifest.webmanifest">
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
+</head>
+<body class="m-login-body">
+  <div class="m-login-shell">
+    <div class="m-login-brand">
+      {% if system_logo %}<img src="{{ system_logo }}" alt="logo">{% else %}<div class="m-login-logo">DP</div>{% endif %}
+      <h1>{{ system_name }}</h1>
+      <p>{{ t('mobile.loginSubtitle') }}</p>
+    </div>
+    <div class="m-card m-login-card">
+      <div class="m-field">
+        <label>{{ t('common.username') }}</label>
+        <input type="text" id="login-username" autocomplete="username">
+      </div>
+      <div class="m-field">
+        <label>{{ t('common.password') }}</label>
+        <input type="password" id="login-password" autocomplete="current-password">
+      </div>
+      <button class="m-btn m-btn-primary m-btn-block" id="login-btn" onclick="doLogin()">{{ t('common.login') }}</button>
+      <div class="m-login-error" id="login-error" hidden></div>
+    </div>
+    <div class="m-login-foot">© {{ system_name }}</div>
+  </div>
+  <script>
+    async function doLogin() {
+      const btn = document.getElementById("login-btn");
+      const err = document.getElementById("login-error");
+      btn.disabled = true;
+      err.hidden = true;
+      try {
+        const res = await fetch("/api/mobile/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: document.getElementById("login-username").value,
+            password: document.getElementById("login-password").value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Login failed");
+        window.location.href = "/mobile";
+      } catch (e) {
+        err.textContent = e.message;
+        err.hidden = false;
+        btn.disabled = false;
+      }
+    }
+    document.addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/mobile/sw.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.suppliers') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory-suppliers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.suppliers') }}</h1>
+    <p>{{ t('inventory.suppliersSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('inventory', 'create') %}
+    <button class="btn btn-primary" onclick="openSupplierModal()">{{ t('inventory.addSupplier') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('inventory.suppliers') }} <span class="card-count" id="suppliers-count"></span></div>
+    <div class="companies-search">
+      <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input type="text" id="supplier-search" placeholder="{{ t('common.search') }}" autocomplete="off" oninput="renderSuppliers()">
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('inventory.name') }}</th>
+            <th>{{ t('inventory.category') }}</th>
+            <th>{{ t('common.phone') }}</th>
+            <th>{{ t('common.email') }}</th>
+            <th>{{ t('common.address') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="suppliers-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="suppliers-empty" style="display:none;">
+      <div class="empty-icon">🚚</div>
+      <div>{{ t('inventory.noSuppliers') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Supplier Modal ===== -->
+<div class="modal-overlay" id="supplier-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="supplier-modal-title">{{ t('inventory.addSupplier') }}</div>
+      <button class="icon-btn modal-close" onclick="closeSupplierModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="supplier-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('inventory.name') }} *</label>
+          <input type="text" id="supplier-company">
+        </div>
+        <div class="form-group">
+          <label>{{ t('inventory.category') }}</label>
+          <input type="text" id="supplier-category">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.phone') }}</label>
+          <input type="text" id="supplier-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.email') }}</label>
+          <input type="text" id="supplier-email">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.address') }}</label>
+        <textarea id="supplier-address" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeSupplierModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory_suppliers.js') }}"></script>
+{% endblock %}

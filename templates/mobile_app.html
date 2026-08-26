@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{ system_name }} — Mobile</title>
+  <meta name="theme-color" content="#2563eb">
+  <link rel="manifest" href="/mobile/manifest.webmanifest">
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile/css/mobile.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    window.LANG = {{ lang|tojson }};
+    window.T = {{ translations_json|safe }};
+    window.CSRF_TOKEN = {{ csrf_token|tojson }};
+  </script>
+</head>
+<body class="m-app-body">
+  <header class="m-topbar">
+    <div class="m-topbar-title">
+      <span id="m-app-title">{{ t('mobile.appTitle') }}</span>
+      <span class="m-topbar-sub" id="m-user-name"></span>
+    </div>
+    <div class="m-topbar-actions">
+      <button class="m-icon-btn" id="m-notif-btn" onclick="toggleNotifPanel()">
+        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <span class="m-badge" id="m-notif-count" hidden>0</span>
+      </button>
+      <button class="m-icon-btn" onclick="doLogout()">
+        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="m-main" id="m-main">
+    <div class="m-loading" id="m-loading"><div class="m-spinner"></div></div>
+  </main>
+
+  <nav class="m-bottom-nav" id="m-bottom-nav" hidden>
+    <div id="m-nav-items"></div>
+  </nav>
+
+  <div class="m-notif-panel" id="m-notif-panel" hidden>
+    <div class="m-notif-head">
+      <strong>{{ t('mobile.notificationsTitle') }}</strong>
+      <button class="m-link" onclick="markAllRead()">{{ t('mobile.markAllRead') }}</button>
+    </div>
+    <div id="m-notif-list"></div>
+  </div>
+
+  <script src="{{ url_for('static', filename='mobile/js/mobile.js') }}"></script>
+</body>
+</html>

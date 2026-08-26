@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.costingTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-costing{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.costingTitle') }}</h1>
+    <p>{{ t('mf.costingSub') }}</p>
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon">🧱</div>
+    <div class="kpi-label">{{ t('mf.material') }}</div>
+    <div class="kpi-value" id="kpi-material">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🔧</div>
+    <div class="kpi-label">{{ t('mf.operation') }}</div>
+    <div class="kpi-value" id="kpi-operation">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">👷</div>
+    <div class="kpi-label">{{ t('mf.labor') }}</div>
+    <div class="kpi-value" id="kpi-labor">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🏢</div>
+    <div class="kpi-label">{{ t('mf.overhead') }}</div>
+    <div class="kpi-value" id="kpi-overhead">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">💵</div>
+    <div class="kpi-label">{{ t('mf.total') }}</div>
+    <div class="kpi-value" id="kpi-total" style="color:var(--primary);">0</div>
+  </div>
+</div>
+
+<!-- Costing Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.costingTitle') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.orderNumber') }}</th>
+            <th>{{ t('mf.product') }}</th>
+            <th>{{ t('mf.material') }}</th>
+            <th>{{ t('mf.operation') }}</th>
+            <th>{{ t('mf.labor') }}</th>
+            <th>{{ t('mf.overhead') }}</th>
+            <th>{{ t('mf.total') }}</th>
+            <th>{{ t('mf.unitCost') }}</th>
+            <th>{{ t('mf.variance') }}</th>
+          </tr>
+        </thead>
+        <tbody id="costing-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="costing-empty" style="display:none;">
+      <div class="empty-icon">💵</div>
+      <div id="costing-empty-text">{{ t('mf.noOrders') }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_costing.js') }}"></script>
+{% endblock %}

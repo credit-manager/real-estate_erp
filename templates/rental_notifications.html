@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('rentals.notificationsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}rentals-notifications{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('rentals.notificationsTitle') }}</h1>
+    <p>{{ t('rentals.notificationsSubtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="refreshNotifications()">{{ t('rentals.refreshNotifications') }}</button>
+  </div>
+</div>
+
+<div class="tabs-scroll" id="rental-tabs">
+  <a href="/rentals" class="tab-btn">{{ t('rentals.tabContracts') }}</a>
+  <a href="/rentals/tenants" class="tab-btn">{{ t('rentals.tabTenants') }}</a>
+  <a href="/rentals/renewals" class="tab-btn">{{ t('rentals.tabRenewals') }}</a>
+  <a href="/rentals/collections" class="tab-btn">{{ t('rentals.tabCollections') }}</a>
+  <a href="/rentals/notifications" class="tab-btn active">{{ t('rentals.tabNotifications') }}</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.notifDanger') }}</div><div class="kpi-value" id="notif-danger" style="color:var(--danger, #dc2626);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.notifWarning') }}</div><div class="kpi-value" id="notif-warning" style="color:var(--amber);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.notifInfo') }}</div><div class="kpi-value" id="notif-info" style="color:var(--primary);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div id="notifications-list" style="min-height:120px;">
+    <div class="loading"><div class="spinner"></div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rental_notifications.js') }}"></script>
+{% endblock %}

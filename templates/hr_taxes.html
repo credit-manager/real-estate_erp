@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.taxes') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-taxes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.taxes') }}</h1>
+    <p>{{ t('payroll.taxesSub') }}</p>
+  </div>
+  {% if can('payroll', 'edit') %}
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="saveSettings()">{{ t('common.save') }}</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.taxExempt') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="form-row" style="max-width:420px;">
+      <div class="form-group">
+        <label>{{ t('payroll.taxExempt') }}</label>
+        <input type="number" id="tax-exempt" step="0.01" min="0">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.taxes') }} <span class="card-count" id="brackets-count"></span></div>
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-sm btn-outline" onclick="openBracketModal()">{{ t('payroll.addBracket') }}</button>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('payroll.fromAmount') }}</th>
+            <th>{{ t('payroll.toAmount') }}</th>
+            <th>{{ t('payroll.rate') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="brackets-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="brackets-empty" style="display:none;">
+      <div class="empty-icon">🧾</div>
+      <div>{{ t('payroll.noBrackets') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bracket Modal -->
+<div class="modal-overlay" id="bracket-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="bracket-modal-title">{{ t('payroll.addBracket') }}</div>
+      <button class="icon-btn modal-close" onclick="closeBracketModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="bracket-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.fromAmount') }} *</label>
+          <input type="number" id="bracket-from" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.toAmount') }}</label>
+          <input type="number" id="bracket-to" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.rate') }} *</label>
+        <input type="number" id="bracket-rate" step="0.01" min="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeBracketModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveBracket()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_taxes.js') }}"></script>
+{% endblock %}

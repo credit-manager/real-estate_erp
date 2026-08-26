@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.units') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory-units{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.units') }}</h1>
+    <p>{{ t('inventory.unitsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('inventory', 'create') %}
+    <button class="btn btn-primary" onclick="openUnitModal()">{{ t('inventory.addUnit') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('inventory.units') }} <span class="card-count" id="units-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('inventory.name') }}</th>
+            <th>{{ t('inventory.code') }}</th>
+            <th>{{ t('inventory.itemsCount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="units-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="units-empty" style="display:none;">
+      <div class="empty-icon">📏</div>
+      <div>{{ t('inventory.noUnits') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Unit Modal ===== -->
+<div class="modal-overlay" id="unit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="unit-modal-title">{{ t('inventory.addUnit') }}</div>
+      <button class="icon-btn modal-close" onclick="closeUnitModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="unit-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('inventory.name') }} *</label>
+          <input type="text" id="unit-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('inventory.code') }}</label>
+          <input type="text" id="unit-code">
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('common.active') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="unit-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeUnitModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveUnit()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory_units.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.finReports') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.finReports') }}</h1>
+    <p>{{ t('accounting.finReportsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="exportReport()">{{ t('common.export') }}</button>
+    <button class="btn btn-primary" onclick="printReport()">{{ t('common.print') }}</button>
+  </div>
+</div>
+
+<!-- KPI summary -->
+<div class="kpi-grid" id="rep-kpis"></div>
+
+<!-- Report tabs -->
+<div class="tabs rep-tabs" id="rep-tabs">
+  <button class="tab-btn active" data-tab="tb">🧾 {{ t('accounting.trialBalance') }}</button>
+  <button class="tab-btn" data-tab="ledger">📒 {{ t('accounting.generalLedger') }}</button>
+  <button class="tab-btn" data-tab="pl">📈 {{ t('accounting.plReport') }}</button>
+  <button class="tab-btn" data-tab="bs">⚖️ {{ t('accounting.balanceSheet') }}</button>
+  <button class="tab-btn" data-tab="cf">💵 {{ t('accounting.cashFlow') }}</button>
+</div>
+
+<!-- Filters -->
+<div class="rep-filters" id="rep-filters">
+  <div class="rep-filter-item" id="rep-account-wrap" style="display:none;">
+    <label class="rep-filter-label">{{ t('accounting.selectAccount') }}</label>
+    <select id="rep-account" class="form-select"></select>
+  </div>
+  <div class="rep-filter-item" id="rep-year-wrap" style="display:none;">
+    <label class="rep-filter-label">{{ t('accounting.period') }}</label>
+    <select id="rep-year" class="form-select"></select>
+  </div>
+  <div class="rep-filter-item" id="rep-start-wrap" style="display:none;">
+    <label class="rep-filter-label">{{ t('accounting.fromDate') }}</label>
+    <input type="date" id="rep-start" class="form-input" onchange="renderActive()">
+  </div>
+  <div class="rep-filter-item" id="rep-end-wrap" style="display:none;">
+    <label class="rep-filter-label">{{ t('accounting.toDate') }}</label>
+    <input type="date" id="rep-end" class="form-input" onchange="renderActive()">
+  </div>
+</div>
+
+<!-- Report card -->
+<div class="card rep-card">
+  <div class="card-header rep-card-head">
+    <div>
+      <div class="rep-card-title" id="rep-title">{{ t('accounting.trialBalance') }}</div>
+      <div class="rep-card-sub" id="rep-meta"></div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-wrapper" id="report-body">
+      <div class="loading" style="padding:40px;"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="print-area" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_reports.js') }}"></script>
+{% endblock %}

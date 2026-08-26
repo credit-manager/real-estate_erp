@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ contract.contract_number }} | {{ system_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">{{ t('doc.print') }}</button>
+    <button class="btn-close" onclick="window.close()">{{ t('doc.close') }}</button>
+  </div>
+
+  <div class="doc">
+    <header class="doc-header">
+      <div class="brand">
+        <div class="brand-mark">
+          {% if system_logo %}<img src="{{ system_logo }}" alt="logo" style="width:52px;height:52px;border-radius:13px;object-fit:cover;">{% else %}DP{% endif %}
+        </div>
+        <div>
+          <div class="brand-name">{{ system_name }}</div>
+          <div class="brand-sub">{{ t('app.subtitle') }}</div>
+        </div>
+      </div>
+      <div class="doc-title">
+        <h1>{{ t('doc.contract') }}</h1>
+        <div class="doc-no">{{ contract.contract_number }}</div>
+      </div>
+    </header>
+
+    <section class="doc-meta">
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.status') }}</div>
+        <div class="value">{{ t('status.' ~ contract.status) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.startDate') }}</div>
+        <div class="value">{{ fmt(contract.start_date) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.endDate') }}</div>
+        <div class="value">{{ fmt(contract.end_date) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.contractValue') }}</div>
+        <div class="value">{{ money(contract.value) }}</div>
+      </div>
+    </section>
+
+    <section class="doc-parties">
+      <div class="party-box">
+        <div class="party-label">{{ t('doc.firstParty') }}</div>
+        <div class="party-name">{{ system_name }}</div>
+        <div class="party-line">{{ t('doc.companyInfo') }}</div>
+      </div>
+      <div class="party-box">
+        <div class="party-label">{{ t('doc.secondParty') }}</div>
+        {% if contract.customer %}
+        <div class="party-name">{{ contract.customer.full_name }}</div>
+        {% if contract.customer.phone %}<div class="party-line">{{ t('common.phone') }}: {{ contract.customer.phone }}</div>{% endif %}
+        {% if contract.customer.email %}<div class="party-line">{{ contract.customer.email }}</div>{% endif %}
+        {% if contract.customer.address %}<div class="party-line">{{ contract.customer.address }}</div>{% endif %}
+        {% else %}
+        <div class="party-line">—</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="contract-clause">
+      <h3>{{ t('doc.contractDetails') }}</h3>
+      <p>{{ contract.title or "—" }}</p>
+      {% if contract.quote %}
+      <p>{{ t('doc.quoteNo') }}: {{ contract.quote.quote_number }}</p>
+      {% endif %}
+      {% if contract.notes %}
+      <p>{{ t('doc.notes') }}: {{ contract.notes }}</p>
+      {% endif %}
+    </section>
+
+    <footer class="doc-sign">
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.firstPartySign') }}</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('doc.secondPartySign') }}</div>
+      </div>
+    </footer>
+
+    <div class="doc-footer">{% if doc_footer_text %}{{ doc_footer_text }} — {% endif %}{{ system_name }} — {{ t('doc.generated') }} {{ fmt(contract.created_at.date() if contract.created_at else None) }}</div>
+  </div>
+
+  <script>window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 350); });</script>
+</body>
+</html>

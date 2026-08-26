@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.attendance') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-attendance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.attendance') }}</h1>
+    <p>{{ t('hr.attendanceSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openAttModal()">{{ t('hr.addAttendance') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar" style="margin-bottom:16px;">
+  <input type="date" id="filter-att-date" onchange="loadAttendance()">
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.attendance') }} <span class="card-count" id="att-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.attDate') }}</th>
+            <th>{{ t('hr.checkIn') }}</th>
+            <th>{{ t('hr.checkOut') }}</th>
+            <th>{{ t('hr.workingHours') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="att-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="att-empty" style="display:none;">
+      <div class="empty-icon">⏰</div>
+      <div>{{ t('hr.noAttendance') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Modal -->
+<div class="modal-overlay" id="att-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="att-modal-title">{{ t('hr.addAttendance') }}</div>
+      <button class="icon-btn modal-close" onclick="closeAttModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="att-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="att-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.attDate') }}</label>
+          <input type="date" id="att-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="att-status">
+            <option value="present">{{ t('hr.attPresent') }}</option>
+            <option value="absent">{{ t('hr.attAbsent') }}</option>
+            <option value="late">{{ t('hr.attLate') }}</option>
+            <option value="on_leave">{{ t('hr.attOnLeave') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.checkIn') }}</label>
+          <input type="time" id="att-check-in">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.checkOut') }}</label>
+          <input type="time" id="att-check-out">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.workingHours') }}</label>
+        <input type="number" id="att-hours" step="0.5" min="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="att-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAttModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveAttendance()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_attendance.js') }}"></script>
+{% endblock %}

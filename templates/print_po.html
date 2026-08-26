@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ po.po_number }} | {{ system_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn-print" onclick="window.print()">{{ t('doc.print') }}</button>
+    <button class="btn-close" onclick="window.close()">{{ t('doc.close') }}</button>
+  </div>
+
+  <div class="doc">
+    <header class="doc-header">
+      <div class="brand">
+        <div class="brand-mark">
+          {% if system_logo %}<img src="{{ system_logo }}" alt="logo" style="width:52px;height:52px;border-radius:13px;object-fit:cover;">{% else %}DP{% endif %}
+        </div>
+        <div>
+          <div class="brand-name">{{ system_name }}</div>
+          <div class="brand-sub">{{ t('app.subtitle') }}</div>
+        </div>
+      </div>
+      <div class="doc-title">
+        <h1>{{ t('po.printTitle') }}</h1>
+        <div class="doc-no">{{ po.po_number }}</div>
+      </div>
+    </header>
+
+    <section class="doc-meta">
+      <div class="meta-cell">
+        <div class="label">{{ t('po.orderDate') }}</div>
+        <div class="value">{{ fmt(po.order_date) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('po.deliveryDate') }}</div>
+        <div class="value">{{ fmt(po.delivery_date) }}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="label">{{ t('doc.status') }}</div>
+        <div class="value">{{ t('status.' ~ po.status) }}</div>
+      </div>
+      {% if po.approval_status and po.approval_status != 'not_required' %}
+      <div class="meta-cell">
+        <div class="label">{{ t('workflow.title') }}</div>
+        <div class="value">
+          {% if po.approval_status == 'approved' %}{{ t('workflow.statusApproved') }}
+          {% elif po.approval_status == 'rejected' %}{{ t('workflow.statusRejected') }}
+          {% else %}{{ t('workflow.statusPending') }}{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="meta-cell">
+        <div class="label">{{ t('po.projectLabel') }}</div>
+        <div class="value">{{ project_name or '—' }}</div>
+      </div>
+      {% if po.financial_year %}
+      <div class="meta-cell">
+        <div class="label">{{ t('financialYears.year') }}</div>
+        <div class="value">{{ po.financial_year.name }}</div>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="doc-parties">
+      <div class="party-box">
+        <div class="party-label">{{ t('po.supplierLabel') }}</div>
+        {% if supplier %}
+        <div class="party-name">{{ supplier.company_name }}</div>
+        {% if supplier.contact_name %}<div class="party-line">{{ t('common.contact') }}: {{ supplier.contact_name }}</div>{% endif %}
+        {% if supplier.phone %}<div class="party-line">{{ t('common.phone') }}: {{ supplier.phone }}</div>{% endif %}
+        {% if supplier.email %}<div class="party-line">{{ supplier.email }}</div>{% endif %}
+        {% else %}
+        <div class="party-line">—</div>
+        {% endif %}
+      </div>
+      <div class="party-box">
+        <div class="party-label">{{ t('doc.issuedBy') }}</div>
+        <div class="party-name">{{ system_name }}</div>
+        <div class="party-line">{{ t('doc.companyInfo') }}</div>
+      </div>
+    </section>
+
+    {% if items %}
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:4%;">{{ t('doc.colNo') }}</th>
+          <th style="width:44%;">{{ t('doc.description') }}</th>
+          <th>{{ t('doc.qty') }}</th>
+          <th>{{ t('doc.price') }}</th>
+          <th>{{ t('doc.tax') }}</th>
+          <th>{{ t('doc.total') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td>{{ it.description }}{% if loop.first and project_name %} <span style="color:var(--doc-muted);">— {{ project_name }}</span>{% endif %}</td>
+          <td class="num">{{ money(it.quantity) }}</td>
+          <td class="num">{{ money(it.unit_price) }}</td>
+          <td class="num">{{ money(it.tax) }}</td>
+          <td class="num">{{ money(it.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="4">{{ t('doc.subtotal') }}</td>
+          <td class="num" colspan="2">{{ money(subtotal) }}</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="4">{{ t('doc.totalTax') }}</td>
+          <td class="num" colspan="2">{{ money(total_tax) }}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="border-top:2px solid var(--doc-ink);">{{ t('doc.grandTotal') }}</td>
+          <td class="num" colspan="2" style="border-top:2px solid var(--doc-ink);">{{ money(po.total) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+    {% else %}
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:52%;">{{ t('doc.description') }}</th>
+          <th>{{ t('common.total') }}</th>
+          <th>{{ t('doc.status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ po.items_description or t('doc.generalItem') }}{% if project_name %} <span style="color:var(--doc-muted);">— {{ project_name }}</span>{% endif %}</td>
+          <td class="num">{{ money(po.total) }}</td>
+          <td>{{ t('status.' ~ po.status) }}</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td>{{ t('doc.total') }}</td>
+          <td class="num">{{ money(po.total) }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    {% endif %}
+
+    {% if po.items_description %}
+    <section class="doc-terms">
+      <strong>{{ t('common.description') }}</strong>
+      <p>{{ po.items_description }}</p>
+    </section>
+    {% endif %}
+
+    <footer class="doc-sign">
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('po.approvedBy') }}</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line"></div>
+        <div class="sign-label">{{ t('po.supplierSign') }}</div>
+      </div>
+    </footer>
+
+    <div class="doc-footer">{% if doc_footer_text %}{{ doc_footer_text }} — {% endif %}{{ system_name }} — {{ t('doc.generated') }} {{ fmt(po.created_at.date() if po.created_at else None) }}</div>
+  </div>
+
+  <script>window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 350); });</script>
+</body>
+</html>

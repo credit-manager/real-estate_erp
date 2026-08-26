@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('financialYears.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}financial-years{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('financialYears.title') }}</h1>
+    <p>{{ t('financialYears.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('financial_years', 'create') %}
+    <button class="btn btn-primary" onclick="openYearModal()">{{ t('financialYears.addYear') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon">🗓️</div>
+    <div class="kpi-label">{{ t('financialYears.kpiTotal') }}</div>
+    <div class="kpi-value" id="kpi-total">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">✅</div>
+    <div class="kpi-label">{{ t('financialYears.kpiOpen') }}</div>
+    <div class="kpi-value" id="kpi-open" style="color:var(--success);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🔒</div>
+    <div class="kpi-label">{{ t('financialYears.kpiClosed') }}</div>
+    <div class="kpi-value" id="kpi-closed" style="color:var(--red);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">📄</div>
+    <div class="kpi-label">{{ t('financialYears.kpiDocs') }}</div>
+    <div class="kpi-value" id="kpi-docs">0</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="companies-toolbar">
+  <select id="filter-company" class="fy-filter">
+    <option value="">{{ t('financialYears.selectCompany') }}</option>
+  </select>
+</div>
+
+<!-- Years Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('financialYears.yearList') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('financialYears.name') }}</th>
+            <th>{{ t('financialYears.company') }}</th>
+            <th>{{ t('financialYears.startDate') }} / {{ t('financialYears.endDate') }}</th>
+            <th>{{ t('financialYears.status') }}</th>
+            <th>{{ t('financialYears.documents') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="years-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="years-empty" style="display:none;">
+      <div class="empty-icon">🗓️</div>
+      <div id="years-empty-text">{{ t('financialYears.noYears') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Year Modal -->
+<div class="modal-overlay" id="year-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="year-modal-title">{{ t('financialYears.addYear') }}</div>
+      <button class="icon-btn modal-close" onclick="closeYearModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="year-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('financialYears.company') }} *</label>
+          <select id="year-company"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('financialYears.name') }} *</label>
+          <input type="text" id="year-name" placeholder="{{ t('financialYears.namePlaceholder') }}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('financialYears.startDate') }} *</label>
+          <input type="date" id="year-start">
+        </div>
+        <div class="form-group">
+          <label>{{ t('financialYears.endDate') }} *</label>
+          <input type="date" id="year-end">
+        </div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('financialYears.currentYear') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="year-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeYearModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveYear()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Documents Modal -->
+<div class="modal-overlay" id="docs-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="docs-modal-title">{{ t('financialYears.documentsSummary') }}</div>
+      <button class="icon-btn modal-close" onclick="closeDocsModal()">✕</button>
+    </div>
+    <div class="modal-body" id="docs-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeDocsModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/financial_years.js') }}"></script>
+{% endblock %}

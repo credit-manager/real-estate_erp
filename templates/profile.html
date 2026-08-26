@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('profile.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}profile{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('profile.title') }}</h1>
+    <p>{{ t('profile.subtitle') }}</p>
+  </div>
+</div>
+
+<div class="profile-card card">
+  <div class="profile-avatar">{{ user.full_name[0] if user.full_name else 'DP' }}</div>
+  <div class="profile-info">
+    <h2 class="profile-name">{{ user.full_name }}</h2>
+    <div class="profile-meta">
+      <span class="badge {{ 'badge-info' if user.role == 'admin' else 'badge-neutral' }}">
+        {{ t('users.roleAdmin') if user.role == 'admin' else t('users.roleEmployee') }}
+      </span>
+      <span class="profile-username">@{{ user.username }}</span>
+    </div>
+    <p class="profile-since">{{ t('profile.memberSince') }} {{ user.created_at.strftime('%Y-%m-%d') if user.created_at }}</p>
+  </div>
+</div>
+
+<div class="profile-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('profile.personalInfo') }}</div>
+      <div class="card-subtitle">{{ t('profile.personalInfoSub') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>{{ t('profile.fullName') }} *</label>
+        <input type="text" id="pf-name" value="{{ user.full_name }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('profile.email') }}</label>
+        <input type="email" id="pf-email" value="{{ user.email }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('profile.username') }}</label>
+        <input type="text" value="{{ user.username }}" disabled>
+        <div class="form-hint">{{ t('profile.usernameHint') }}</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary" onclick="saveProfile()">{{ t('profile.saveChanges') }}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('profile.changePassword') }}</div>
+      <div class="card-subtitle">{{ t('profile.changePasswordSub') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>{{ t('profile.currentPassword') }} *</label>
+        <div class="pw-wrap">
+          <input type="password" id="pf-current" autocomplete="current-password">
+          <button type="button" class="pw-toggle" tabindex="-1" aria-label="Toggle password visibility">
+            <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('profile.newPassword') }} *</label>
+        <div class="pw-wrap">
+          <input type="password" id="pf-new" autocomplete="new-password">
+          <button type="button" class="pw-toggle" tabindex="-1" aria-label="Toggle password visibility">
+            <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('profile.confirmPassword') }} *</label>
+        <div class="pw-wrap">
+          <input type="password" id="pf-confirm" autocomplete="new-password">
+          <button type="button" class="pw-toggle" tabindex="-1" aria-label="Toggle password visibility">
+            <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="form-hint">{{ t('profile.passwordHint') }}</div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary" onclick="changePassword()">{{ t('profile.updatePassword') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+{% endblock %}

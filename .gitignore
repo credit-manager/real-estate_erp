@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Secrets — لا ترفع المفاتيح أو الشهادات أبداً
+.secret_key
+.db_password
+certs/
+*.pem
+*.key
+*.crt
+
+# سجلات التشغيل
+*.log
+
+# قاعدة البيانات المحلية
+*.db
+*.sqlite3
+*.sqlite
+
+# البناء والتعبئة (PyInstaller / Inno Setup)
+build/
+dist/
+*.spec.bak
+installer_work/
+
+# ملفات التثبيت والإصدارات النهائية
+*.zip
+*.exe
+
+# بيئة التحرير
+.idea/
+.vscode/
+*.swp
+
+# أدوات opencode (مهارات ومراجع — ليست من كود التطبيق)
+.opencode/
+
+# نظام التشغيل
+Thumbs.db
+Desktop.ini
+
+# ملفات تطوير مؤقتة
+dev_scripts/logs/
+*.log.*
+uploads/tmp/

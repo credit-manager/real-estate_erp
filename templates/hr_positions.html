@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.positions') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-positions{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.positions') }}</h1>
+    <p>{{ t('hr.positionsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openPosModal()">{{ t('hr.addPosition') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.positions') }} <span class="card-count" id="positions-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.posName') }}</th>
+            <th>{{ t('hr.posCode') }}</th>
+            <th>{{ t('hr.employeesCount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="positions-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="positions-empty" style="display:none;">
+      <div class="empty-icon">💼</div>
+      <div>{{ t('hr.noPositions') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Position Modal -->
+<div class="modal-overlay" id="pos-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="pos-modal-title">{{ t('hr.addPosition') }}</div>
+      <button class="icon-btn modal-close" onclick="closePosModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pos-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.posName') }} *</label>
+          <input type="text" id="pos-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.posCode') }}</label>
+          <input type="text" id="pos-code">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.posDescription') }}</label>
+        <textarea id="pos-description" rows="2"></textarea>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-row-title">{{ t('hr.posActive') }}</div></div>
+        <label class="switch">
+          <input type="checkbox" id="pos-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closePosModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="savePosition()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_positions.js') }}"></script>
+{% endblock %}

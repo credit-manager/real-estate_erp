@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('rentals.renewalsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}rentals-renewals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('rentals.renewalsTitle') }}</h1>
+    <p>{{ t('rentals.renewalsSubtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('rentals', 'create') %}
+    <button class="btn btn-primary" onclick="openRenewalModal()">{{ t('rentals.newRenewal') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportRenewals()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="tabs-scroll" id="rental-tabs">
+  <a href="/rentals" class="tab-btn">{{ t('rentals.tabContracts') }}</a>
+  <a href="/rentals/tenants" class="tab-btn">{{ t('rentals.tabTenants') }}</a>
+  <a href="/rentals/renewals" class="tab-btn active">{{ t('rentals.tabRenewals') }}</a>
+  <a href="/rentals/collections" class="tab-btn">{{ t('rentals.tabCollections') }}</a>
+  <a href="/rentals/notifications" class="tab-btn">{{ t('rentals.tabNotifications') }}</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.renewalsTotal') }}</div><div class="kpi-value" id="renewal-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.renewalsActive') }}</div><div class="kpi-value" id="renewal-active" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.renewalsUpcoming') }}</div><div class="kpi-value" id="renewal-upcoming" style="color:var(--amber);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('rentals.colNumber') }}</th>
+          <th>{{ t('rentals.renewalContract') }}</th>
+          <th>{{ t('common.customer') }}</th>
+          <th>{{ t('common.unit') }}</th>
+          <th>{{ t('rentals.previousEnd') }}</th>
+          <th>{{ t('rentals.newEnd') }}</th>
+          <th>{{ t('rentals.previousRent') }}</th>
+          <th>{{ t('rentals.newRent') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="renewals-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Renewal Modal -->
+<div class="modal-overlay" id="renewal-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('rentals.newRenewal') }}</h3>
+      <button class="modal-close" onclick="closeRenewalModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('rentals.renewalContract') }} *</label>
+        <select id="renewal-contract">
+          <option value="">{{ t('rentals.selectContract') }}</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.previousEnd') }}</label>
+          <input type="date" id="renewal-prev-end" disabled>
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.newEnd') }} *</label>
+          <input type="date" id="renewal-new-end">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.previousRent') }}</label>
+          <input type="number" id="renewal-prev-rent" min="0" step="0.01" disabled>
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.newRent') }}</label>
+          <input type="number" id="renewal-new-rent" min="0" step="0.01" placeholder="0.00">
+          <small class="form-hint" id="renewal-escalation-hint" style="display:none;"></small>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('rentals.renewalNotes') }}</label>
+        <textarea id="renewal-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveRenewal()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeRenewalModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/rental_renewals.js') }}"></script>
+{% endblock %}

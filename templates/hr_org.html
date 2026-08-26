@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.orgChart') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-org{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.orgChart') }}</h1>
+    <p>{{ t('hr.orgChartSub') }}</p>
+  </div>
+</div>
+
+<div id="org-chart"></div>
+<div class="empty-state" id="org-empty" style="display:none;">
+  <div class="empty-icon">🌳</div>
+  <div>{{ t('hr.orgNoDepts') }}</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_org.js') }}"></script>
+{% endblock %}

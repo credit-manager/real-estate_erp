@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('assets.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}assets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('assets.title') }}</h1>
+    <p>{{ t('assets.subtitle') }}</p>
+  </div>
+</div>
+
+<div class="kpi-grid" style="margin-top:16px;">
+  <div class="kpi-card">
+    <div class="kpi-icon" style="background:rgba(59,130,246,.12);color:#3b82f6;">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+    </div>
+    <div>
+      <div class="kpi-value" id="kpi-assets">0</div>
+      <div class="kpi-label">{{ t('assets.kpiAssets') }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon" style="background:rgba(16,185,129,.12);color:#10b981;">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M22 9V7h-2V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v2H2v2h2v2H2v2h2v2H2v2h2v2c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2v-2h-2V9h2zM6 5h12v14H6V5zm2 3v2h3V8H8zm5 0v2h3V8h-3zM8 12v2h3v-2H8zm5 0v2h3v-2h-3zM8 16v2h3v-2H8zm5 0v2h3v-2h-3z"/></svg>
+    </div>
+    <div>
+      <div class="kpi-value" id="kpi-equipment">0</div>
+      <div class="kpi-label">{{ t('assets.kpiEquipment') }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon" style="background:rgba(245,158,11,.12);color:#f59e0b;">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M19 14v-2h-6V8h4V6h-4V2h-2v4H7v2h4v4H5v2h6v6h2v-6h6z"/></svg>
+    </div>
+    <div>
+      <div class="kpi-value" id="kpi-maintenance">0</div>
+      <div class="kpi-label">{{ t('assets.kpiMaintenance') }}</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon" style="background:rgba(139,92,246,.12);color:#8b5cf6;">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    </div>
+    <div>
+      <div class="kpi-value" id="kpi-custody">0</div>
+      <div class="kpi-label">{{ t('assets.kpiCustody') }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <h3>{{ t('assets.quickLinks') }}</h3>
+  </div>
+  <div class="quick-links-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:16px;">
+    <a href="/assets/assets" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">🏢</span>
+      <div>
+        <strong>{{ t('assets.registry') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.registrySub') }}</div>
+      </div>
+    </a>
+    <a href="/assets/equipment" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">⚙️</span>
+      <div>
+        <strong>{{ t('assets.equipment') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.equipmentSub') }}</div>
+      </div>
+    </a>
+    <a href="/assets/maintenance" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">🔧</span>
+      <div>
+        <strong>{{ t('assets.maintenance') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.maintenanceSub') }}</div>
+      </div>
+    </a>
+    <a href="/assets/movements" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">🔄</span>
+      <div>
+        <strong>{{ t('assets.movements') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.movementsSub') }}</div>
+      </div>
+    </a>
+    <a href="/assets/custody" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">📋</span>
+      <div>
+        <strong>{{ t('assets.custody') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.custodySub') }}</div>
+      </div>
+    </a>
+    <a href="/assets/depreciation" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:.2s;">
+      <span style="font-size:24px;">📉</span>
+      <div>
+        <strong>{{ t('assets.depreciation') }}</strong>
+        <div style="font-size:12px;color:var(--muted);">{{ t('assets.depreciationSub') }}</div>
+      </div>
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/assets.js') }}"></script>
+{% endblock %}

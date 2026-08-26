@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.operationsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-operations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.operationsTitle') }}</h1>
+    <p>{{ t('mf.operationsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('manufacturing', 'create') %}
+    <button class="btn btn-primary" onclick="openOperationModal()">{{ t('mf.addOperation') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Operations Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.operationsTitle') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.orderNumber') }}</th>
+            <th>{{ t('mf.operationName') }}</th>
+            <th>{{ t('mf.workCenter') }}</th>
+            <th>{{ t('mf.plannedHours') }}</th>
+            <th>{{ t('mf.actualHours') }}</th>
+            <th>{{ t('mf.operationCost') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="operations-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="operations-empty" style="display:none;">
+      <div class="empty-icon">🔧</div>
+      <div id="operations-empty-text">{{ t('mf.noOperations') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Operation Modal -->
+<div class="modal-overlay" id="operation-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="operation-modal-title">{{ t('mf.addOperation') }}</div>
+      <button class="icon-btn modal-close" onclick="closeOperationModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="operation-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.selectOrder') }} *</label>
+          <select id="operation-order"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.selectWorkCenter') }}</label>
+          <select id="operation-work-center"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('mf.operationName') }} *</label>
+        <input type="text" id="operation-name" maxlength="150">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.startDate') }}</label>
+          <input type="date" id="operation-start-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.dueDate') }}</label>
+          <input type="date" id="operation-end-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.plannedHours') }}</label>
+          <input type="number" id="operation-planned-hours" step="any" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.actualHours') }}</label>
+          <input type="number" id="operation-actual-hours" step="any" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.laborCost') }}</label>
+          <input type="number" id="operation-labor-cost" step="any" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="operation-status">
+            <option value="pending">{{ t('mf.status.pending') }}</option>
+            <option value="in_progress">{{ t('mf.status.in_progress') }}</option>
+            <option value="completed">{{ t('mf.status.completed') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="operation-notes" maxlength="300">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeOperationModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveOperation()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_operations.js') }}"></script>
+{% endblock %}

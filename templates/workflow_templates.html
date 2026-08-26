@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('workflow.templatesTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}workflow-templates{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('workflow.templatesTitle') }}</h1>
+    <p>{{ t('workflow.templatesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <a href="/workflow/approvals" class="btn btn-outline">{{ t('workflow.backToApprovals') }}</a>
+    <button class="btn btn-primary" onclick="openTemplateModal()">{{ t('workflow.newTemplate') }}</button>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('workflow.templateName') }}</th>
+          <th>{{ t('workflow.docType') }}</th>
+          <th>{{ t('workflow.steps') }}</th>
+          <th>{{ t('workflow.templateActive') }}</th>
+          <th>{{ t('workflow.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="templates-table">
+        <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="template-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="template-modal-title">{{ t('workflow.newTemplate') }}</h3>
+      <button class="modal-close" onclick="closeTemplateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="tpl-name">{{ t('workflow.templateName') }}</label>
+        <input type="text" id="tpl-name">
+      </div>
+      <div class="form-group">
+        <label for="tpl-doctype">{{ t('workflow.docType') }}</label>
+        <select id="tpl-doctype">
+          <option value="invoice">{{ t('workflow.docInvoice') }}</option>
+          <option value="po">{{ t('workflow.docPo') }}</option>
+          <option value="rental_contract">{{ t('workflow.docRental') }}</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('workflow.templateActive') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="tpl-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>{{ t('workflow.steps') }}</label>
+        <div id="tpl-steps"></div>
+        <button type="button" class="btn btn-outline" style="margin-top:8px;" onclick="addStepRow()">{{ t('workflow.addStep') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeTemplateModal()">{{ t('workflow.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveTemplate()">{{ t('workflow.saveTemplate') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workflow_templates.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('currencies.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}currencies{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('currencies.title') }}</h1>
+    <p>{{ t('currencies.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('currencies', 'create') %}
+    <button class="btn btn-primary" onclick="openCurrencyModal()">{{ t('currencies.add') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon">💱</div>
+    <div class="kpi-label">{{ t('currencies.kpiTotal') }}</div>
+    <div class="kpi-value" id="kpi-total">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">⭐</div>
+    <div class="kpi-label">{{ t('currencies.kpiBase') }}</div>
+    <div class="kpi-value" id="kpi-base" style="color:var(--primary);">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">✅</div>
+    <div class="kpi-label">{{ t('currencies.kpiActive') }}</div>
+    <div class="kpi-value" id="kpi-active" style="color:var(--success);">0</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="companies-toolbar">
+  <select id="filter-company" class="fy-filter">
+    <option value="">{{ t('currencies.selectCompany') }}</option>
+  </select>
+</div>
+
+<!-- Currencies Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('currencies.list') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('currencies.code') }}</th>
+            <th>{{ t('currencies.company') }}</th>
+            <th>{{ t('currencies.name') }}</th>
+            <th>{{ t('currencies.symbol') }}</th>
+            <th>{{ t('currencies.rate') }}</th>
+            <th>{{ t('currencies.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="currencies-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="currencies-empty" style="display:none;">
+      <div class="empty-icon">💱</div>
+      <div id="currencies-empty-text">{{ t('currencies.noCurrencies') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Currency Modal -->
+<div class="modal-overlay" id="currency-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="currency-modal-title">{{ t('currencies.add') }}</div>
+      <button class="icon-btn modal-close" onclick="closeCurrencyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="currency-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('currencies.company') }} *</label>
+          <select id="currency-company"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('currencies.code') }} *</label>
+          <input type="text" id="currency-code" placeholder="{{ t('currencies.codePlaceholder') }}" maxlength="10">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('currencies.name') }} *</label>
+          <input type="text" id="currency-name" placeholder="{{ t('currencies.namePlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('currencies.symbol') }}</label>
+          <input type="text" id="currency-symbol" placeholder="{{ t('currencies.symbolPlaceholder') }}" maxlength="10">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('currencies.rate') }} *</label>
+        <input type="number" id="currency-rate" step="any" min="0.000001" value="1">
+        <div class="table-sub">{{ t('currencies.rateHint') }}</div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('currencies.base') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="currency-base">
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCurrencyModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveCurrency()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/currencies.js') }}"></script>
+{% endblock %}

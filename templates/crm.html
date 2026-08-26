@@ -1,0 +1,562 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.crm') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}crm{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('nav.crm') }}</h1>
+    <p>{{ t('crm.pipelineDesc') }}</p>
+  </div>
+</div>
+
+<!-- Summary KPI Cards -->
+<div class="kpi-grid" id="crm-summary" style="grid-template-columns:repeat(6,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryCustomers') }}</div><div class="kpi-value" id="kpi-customers">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryLeads') }}</div><div class="kpi-value" id="kpi-leads">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryOpportunities') }}</div><div class="kpi-value" id="kpi-opportunities">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryPipeline') }}</div><div class="kpi-value" id="kpi-pipeline" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryWon') }}</div><div class="kpi-value" id="kpi-won" style="color:var(--info);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryFollowUps') }}</div><div class="kpi-value" id="kpi-followups">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryQuotes') }}</div><div class="kpi-value" id="kpi-quotes">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryContracts') }}</div><div class="kpi-value" id="kpi-contracts" style="color:var(--amber);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryComplaints') }}</div><div class="kpi-value" id="kpi-complaints" style="color:var(--danger);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryTickets') }}</div><div class="kpi-value" id="kpi-tickets" style="color:var(--danger);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryMeetingsToday') }}</div><div class="kpi-value" id="kpi-meetings">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('crm.summaryOverdue') }}</div><div class="kpi-value" id="kpi-overdue" style="color:var(--danger);">0</div></div>
+</div>
+
+<!-- Scroll Links -->
+<div class="tabs-scroll" id="crm-tabs" style="margin-top:16px;">
+  <a href="#crm-customers" class="tab-btn">{{ t('crm.tabCustomers') }}</a>
+  <a href="#crm-leads" class="tab-btn">{{ t('crm.tabLeads') }}</a>
+  <a href="#crm-opportunities" class="tab-btn">{{ t('crm.tabOpportunities') }}</a>
+  <a href="#crm-pipeline" class="tab-btn">{{ t('crm.tabPipeline') }}</a>
+  <a href="#crm-calls" class="tab-btn">{{ t('crm.tabCalls') }}</a>
+  <a href="#crm-meetings" class="tab-btn">{{ t('crm.tabMeetings') }}</a>
+  <a href="#crm-tasks" class="tab-btn">{{ t('crm.tabTasks') }}</a>
+  <a href="#crm-campaigns" class="tab-btn">{{ t('crm.tabCampaigns') }}</a>
+  <a href="#crm-followups" class="tab-btn">{{ t('crm.tabFollowUps') }}</a>
+  <a href="#crm-quotes" class="tab-btn">{{ t('crm.tabQuotes') }}</a>
+  <a href="#crm-contracts" class="tab-btn">{{ t('crm.tabContracts') }}</a>
+  <a href="#crm-complaints" class="tab-btn">{{ t('crm.tabComplaints') }}</a>
+  <a href="#crm-tickets" class="tab-btn">{{ t('crm.tabTickets') }}</a>
+</div>
+
+<!-- ==================== CUSTOMERS ==================== -->
+<div class="tab-content" id="crm-customers">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabCustomers') }}</h2><p>{{ t('crm.tabCustomers') }}</p></div>
+    <div class="page-actions">{% if can('sales', 'create') %}<button class="btn btn-primary" onclick="openCustomerModal()">{{ t('crm.new') }} {{ t('crm.tabCustomers') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.fullName') }}</th><th>{{ t('crm.phone') }}</th><th>{{ t('crm.email') }}</th><th>{{ t('crm.company') }}</th><th>{{ t('crm.type') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="customers-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== LEADS ==================== -->
+<div class="tab-content" id="crm-leads">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabLeads') }}</h2><p>{{ t('crm.tabLeads') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openLeadModal()">{{ t('crm.addLead') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.fullName') }}</th><th>{{ t('crm.phone') }}</th><th>{{ t('crm.company') }}</th><th>{{ t('crm.source') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.budget') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="leads-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== OPPORTUNITIES ==================== -->
+<div class="tab-content" id="crm-opportunities">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabOpportunities') }}</h2><p>{{ t('crm.tabOpportunities') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openOpportunityModal()">{{ t('crm.addOpportunity') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.opportunityTitle') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.amount') }}</th><th>{{ t('crm.stage') }}</th><th>{{ t('crm.probability') }}</th><th>{{ t('crm.expectedCloseDate') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="opportunities-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== PIPELINE ==================== -->
+<div class="tab-content" id="crm-pipeline">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabPipeline') }}</h2><p>{{ t('crm.pipelineDesc') }}</p></div>
+    <div class="page-actions">
+      {% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openOpportunityModal()">{{ t('crm.addOpportunity') }}</button>{% endif %}
+      {% if can('crm', 'create') %}<button class="btn btn-outline" onclick="openStageModal()">{{ t('crm.addStage') }}</button>{% endif %}
+    </div>
+  </div>
+  <div id="pipeline-board" class="pipeline-board"></div>
+</div>
+
+<!-- ==================== CALLS ==================== -->
+<div class="tab-content" id="crm-calls">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabCalls') }}</h2><p>{{ t('crm.tabCalls') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openCallModal()">{{ t('crm.addCall') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.direction') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.tabLeads') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.callDate') }}</th><th>{{ t('crm.duration') }}</th><th>{{ t('crm.followUpDate') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="calls-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== MEETINGS ==================== -->
+<div class="tab-content" id="crm-meetings">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabMeetings') }}</h2><p>{{ t('crm.tabMeetings') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openMeetingModal()">{{ t('crm.addMeeting') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.meetingTitle') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.tabLeads') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.meetingDate') }}</th><th>{{ t('crm.location') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="meetings-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== TASKS ==================== -->
+<div class="tab-content" id="crm-tasks">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabTasks') }}</h2><p>{{ t('crm.tabTasks') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openTaskModal()">{{ t('crm.addTask') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.taskTitle') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.tabOpportunities') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.dueDate') }}</th><th>{{ t('crm.priority') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="tasks-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== CAMPAIGNS ==================== -->
+<div class="tab-content" id="crm-campaigns">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabCampaigns') }}</h2><p>{{ t('crm.tabCampaigns') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openCampaignModal()">{{ t('crm.addCampaign') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.campaignName') }}</th><th>{{ t('crm.channel') }}</th><th>{{ t('crm.startDate') }}</th><th>{{ t('crm.endDate') }}</th><th>{{ t('crm.budget') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.leadsCount') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="campaigns-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== FOLLOW-UPS ==================== -->
+<div class="tab-content" id="crm-followups">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabFollowUps') }}</h2><p>{{ t('crm.tabFollowUps') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openFollowUpModal()">{{ t('crm.addFollowUp') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.tabOpportunities') }}</th><th>{{ t('crm.actionType') }}</th><th>{{ t('crm.followUpDate') }}</th><th>{{ t('crm.owner') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="followups-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== QUOTES ==================== -->
+<div class="tab-content" id="crm-quotes">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabQuotes') }}</h2><p>{{ t('crm.tabQuotes') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openQuoteModal()">{{ t('crm.addQuote') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.quoteNumber') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.quoteTitle') }}</th><th>{{ t('crm.validUntil') }}</th><th>{{ t('crm.total') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="quotes-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== CONTRACTS ==================== -->
+<div class="tab-content" id="crm-contracts">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabContracts') }}</h2><p>{{ t('crm.tabContracts') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openContractModal()">{{ t('crm.addContract') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.contractNumber') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.contractTitle') }}</th><th>{{ t('crm.startDate') }}</th><th>{{ t('crm.endDate') }}</th><th>{{ t('crm.value') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="contracts-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== COMPLAINTS ==================== -->
+<div class="tab-content" id="crm-complaints">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabComplaints') }}</h2><p>{{ t('crm.tabComplaints') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openComplaintModal()">{{ t('crm.addComplaint') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.complaintNumber') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.subject') }}</th><th>{{ t('crm.category') }}</th><th>{{ t('crm.priority') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('crm.assignedTo') }}</th><th>{{ t('crm.resolvedDate') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="complaints-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== TICKETS ==================== -->
+<div class="tab-content" id="crm-tickets">
+  <div class="page-header">
+    <div><h2>{{ t('crm.tabTickets') }}</h2><p>{{ t('crm.tabTickets') }}</p></div>
+    <div class="page-actions">{% if can('crm', 'create') %}<button class="btn btn-primary" onclick="openTicketModal()">{{ t('crm.addTicket') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('crm.ticketNumber') }}</th><th>{{ t('crm.tabCustomers') }}</th><th>{{ t('crm.subject') }}</th><th>{{ t('crm.category') }}</th><th>{{ t('crm.priority') }}</th><th>{{ t('crm.status') }}</th><th>{{ t('crm.assignedTo') }}</th><th>{{ t('crm.resolvedDate') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="tickets-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== CUSTOMER MODAL ==================== -->
+<div class="modal-overlay" id="customer-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="customer-modal-title">{{ t('crm.new') }} {{ t('crm.tabCustomers') }}</h3><button class="modal-close" onclick="closeModal('customer-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="customer-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.fullName') }} *</label><input type="text" id="customer-name"></div>
+        <div class="form-group"><label>{{ t('crm.type') }}</label><select id="customer-type"><option value="individual">{{ t('crm.individual') }}</option><option value="company">{{ t('crm.companyType') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.phone') }}</label><input type="text" id="customer-phone"></div>
+        <div class="form-group"><label>{{ t('crm.email') }}</label><input type="email" id="customer-email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.company') }}</label><input type="text" id="customer-company"></div>
+        <div class="form-group"><label>{{ t('crm.address') }}</label><input type="text" id="customer-address"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="customer-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCustomer()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('customer-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== LEAD MODAL ==================== -->
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="lead-modal-title">{{ t('crm.addLead') }}</h3><button class="modal-close" onclick="closeModal('lead-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="lead-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.fullName') }} *</label><input type="text" id="lead-name"></div>
+        <div class="form-group"><label>{{ t('crm.phone') }}</label><input type="text" id="lead-phone"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.email') }}</label><input type="email" id="lead-email"></div>
+        <div class="form-group"><label>{{ t('crm.company') }}</label><input type="text" id="lead-company"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.source') }}</label><select id="lead-source"></select></div>
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="lead-status"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="lead-owner"></select></div>
+        <div class="form-group"><label>{{ t('crm.budget') }}</label><input type="number" id="lead-budget" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.city') }}</label><input type="text" id="lead-city"></div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="lead-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveLead()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('lead-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== OPPORTUNITY MODAL ==================== -->
+<div class="modal-overlay" id="opportunity-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="opportunity-modal-title">{{ t('crm.addOpportunity') }}</h3><button class="modal-close" onclick="closeModal('opportunity-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="opportunity-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.opportunityTitle') }} *</label><input type="text" id="opportunity-title"></div>
+        <div class="form-group"><label>{{ t('crm.amount') }}</label><input type="number" id="opportunity-amount" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="opportunity-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="opportunity-lead"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.stage') }}</label><select id="opportunity-stage"></select></div>
+        <div class="form-group"><label>{{ t('crm.probability') }}</label><input type="number" id="opportunity-probability" min="0" max="100" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.expectedCloseDate') }}</label><input type="date" id="opportunity-close"></div>
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="opportunity-owner"></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="opportunity-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveOpportunity()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('opportunity-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== STAGE MODAL ==================== -->
+<div class="modal-overlay" id="stage-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="stage-modal-title">{{ t('crm.addStage') }}</h3><button class="modal-close" onclick="closeModal('stage-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="stage-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.stageName') }} *</label><input type="text" id="stage-name"></div>
+        <div class="form-group"><label>{{ t('crm.stagePosition') }}</label><input type="number" id="stage-position" min="1"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.stageProbability') }}</label><input type="number" id="stage-probability" min="0" max="100" step="0.01"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveStage()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('stage-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== CALL MODAL ==================== -->
+<div class="modal-overlay" id="call-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="call-modal-title">{{ t('crm.addCall') }}</h3><button class="modal-close" onclick="closeModal('call-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="call-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.direction') }}</label><select id="call-direction"><option value="out">{{ t('crm.outgoing') }}</option><option value="in">{{ t('crm.incoming') }}</option></select></div>
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="call-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="call-lead"></select></div>
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="call-employee"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.callDate') }}</label><input type="datetime-local" id="call-date"></div>
+        <div class="form-group"><label>{{ t('crm.duration') }}</label><input type="number" id="call-duration" min="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.followUpDate') }}</label><input type="date" id="call-followup"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="call-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCall()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('call-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== MEETING MODAL ==================== -->
+<div class="modal-overlay" id="meeting-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="meeting-modal-title">{{ t('crm.addMeeting') }}</h3><button class="modal-close" onclick="closeModal('meeting-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="meeting-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.meetingTitle') }} *</label><input type="text" id="meeting-title"></div>
+        <div class="form-group"><label>{{ t('crm.meetingDate') }}</label><input type="datetime-local" id="meeting-date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="meeting-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="meeting-lead"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="meeting-employee"></select></div>
+        <div class="form-group"><label>{{ t('crm.location') }}</label><input type="text" id="meeting-location"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.status') }}</label><select id="meeting-status"><option value="scheduled">{{ t('crm.scheduled') }}</option><option value="done">{{ t('crm.done') }}</option><option value="cancelled">{{ t('crm.cancelled') }}</option></select></div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="meeting-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveMeeting()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('meeting-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== TASK MODAL ==================== -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="task-modal-title">{{ t('crm.addTask') }}</h3><button class="modal-close" onclick="closeModal('task-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="task-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.taskTitle') }} *</label><input type="text" id="task-title"></div>
+        <div class="form-group"><label>{{ t('crm.dueDate') }}</label><input type="date" id="task-due"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="task-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="task-lead"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabOpportunities') }}</label><select id="task-opportunity"></select></div>
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="task-employee"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.priority') }}</label><select id="task-priority"><option value="low">{{ t('crm.priority.low') }}</option><option value="medium">{{ t('crm.priority.medium') }}</option><option value="high">{{ t('crm.priority.high') }}</option></select></div>
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="task-status"><option value="pending">{{ t('crm.taskStatus.pending') }}</option><option value="in_progress">{{ t('crm.taskStatus.in_progress') }}</option><option value="done">{{ t('crm.taskStatus.done') }}</option></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.taskDescription') }}</label><textarea id="task-desc"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveTask()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('task-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== CAMPAIGN MODAL ==================== -->
+<div class="modal-overlay" id="campaign-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="campaign-modal-title">{{ t('crm.addCampaign') }}</h3><button class="modal-close" onclick="closeModal('campaign-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="campaign-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.campaignName') }} *</label><input type="text" id="campaign-name"></div>
+        <div class="form-group"><label>{{ t('crm.channel') }}</label><select id="campaign-channel"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.startDate') }}</label><input type="date" id="campaign-start"></div>
+        <div class="form-group"><label>{{ t('crm.endDate') }}</label><input type="date" id="campaign-end"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.budget') }}</label><input type="number" id="campaign-budget" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="campaign-owner"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="campaign-status"><option value="planned">{{ t('crm.planned') }}</option><option value="active">{{ t('crm.active') }}</option><option value="completed">{{ t('crm.completed') }}</option><option value="cancelled">{{ t('crm.cancelled') }}</option></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="campaign-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCampaign()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('campaign-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== CAMPAIGN LEADS MODAL ==================== -->
+<div class="modal-overlay" id="campaign-leads-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('crm.addLeads') }}</h3><button class="modal-close" onclick="closeModal('campaign-leads-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>{{ t('crm.campaignName') }}</label><select id="campaign-leads-campaign"></select></div>
+      <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="campaign-leads-lead"></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCampaignLead()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('campaign-leads-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== FOLLOW-UP MODAL ==================== -->
+<div class="modal-overlay" id="followup-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="followup-modal-title">{{ t('crm.addFollowUp') }}</h3><button class="modal-close" onclick="closeModal('followup-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="followup-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="followup-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="followup-lead"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabOpportunities') }}</label><select id="followup-opportunity"></select></div>
+        <div class="form-group"><label>{{ t('crm.actionType') }}</label><select id="followup-action"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.followUpDate') }} *</label><input type="date" id="followup-date"></div>
+        <div class="form-group"><label>{{ t('crm.owner') }}</label><select id="followup-employee"></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="followup-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveFollowUp()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('followup-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== QUOTE MODAL ==================== -->
+<div class="modal-overlay" id="quote-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="quote-modal-title">{{ t('crm.addQuote') }}</h3><button class="modal-close" onclick="closeModal('quote-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="quote-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.quoteTitle') }}</label><input type="text" id="quote-title"></div>
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="quote-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabLeads') }}</label><select id="quote-lead"></select></div>
+        <div class="form-group"><label>{{ t('crm.tabOpportunities') }}</label><select id="quote-opportunity"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.validUntil') }}</label><input type="date" id="quote-valid"></div>
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="quote-status"><option value="draft">{{ t('crm.draft') }}</option><option value="sent">{{ t('crm.sent') }}</option></select></div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('crm.tabQuotes') }} ({{ t('crm.tabQuotes') }})</label>
+        <table class="quote-items-table">
+          <thead><tr><th>{{ t('crm.itemDescription') }}</th><th style="width:80px;">{{ t('crm.qty') }}</th><th style="width:110px;">{{ t('crm.unitPrice') }}</th><th style="width:110px;">{{ t('crm.itemTotal') }}</th><th style="width:40px;"></th></tr></thead>
+          <tbody id="quote-items-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addQuoteItem()">{{ t('crm.addItem') }}</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.subtotal') }}</label><input type="number" id="quote-subtotal" readonly></div>
+        <div class="form-group"><label>{{ t('crm.discount') }}</label><input type="number" id="quote-discount" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.taxRate') }} %</label><input type="number" id="quote-tax" min="0" max="100" step="0.01" value="0"></div>
+        <div class="form-group"><label>{{ t('crm.total') }}</label><input type="number" id="quote-total" readonly></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="quote-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveQuote()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('quote-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== CONTRACT MODAL ==================== -->
+<div class="modal-overlay" id="contract-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="contract-modal-title">{{ t('crm.addContract') }}</h3><button class="modal-close" onclick="closeModal('contract-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="contract-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.contractTitle') }} *</label><input type="text" id="contract-title"></div>
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }}</label><select id="contract-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.startDate') }}</label><input type="date" id="contract-start"></div>
+        <div class="form-group"><label>{{ t('crm.endDate') }}</label><input type="date" id="contract-end"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.value') }}</label><input type="number" id="contract-value" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="contract-status"><option value="draft">{{ t('crm.contractStatus.draft') }}</option><option value="active">{{ t('crm.contractStatus.active') }}</option><option value="completed">{{ t('crm.contractStatus.completed') }}</option><option value="expired">{{ t('crm.contractStatus.expired') }}</option><option value="terminated">{{ t('crm.contractStatus.terminated') }}</option></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="contract-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveContract()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('contract-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== COMPLAINT MODAL ==================== -->
+<div class="modal-overlay" id="complaint-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="complaint-modal-title">{{ t('crm.addComplaint') }}</h3><button class="modal-close" onclick="closeModal('complaint-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="complaint-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }} *</label><select id="complaint-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.subject') }} *</label><input type="text" id="complaint-subject"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.category') }}</label><input type="text" id="complaint-category"></div>
+        <div class="form-group"><label>{{ t('crm.priority') }}</label><select id="complaint-priority"><option value="low">{{ t('crm.priority.low') }}</option><option value="medium">{{ t('crm.priority.medium') }}</option><option value="high">{{ t('crm.priority.high') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="complaint-status"><option value="open">{{ t('crm.complaintStatus.open') }}</option><option value="in_progress">{{ t('crm.complaintStatus.in_progress') }}</option><option value="resolved">{{ t('crm.complaintStatus.resolved') }}</option><option value="closed">{{ t('crm.complaintStatus.closed') }}</option></select></div>
+        <div class="form-group"><label>{{ t('crm.assignedTo') }}</label><select id="complaint-assigned"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.rating') }} (1-5)</label><input type="number" id="complaint-rating" min="1" max="5"></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="complaint-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveComplaint()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('complaint-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== TICKET MODAL ==================== -->
+<div class="modal-overlay" id="ticket-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="ticket-modal-title">{{ t('crm.addTicket') }}</h3><button class="modal-close" onclick="closeModal('ticket-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ticket-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.tabCustomers') }} *</label><select id="ticket-customer"></select></div>
+        <div class="form-group"><label>{{ t('crm.subject') }} *</label><input type="text" id="ticket-subject"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.category') }}</label><input type="text" id="ticket-category"></div>
+        <div class="form-group"><label>{{ t('crm.priority') }}</label><select id="ticket-priority"><option value="low">{{ t('crm.priority.low') }}</option><option value="medium">{{ t('crm.priority.medium') }}</option><option value="high">{{ t('crm.priority.high') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('crm.status') }}</label><select id="ticket-status"><option value="new">{{ t('crm.ticketStatus.new') }}</option><option value="open">{{ t('crm.ticketStatus.open') }}</option><option value="pending">{{ t('crm.ticketStatus.pending') }}</option><option value="resolved">{{ t('crm.ticketStatus.resolved') }}</option><option value="closed">{{ t('crm.ticketStatus.closed') }}</option></select></div>
+        <div class="form-group"><label>{{ t('crm.assignedTo') }}</label><select id="ticket-assigned"></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="ticket-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveTicket()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('ticket-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/crm.js') }}"></script>
+{% endblock %}

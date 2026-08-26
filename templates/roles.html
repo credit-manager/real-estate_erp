@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('roles.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}roles{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('roles.title') }}</h1>
+    <p>{{ t('roles.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('roles', 'create') %}
+    <button class="btn btn-primary" id="btn-new-role" onclick="openRoleModal()">{{ t('roles.newRole') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('roles.totalLabel') }}</div><div class="kpi-value" id="role-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('roles.usersLabel') }}</div><div class="kpi-value" id="role-users" style="color:var(--info);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('roles.colName') }}</th>
+          <th>{{ t('roles.colDescription') }}</th>
+          <th>{{ t('roles.colUsers') }}</th>
+          <th>{{ t('roles.colPermissions') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="roles-table">
+        <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Role Modal -->
+<div class="modal-overlay" id="role-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="role-modal-title">{{ t('roles.newRole') }}</h3>
+      <button class="modal-close" onclick="closeRoleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="role-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('roles.nameLabel') }} *</label>
+          <input type="text" id="role-name" placeholder="{{ t('roles.namePlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('roles.descriptionLabel') }}</label>
+          <input type="text" id="role-description" placeholder="{{ t('roles.descriptionPlaceholder') }}">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>{{ t('roles.permissionsLabel') }}</label>
+        <div class="form-hint">{{ t('roles.permissionsHint') }}</div>
+        <div class="roles-perm-actions">
+          <button type="button" class="btn btn-outline btn-sm" onclick="setAllPerms(true)">{{ t('roles.checkAll') }}</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="setAllPerms(false)">{{ t('roles.uncheckAll') }}</button>
+        </div>
+        <div class="perm-matrix" id="perm-matrix">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveRole()">{{ t('roles.saveRole') }}</button>
+      <button class="btn btn-outline" onclick="closeRoleModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/roles.js') }}"></script>
+{% endblock %}

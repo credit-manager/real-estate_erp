@@ -1,0 +1,896 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.procurement') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}procurement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('procurement.title') }}</h1>
+    <p>{{ t('procurement.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="exportPurchaseOrders()">{{ t('procurement.poTitle') }} CSV</button>
+    <button class="btn btn-outline" onclick="exportSuppliers()">{{ t('procurement.suppliersTitle') }} CSV</button>
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.poLabel') }}</div><div class="kpi-value" id="po-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.prLabel') }}</div><div class="kpi-value" id="pr-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.rfqLabel') }}</div><div class="kpi-value" id="rfq-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.receivingLabel') }}</div><div class="kpi-value" id="rcv-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.returnLabel') }}</div><div class="kpi-value" id="ret-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('procurement.suppliersLabel') }}</div><div class="kpi-value" id="po-suppliers">0</div></div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-year">
+    <option value="">{{ t('common.allYears') }}</option>
+  </select>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" style="margin-top:16px;">
+  <button class="tab-btn active" data-tab="po" onclick="switchTab('po')">{{ t('procurement.poTitle') }}</button>
+  <button class="tab-btn" data-tab="pr" onclick="switchTab('pr')">{{ t('procurement.prTitle') }}</button>
+  <button class="tab-btn" data-tab="rfq" onclick="switchTab('rfq')">{{ t('procurement.rfqTitle') }}</button>
+  <button class="tab-btn" data-tab="compare" onclick="switchTab('compare')">{{ t('procurement.compareTitle') }}</button>
+  <button class="tab-btn" data-tab="receiving" onclick="switchTab('receiving')">{{ t('procurement.receivingTitle') }}</button>
+  <button class="tab-btn" data-tab="returns" onclick="switchTab('returns')">{{ t('procurement.returnTitle') }}</button>
+  <button class="tab-btn" data-tab="supplier-invoices" onclick="switchTab('supplier-invoices')">{{ t('procurement.supplierInvoicesTitle') }}</button>
+  <button class="tab-btn" data-tab="suppliers" onclick="switchTab('suppliers')">{{ t('procurement.suppliersTitle') }}</button>
+</div>
+
+<!-- ===== PO Tab ===== -->
+<div class="tab-panel active" id="tab-po">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.poTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openPurchaseModal()">{{ t('procurement.newPO') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('common.materials') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('workflow.title') }}</th>
+            <th>{{ t('common.date') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="purchase-table">
+          <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PR Tab ===== -->
+<div class="tab-panel" id="tab-pr">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.prTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openPRModal()">{{ t('procurement.newPR') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('common.title') }}</th>
+            <th>{{ t('common.requester') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.date') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="pr-table">
+          <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RFQ Tab ===== -->
+<div class="tab-panel" id="tab-rfq">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.rfqTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openRFQModal()">{{ t('procurement.newRFQ') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('common.title') }}</th>
+            <th>{{ t('common.project') }}</th>
+            <th>{{ t('procurement.deadline') }}</th>
+            <th>{{ t('procurement.quotesCount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="rfq-table">
+          <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Compare Tab ===== -->
+<div class="tab-panel" id="tab-compare">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.compareTitle') }}</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="compare-rfq-select" style="min-width:250px;">
+          <option value="">{{ t('procurement.selectRFQ') }}</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadComparison()">{{ t('procurement.compareBtn') }}</button>
+      </div>
+    </div>
+    <div id="compare-content">
+      <div class="empty-state" style="padding:40px;">
+        <div class="empty-icon">⚖️</div>
+        <p>{{ t('procurement.selectRFQToCompare') }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Receiving Tab ===== -->
+<div class="tab-panel" id="tab-receiving">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.receivingTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openReceivingModal()">{{ t('procurement.newReceiving') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('procurement.poNumber') }}</th>
+            <th>{{ t('common.supplier') }}</th>
+            <th>{{ t('procurement.warehouse') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.date') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="receiving-table">
+          <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Returns Tab ===== -->
+<div class="tab-panel" id="tab-returns">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.returnTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openReturnModal()">{{ t('procurement.newReturn') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('procurement.poNumber') }}</th>
+            <th>{{ t('common.supplier') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.date') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="return-table">
+          <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Supplier Invoices Tab ===== -->
+<div class="tab-panel" id="tab-supplier-invoices">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.supplierInvoicesTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openSupplierInvoiceModal()">{{ t('procurement.newSupplierInvoice') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.number') }}</th>
+            <th>{{ t('common.supplier') }}</th>
+            <th>{{ t('common.total') }}</th>
+            <th>{{ t('common.paid') }}</th>
+            <th>{{ t('common.balance') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.date') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="supplier-invoice-table">
+          <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Suppliers Tab ===== -->
+<div class="tab-panel" id="tab-suppliers">
+  <div class="card" style="margin-top:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('procurement.suppliersTitle') }}</div>
+      {% if can('procurement', 'create') %}
+      <button class="btn btn-primary btn-sm" onclick="openSupplierModal()">{{ t('procurement.newSupplier') }}</button>
+      {% endif %}
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('common.company') }}</th>
+            <th>{{ t('common.contact') }}</th>
+            <th>{{ t('common.phone') }}</th>
+            <th>{{ t('common.category') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="suppliers-table">
+          <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Purchase Order Modal ===== -->
+<div class="modal-overlay" id="purchase-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="purchase-modal-title">{{ t('procurement.newPO') }}</h3>
+      <button class="modal-close" onclick="closePurchaseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="purchase-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.numberLabel') }} *</label>
+          <input type="text" id="purchase-number" placeholder="PO-1001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="purchase-status">
+            <option value="pending">{{ t('status.pending') }}</option>
+            <option value="approved">{{ t('status.approved') }}</option>
+            <option value="delivered">{{ t('status.delivered') }}</option>
+            <option value="cancelled">{{ t('status.cancelled') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.orderDate') }}</label>
+          <input type="date" id="purchase-order-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.deliveryDate') }}</label>
+          <input type="date" id="purchase-delivery-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.supplier') }}</label>
+          <select id="purchase-supplier">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.project') }}</label>
+          <select id="purchase-project">
+            <option value="">{{ t('common.selectProject') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.materials') }}</label>
+        <textarea id="purchase-items" rows="2" placeholder="{{ t('procurement.itemsPlaceholder') }}"></textarea>
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="po-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removePoItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPoItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.total') }}</label>
+        <input type="number" id="purchase-total" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>{{ t('financialYears.year') }}</label>
+        <select id="purchase-year"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="savePurchase()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closePurchaseModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PR Modal ===== -->
+<div class="modal-overlay" id="pr-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="pr-modal-title">{{ t('procurement.newPR') }}</h3>
+      <button class="modal-close" onclick="closePRModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pr-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.number') }} *</label>
+          <input type="text" id="pr-number" placeholder="PR-0001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="pr-status">
+            <option value="draft">{{ t('status.draft') }}</option>
+            <option value="submitted">{{ t('status.sent') }}</option>
+            <option value="approved">{{ t('status.approved') }}</option>
+            <option value="rejected">{{ t('status.rejected') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.title') }}</label>
+        <input type="text" id="pr-title" placeholder="{{ t('procurement.prTitlePlaceholder') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.requester') }}</label>
+          <input type="text" id="pr-requester" placeholder="{{ t('procurement.requesterPlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.department') }}</label>
+          <input type="text" id="pr-department" placeholder="{{ t('procurement.departmentPlaceholder') }}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.project') }}</label>
+          <select id="pr-project">
+            <option value="">{{ t('common.selectProject') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.requestDate') }}</label>
+          <input type="date" id="pr-request-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.neededDate') }}</label>
+          <input type="date" id="pr-needed-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.notes') }}</label>
+          <input type="text" id="pr-notes">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="pr-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removePrItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPrItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="savePR()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closePRModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RFQ Modal ===== -->
+<div class="modal-overlay" id="rfq-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="rfq-modal-title">{{ t('procurement.newRFQ') }}</h3>
+      <button class="modal-close" onclick="closeRFQModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rfq-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.number') }} *</label>
+          <input type="text" id="rfq-number" placeholder="RFQ-0001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="rfq-status">
+            <option value="draft">{{ t('status.draft') }}</option>
+            <option value="sent">{{ t('status.sent') }}</option>
+            <option value="closed">{{ t('status.closed') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.title') }}</label>
+        <input type="text" id="rfq-title" placeholder="{{ t('procurement.rfqTitlePlaceholder') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.project') }}</label>
+          <select id="rfq-project">
+            <option value="">{{ t('common.selectProject') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.requestDate') }}</label>
+          <input type="date" id="rfq-request-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.deadline') }}</label>
+          <input type="date" id="rfq-deadline">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.notes') }}</label>
+          <input type="text" id="rfq-notes">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="rfq-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeRfqItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addRfqItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveRFQ()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeRFQModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Quote Modal (عرض مورد) ===== -->
+<div class="modal-overlay" id="quote-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('procurement.newQuote') }}</h3>
+      <button class="modal-close" onclick="closeQuoteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="quote-id">
+      <input type="hidden" id="quote-rfq-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.supplier') }} *</label>
+          <select id="quote-supplier">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.deliveryDays') }}</label>
+          <input type="number" id="quote-delivery-days" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="quote-notes">
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.quoteItems') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="quote-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeQuoteItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addQuoteItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveQuote()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeQuoteModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Receiving Modal ===== -->
+<div class="modal-overlay" id="receiving-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('procurement.newReceiving') }}</h3>
+      <button class="modal-close" onclick="closeReceivingModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="receiving-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.number') }} *</label>
+          <input type="text" id="receiving-number" placeholder="RCV-0001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.poNumber') }} *</label>
+          <select id="receiving-po">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.receivedDate') }}</label>
+          <input type="date" id="receiving-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.warehouse') }}</label>
+          <input type="text" id="receiving-warehouse" placeholder="{{ t('procurement.warehousePlaceholder') }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="receiving-notes">
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="receiving-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeReceivingItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addReceivingItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveReceiving()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeReceivingModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Return Modal ===== -->
+<div class="modal-overlay" id="return-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('procurement.newReturn') }}</h3>
+      <button class="modal-close" onclick="closeReturnModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="return-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.number') }} *</label>
+          <input type="text" id="return-number" placeholder="RET-0001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="return-status">
+            <option value="draft">{{ t('status.draft') }}</option>
+            <option value="processed">{{ t('status.processed') }}</option>
+            <option value="completed">{{ t('status.completed') }}</option>
+            <option value="rejected">{{ t('status.rejected') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.poNumber') }}</label>
+          <select id="return-po">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.supplier') }}</label>
+          <select id="return-supplier">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('procurement.returnDate') }}</label>
+          <input type="date" id="return-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('procurement.returnReason') }}</label>
+          <input type="text" id="return-reason" placeholder="{{ t('procurement.returnReasonPlaceholder') }}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="return-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeReturnItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addReturnItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveReturn()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeReturnModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Supplier Invoice Modal ===== -->
+<div class="modal-overlay" id="supplier-invoice-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('procurement.newSupplierInvoice') }}</h3>
+      <button class="modal-close" onclick="closeSupplierInvoiceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="supplier-invoice-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.number') }} *</label>
+          <input type="text" id="supplier-invoice-number" placeholder="INV-1001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="supplier-invoice-status">
+            <option value="pending">{{ t('status.pending') }}</option>
+            <option value="partial">{{ t('status.partial') }}</option>
+            <option value="paid">{{ t('status.paid') }}</option>
+            <option value="overdue">{{ t('status.overdue') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.supplier') }} *</label>
+          <select id="supplier-invoice-supplier">
+            <option value="">{{ t('common.select') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.project') }}</label>
+          <select id="supplier-invoice-project">
+            <option value="">{{ t('common.selectProject') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('finance.issueDate') }}</label>
+          <input type="date" id="supplier-invoice-issue-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('finance.dueDate') }}</label>
+          <input type="date" id="supplier-invoice-due-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="supplier-invoice-description" placeholder="{{ t('finance.descPlaceholder') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('procurement.itemsTitle') }}</label>
+        <div class="items-cols supplier-items-cols">
+          <span>{{ t('inventory.itemName') }}</span>
+          <span>{{ t('inventory.warehouse') }}</span>
+          <span>{{ t('procurement.itemDescCol') }}</span>
+          <span>{{ t('procurement.itemQtyCol') }}</span>
+          <span>{{ t('procurement.itemPriceCol') }}</span>
+          <span>{{ t('procurement.itemTaxCol') }}</span>
+          <span>{{ t('inventory.expiryDate') }}</span>
+          <span>{{ t('procurement.itemTotalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="supplier-invoice-items">
+          <div class="item-row supplier-item-row">
+            <select class="item-item-id"><option value="">—</option></select>
+            <select class="item-warehouse-id"><option value="">—</option></select>
+            <input type="text" class="item-desc" placeholder="{{ t('procurement.itemDescPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('procurement.itemQtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('procurement.itemPriceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('procurement.itemTaxCol') }}">
+            <input type="date" class="item-expiry" title="{{ t('inventory.expiryDate') }}">
+            <span class="item-line-total" title="{{ t('procurement.itemTotalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeSupplierInvoiceItem(this)" title="{{ t('procurement.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addSupplierInvoiceItem()">+ {{ t('procurement.addItem') }}</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.total') }}</label>
+          <input type="number" id="supplier-invoice-total" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.paid') }}</label>
+          <input type="number" id="supplier-invoice-paid" min="0" step="0.01" value="0" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('financialYears.year') }}</label>
+        <select id="supplier-invoice-year"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveSupplierInvoice()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeSupplierInvoiceModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Supplier Modal -->
+<div class="modal-overlay" id="supplier-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="supplier-modal-title">{{ t('procurement.newSupplier') }}</h3>
+      <button class="modal-close" onclick="closeSupplierModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="supplier-id">
+      <div class="form-group">
+        <label>{{ t('procurement.companyNameLabel') }} *</label>
+        <input type="text" id="supplier-company" placeholder="{{ t('procurement.companyNamePlaceholder') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.contact') }}</label>
+          <input type="text" id="supplier-contact" placeholder="{{ t('procurement.contactPlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.category') }}</label>
+          <select id="supplier-category">
+            <option value="">{{ t('common.select') }}</option>
+            <option value="مواد بناء">{{ t('val.building_materials') }}</option>
+            <option value="معدات">{{ t('val.equipment') }}</option>
+            <option value="مقاول">{{ t('val.contractor') }}</option>
+            <option value="خدمات">{{ t('val.services') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.phone') }}</label>
+          <input type="text" id="supplier-phone" placeholder="{{ t('common.phonePlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.email') }}</label>
+          <input type="email" id="supplier-email" placeholder="email@example.com">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveSupplier()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeSupplierModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+<style>
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: row-reverse;
+    direction: ltr;
+  }
+  .card-header .card-title {
+    margin-left: auto;
+  }
+  .card-header .btn {
+    margin-right: 0;
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/procurement.js') }}"></script>
+{% endblock %}

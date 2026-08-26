@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.salaries') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-salaries{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.salaries') }}</h1>
+    <p>{{ t('payroll.salariesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-primary" onclick="openSalaryModal()">{{ t('payroll.addSalary') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.salaries') }} <span class="card-count" id="salaries-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('payroll.baseSalary') }}</th>
+            <th>{{ t('payroll.effectiveDate') }}</th>
+            <th>{{ t('common.notes') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="salaries-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="salaries-empty" style="display:none;">
+      <div class="empty-icon">💵</div>
+      <div>{{ t('payroll.noSalaries') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Salary Modal -->
+<div class="modal-overlay" id="salary-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="salary-modal-title">{{ t('payroll.addSalary') }}</div>
+      <button class="icon-btn modal-close" onclick="closeSalaryModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="salary-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="salary-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.baseSalary') }}</label>
+          <input type="number" id="salary-base" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.effectiveDate') }}</label>
+          <input type="date" id="salary-effective">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="salary-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeSalaryModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveSalary()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_salaries.js') }}"></script>
+{% endblock %}

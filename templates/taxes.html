@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('taxes.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}taxes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('taxes.title') }}</h1>
+    <p>{{ t('taxes.subtitle') }}</p>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="taxes-tabs">
+  <button class="btn btn-primary tax-tab-btn active" id="tab-report-btn" onclick="showTab('report')">{{ t('taxes.report') }}</button>
+  <button class="btn btn-secondary tax-tab-btn" id="tab-types-btn" onclick="showTab('types')">{{ t('taxes.taxTypes') }}</button>
+</div>
+
+<!-- ===== Report tab ===== -->
+<div id="tab-report">
+  <!-- Filters -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div class="taxes-filters">
+        <div class="filter-group">
+          <label class="filter-label">{{ t('taxes.company') }}</label>
+          <select id="report-company" class="form-select" onchange="onFilterChange()">
+            <option value="">{{ t('taxes.filterCompany') }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">{{ t('fyReport.title') }}</label>
+          <select id="report-year" class="form-select" onchange="onFilterChange()">
+            <option value="">{{ t('taxes.allYears') }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">{{ t('taxes.fromDate') }}</label>
+          <input type="date" id="report-start" class="form-select">
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">{{ t('taxes.toDate') }}</label>
+          <input type="date" id="report-end" class="form-select">
+        </div>
+        <div class="filter-group filter-buttons">
+          <button class="btn btn-primary" id="report-generate-btn" onclick="loadReport()">{{ t('taxes.generate') }}</button>
+          <button class="btn btn-outline" onclick="downloadReport()">{{ t('taxes.download') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="report-kpis">
+    <div class="kpi-card">
+      <div class="kpi-icon">📤</div>
+      <div class="kpi-label">{{ t('taxes.outputTax') }}</div>
+      <div class="kpi-value" id="kpi-output">0</div>
+      <div class="table-sub" id="kpi-output-docs"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📥</div>
+      <div class="kpi-label">{{ t('taxes.inputTax') }}</div>
+      <div class="kpi-value" id="kpi-input" style="color:var(--red);">0</div>
+      <div class="table-sub" id="kpi-input-docs"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">🧾</div>
+      <div class="kpi-label">{{ t('taxes.netTax') }}</div>
+      <div class="kpi-value" id="kpi-net">0</div>
+      <div class="table-sub" id="kpi-net-sub"></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📄</div>
+      <div class="kpi-label">{{ t('taxes.docCount') }}</div>
+      <div class="kpi-value" id="kpi-docs">0</div>
+    </div>
+  </div>
+
+  <!-- Breakdown by rate -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">
+      <div class="card-title">{{ t('taxes.byRate') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table tax-table">
+          <colgroup>
+            <col style="width:10%">
+            <col style="width:18%">
+            <col style="width:18%">
+            <col style="width:18%">
+            <col style="width:18%">
+            <col style="width:18%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{{ t('taxes.rateCol') }}</th>
+              <th class="num">{{ t('taxes.outputBase') }}</th>
+              <th class="num">{{ t('taxes.outputTax') }}</th>
+              <th class="num">{{ t('taxes.inputBase') }}</th>
+              <th class="num">{{ t('taxes.inputTax') }}</th>
+              <th class="num">{{ t('taxes.netCol') }}</th>
+            </tr>
+          </thead>
+          <tbody id="breakdown-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="breakdown-empty" style="display:none;">
+        <div class="empty-icon">🧾</div>
+        <div>{{ t('taxes.noDocs') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Documents detail -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('taxes.docs') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table tax-table">
+          <colgroup>
+            <col style="width:12%">
+            <col style="width:13%">
+            <col style="width:12%">
+            <col style="width:26%">
+            <col style="width:12%">
+            <col style="width:12%">
+            <col style="width:13%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{{ t('taxes.docType') }}</th>
+              <th>{{ t('taxes.docNumber') }}</th>
+              <th>{{ t('taxes.docDate') }}</th>
+              <th>{{ t('taxes.party') }}</th>
+              <th class="num">{{ t('taxes.taxBase') }}</th>
+              <th class="num">{{ t('taxes.taxAmount') }}</th>
+              <th>{{ t('taxes.rateCol') }}</th>
+            </tr>
+          </thead>
+          <tbody id="docs-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="docs-empty" style="display:none;">
+        <div class="empty-icon">📄</div>
+        <div>{{ t('taxes.noDocs') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Tax types tab ===== -->
+<div id="tab-types" style="display:none;">
+  <div class="page-header">
+    <div></div>
+    <div class="page-actions">
+      {% if can('taxes', 'create') %}
+      <button class="btn btn-primary" onclick="openTaxModal()">{{ t('taxes.addType') }}</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('taxes.taxTypes') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table tax-table">
+          <colgroup>
+            <col style="width:38%">
+            <col style="width:14%">
+            <col style="width:26%">
+            <col style="width:22%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{{ t('taxes.name') }}</th>
+              <th>{{ t('taxes.rate') }}</th>
+              <th>{{ t('taxes.status') }}</th>
+              <th>{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody id="types-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="types-empty" style="display:none;">
+        <div class="empty-icon">🧾</div>
+        <div id="types-empty-text">{{ t('taxes.noTypes') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tax type modal -->
+<div class="modal-overlay" id="tax-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="tax-modal-title">{{ t('taxes.addType') }}</div>
+      <button class="icon-btn modal-close" onclick="closeTaxModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="tax-id">
+      <div class="form-group">
+        <label>{{ t('taxes.name') }} *</label>
+        <input type="text" id="tax-name" placeholder="{{ t('taxes.namePlaceholder') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('taxes.rate') }} *</label>
+        <input type="number" id="tax-rate" min="0" max="100" step="0.01" value="15">
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('taxes.active') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="tax-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('taxes.default') }}</div>
+          <div class="table-sub">{{ t('taxes.defaultHint') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="tax-default">
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTaxModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveTax()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/taxes.js') }}"></script>
+{% endblock %}

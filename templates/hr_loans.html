@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.loans') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-loans{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.loans') }}</h1>
+    <p>{{ t('hr.loansSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openLoanModal()">{{ t('hr.addLoan') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.loans') }} <span class="card-count" id="loans-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.loanDate') }}</th>
+            <th>{{ t('hr.loanAmount') }}</th>
+            <th>{{ t('hr.interestRate') }}</th>
+            <th>{{ t('hr.total') }}</th>
+            <th>{{ t('hr.installmentAmount') }}</th>
+            <th>{{ t('hr.remaining') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="loans-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="loans-empty" style="display:none;">
+      <div class="empty-icon">🏦</div>
+      <div>{{ t('hr.noLoans') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Loan Modal -->
+<div class="modal-overlay" id="loan-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="loan-modal-title">{{ t('hr.addLoan') }}</div>
+      <button class="icon-btn modal-close" onclick="closeLoanModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="loan-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="loan-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.loanAmount') }}</label>
+          <input type="number" id="loan-amount" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.interestRate') }}</label>
+          <input type="number" id="loan-interest" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.loanDate') }}</label>
+          <input type="date" id="loan-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.installments') }}</label>
+          <input type="number" id="loan-installments" min="1" value="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.installmentAmount') }}</label>
+          <input type="number" id="loan-installment-amount" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.paidAmount') }}</label>
+          <input type="number" id="loan-paid" step="0.01" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="loan-status">
+          <option value="open">{{ t('hr.advOpen') }}</option>
+          <option value="partial">{{ t('hr.advPartial') }}</option>
+          <option value="settled">{{ t('hr.advSettled') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="loan-reason">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeLoanModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveLoan()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_loans.js') }}"></script>
+{% endblock %}

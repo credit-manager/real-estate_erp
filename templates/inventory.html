@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.title') }}</h1>
+    <p>{{ t('inventory.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="location.href='/inventory/stock'">{{ t('inventory.stock') }}</button>
+    <button class="btn btn-primary" onclick="location.href='/inventory/transfers'">{{ t('inventory.newTransfer') }}</button>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--primary-tint);color:var(--primary);">🏢</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('inventory.kpiWarehouses') }}</div>
+      <div class="stat-value" id="inv-warehouses">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--info-tint);color:var(--info);">📦</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('inventory.kpiItems') }}</div>
+      <div class="stat-value" id="inv-items">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--success-tint);color:var(--success);">💰</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('inventory.kpiStockValue') }}</div>
+      <div class="stat-value" id="inv-value">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--danger-tint);color:var(--red);">⚠️</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('inventory.kpiLowStock') }}</div>
+      <div class="stat-value" id="inv-low">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--warning-tint);color:var(--warning);">⏰</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('inventory.expired') }}</div>
+      <div class="stat-value" id="inv-expired">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="module-grid">
+  <a class="module-card" href="/inventory/warehouses">
+    <div class="module-icon">🏢</div>
+    <div class="module-title">{{ t('inventory.warehouses') }}</div>
+    <div class="module-sub">{{ t('inventory.warehousesSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/items">
+    <div class="module-icon">📦</div>
+    <div class="module-title">{{ t('inventory.items') }}</div>
+    <div class="module-sub">{{ t('inventory.itemsSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/categories">
+    <div class="module-icon">🗂️</div>
+    <div class="module-title">{{ t('inventory.categories') }}</div>
+    <div class="module-sub">{{ t('inventory.categoriesSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/units">
+    <div class="module-icon">📏</div>
+    <div class="module-title">{{ t('inventory.units') }}</div>
+    <div class="module-sub">{{ t('inventory.unitsSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/suppliers">
+    <div class="module-icon">🚚</div>
+    <div class="module-title">{{ t('inventory.suppliers') }}</div>
+    <div class="module-sub">{{ t('inventory.suppliersSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/stock">
+    <div class="module-icon">📊</div>
+    <div class="module-title">{{ t('inventory.stock') }}</div>
+    <div class="module-sub">{{ t('inventory.stockSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/batches">
+    <div class="module-icon">🏷️</div>
+    <div class="module-title">{{ t('inventory.batches') }}</div>
+    <div class="module-sub">{{ t('inventory.batchesSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/serials">
+    <div class="module-icon">🔢</div>
+    <div class="module-title">{{ t('inventory.serials') }}</div>
+    <div class="module-sub">{{ t('inventory.serialsSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/transfers">
+    <div class="module-icon">🔀</div>
+    <div class="module-title">{{ t('inventory.transfers') }}</div>
+    <div class="module-sub">{{ t('inventory.transfersSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/stocktakes">
+    <div class="module-icon">✅</div>
+    <div class="module-title">{{ t('inventory.stocktakes') }}</div>
+    <div class="module-sub">{{ t('inventory.stocktakesSub') }}</div>
+  </a>
+  <a class="module-card" href="/inventory/reports">
+    <div class="module-icon">📈</div>
+    <div class="module-title">{{ t('inventory.reports') }}</div>
+    <div class="module-sub">{{ t('inventory.reportsSub') }}</div>
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory_home.js') }}"></script>
+{% endblock %}

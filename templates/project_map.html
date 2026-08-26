@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}مخطط المشروع | Dynamic Pro ERP{% endblock %}
+{% block page %}project-map{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('projects.masterPlan') }}</h1>
+    <p>{{ t('projects.masterPlanSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <select id="map-project-select" style="min-width:250px;">
+      <option value="">{{ t('common.selectProject') }}</option>
+    </select>
+    <button class="btn btn-primary" onclick="loadProjectMap()">{{ t('common.load') }}</button>
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);" id="map-kpis">
+  <div class="kpi-card"><div class="kpi-label">{{ t('projects.totalUnits') }}</div><div class="kpi-value" id="kpi-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('status.available') }}</div><div class="kpi-value" style="color:var(--success);" id="kpi-available">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('status.reserved') }}</div><div class="kpi-value" style="color:var(--warning);" id="kpi-reserved">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('status.sold') }}</div><div class="kpi-value" style="color:var(--danger);" id="kpi-sold">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-body">
+    <div id="map-container" style="height:600px; border-radius:var(--radius); overflow:hidden; position:relative;">
+      <!-- SVG Map will be rendered here -->
+      <div id="map-loading" class="loading" style="position:absolute;top:0;left:0;width:100%;height:100%;background:var(--background);z-index:10;display:flex;align-items:center;justify-content:center;">
+        <div class="spinner"></div>
+      </div>
+      <div id="map-svg-container"></div>
+    </div>
+    <div id="map-legend" style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;">
+      <span class="legend-item"><span class="legend-color" style="background:#22c55e;"></span> {{ t('status.available') }}</span>
+      <span class="legend-item"><span class="legend-color" style="background:#f59e0b;"></span> {{ t('status.reserved') }}</span>
+      <span class="legend-item"><span class="legend-color" style="background:#ef4444;"></span> {{ t('status.sold') }}</span>
+      <span class="legend-item"><span class="legend-color" style="background:#3b82f6;"></span> {{ t('status.rented') }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- Unit Detail Modal -->
+<div class="modal-overlay" id="map-unit-modal">
+  <div class="modal modal-md">
+    <div class="modal-header"><h3 id="map-unit-modal-title">{{ t('projects.unitDetails') }}</h3><button class="modal-close" onclick="closeModal('map-unit-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }}</label><input type="text" id="map-unit-code" readonly></div>
+        <div class="form-group"><label>{{ t('common.status') }}</label><input type="text" id="map-unit-status" readonly></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.areaLabel') }}</label><input type="text" id="map-unit-area" readonly></div>
+        <div class="form-group"><label>{{ t('common.price') }}</label><input type="text" id="map-unit-price" readonly></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.customer') }}</label><input type="text" id="map-unit-customer" readonly></div>
+      <div class="form-group"><label>{{ t('common.building') }}</label><input type="text" id="map-unit-building" readonly></div>
+      <div class="form-group"><label>{{ t('common.floor') }}</label><input type="text" id="map-unit-floor" readonly></div>
+      <div class="form-group"><label>{{ t('common.type') }}</label><input type="text" id="map-unit-type" readonly></div>
+      <div class="modal-actions" style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="openUnitFromMap()">{{ t('common.viewDetails') }}</button>
+        <button class="btn btn-outline" onclick="closeModal('map-unit-modal')">{{ t('common.close') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/project-map.js') }}"></script>
+{% endblock %}

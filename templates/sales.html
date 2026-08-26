@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.sales') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}sales{% endblock %}
+
+{% block content %}
+<style>
+@media print {
+  body.printing-team .sidebar,
+  body.printing-team .topbar { display: none !important; }
+  body.printing-team .main-area { margin-inline-start: 0 !important; }
+  body.printing-team .page-header,
+  body.printing-team .kpi-grid,
+  body.printing-team .tabs-scroll,
+  body.printing-team section.card:not(#sales-team) { display: none !important; }
+  body.printing-team section#sales-team { margin: 0 !important; box-shadow: none !important; }
+  body.printing-team section#sales-team .table-wrapper { overflow: visible !important; }
+}
+</style>
+<div class="page-header">
+  <div>
+    <h1>{{ t('sales.title') }}</h1>
+    <p>{{ t('sales.subtitle') }}</p>
+  </div>
+</div>
+
+<!-- Summary KPI Cards -->
+<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiCustomers') }}</div><div class="kpi-value" id="kpi-customers">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiQuotes') }}</div><div class="kpi-value" id="kpi-quotes">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiOrders') }}</div><div class="kpi-value" id="kpi-orders">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiOrdersValue') }}</div><div class="kpi-value" id="kpi-orders-value" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiInvoices') }}</div><div class="kpi-value" id="kpi-invoices">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiRevenue') }}</div><div class="kpi-value" id="kpi-revenue" style="color:var(--info);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiCollected') }}</div><div class="kpi-value" id="kpi-collected" style="color:var(--success);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiPending') }}</div><div class="kpi-value" id="kpi-pending" style="color:var(--amber);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiReturns') }}</div><div class="kpi-value" id="kpi-returns">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiCommissions') }}</div><div class="kpi-value" id="kpi-commissions" style="color:var(--success);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiCommissionsPending') }}</div><div class="kpi-value" id="kpi-commissions-pending" style="color:var(--amber);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('sales.kpiOverdueOrders') }}</div><div class="kpi-value" id="kpi-overdue" style="color:var(--danger);">0</div></div>
+</div>
+
+<!-- Scroll Links -->
+<div class="tabs-scroll" id="sales-tabs" style="margin-top:16px;">
+  <a href="#sales-quotes" class="tab-btn">{{ t('sales.tabQuotes') }}</a>
+  <a href="#sales-orders" class="tab-btn">{{ t('sales.tabOrders') }}</a>
+  <a href="#sales-invoices" class="tab-btn">{{ t('sales.tabInvoices') }}</a>
+  <a href="#sales-returns" class="tab-btn">{{ t('sales.tabReturns') }}</a>
+  <a href="#sales-commissions" class="tab-btn">{{ t('sales.tabCommissions') }}</a>
+  <a href="#sales-team" class="tab-btn">{{ t('sales.tabTeam') }}</a>
+</div>
+
+<!-- ==================== QUOTES ==================== -->
+<section class="card" id="sales-quotes" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.tabQuotes') }}</h3>
+    <div class="card-actions">
+      {% if can('sales', 'create') %}<button class="btn btn-primary btn-sm" onclick="openQuoteModal()">{{ t('sales.newQuote') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.saleNo') }}</th>
+          <th>{{ t('sales.quoteCustomer') }}</th>
+          <th>{{ t('sales.quoteTitle') }}</th>
+          <th>{{ t('sales.validUntil') }}</th>
+          <th>{{ t('sales.quoteTotal') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="quotes-table">
+        <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== SALES ORDERS ==================== -->
+<section class="card" id="sales-orders" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.tabOrders') }}</h3>
+    <div class="card-actions">
+      {% if can('sales', 'create') %}<button class="btn btn-primary btn-sm" onclick="openOrderModal()">{{ t('sales.newOrder') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.orderNumber') }}</th>
+          <th>{{ t('sales.quoteCustomer') }}</th>
+          <th>{{ t('sales.salesperson') }}</th>
+          <th>{{ t('sales.orderDate') }}</th>
+          <th>{{ t('sales.dueDate') }}</th>
+          <th>{{ t('sales.orderAmount') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="orders-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== INVOICES ==================== -->
+<section class="card" id="sales-invoices" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.tabInvoices') }}</h3>
+    <div class="card-actions">
+      {% if can('sales', 'create') %}<button class="btn btn-primary btn-sm" onclick="openInvoiceModal()">{{ t('sales.newInvoice') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.invoiceNumber') }}</th>
+          <th>{{ t('sales.quoteCustomer') }}</th>
+          <th>{{ t('sales.issueDate') }}</th>
+          <th>{{ t('sales.dueDate') }}</th>
+          <th>{{ t('sales.amountCol') }}</th>
+          <th>{{ t('sales.paid') }}</th>
+          <th>{{ t('sales.balance') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="invoices-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== RETURNS ==================== -->
+<section class="card" id="sales-returns" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.tabReturns') }}</h3>
+    <div class="card-actions">
+      {% if can('sales', 'create') %}<button class="btn btn-primary btn-sm" onclick="openReturnModal()">{{ t('sales.newReturn') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.returnNumber') }}</th>
+          <th>{{ t('sales.quoteCustomer') }}</th>
+          <th>{{ t('sales.returnInvoice') }}</th>
+          <th>{{ t('sales.returnDate') }}</th>
+          <th>{{ t('sales.returnAmount') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="returns-table">
+        <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== COMMISSIONS ==================== -->
+<section class="card" id="sales-commissions" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.tabCommissions') }}</h3>
+    <div class="card-actions">
+      {% if can('sales', 'create') %}<button class="btn btn-secondary btn-sm" onclick="autoCommissions()">{{ t('sales.autoCommissions') }}</button>
+      <button class="btn btn-primary btn-sm" onclick="openCommissionModal()">{{ t('sales.newCommission') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.salesperson') }}</th>
+          <th>{{ t('sales.orderNumber') }}</th>
+          <th>{{ t('sales.invoiceNumber') }}</th>
+          <th>{{ t('sales.commissionDate') }}</th>
+          <th>{{ t('sales.commissionRate') }}</th>
+          <th>{{ t('sales.commissionAmount') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="commissions-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== TEAM ==================== -->
+<section class="card" id="sales-team" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h3>{{ t('sales.teamTitle') }}</h3>
+    <div class="card-actions">
+      <button class="btn btn-secondary btn-sm" onclick="refreshTeam()">{{ t('common.refresh') }}</button>
+      <button class="btn btn-primary btn-sm" onclick="printTeamReport()">{{ t('sales.printTeam') }}</button>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('sales.employeeLabel') }}</th>
+          <th>{{ t('sales.deptLabel') }}</th>
+          <th>{{ t('sales.ordersCount') }}</th>
+          <th>{{ t('sales.ordersCompleted') }}</th>
+          <th>{{ t('sales.ordersValue') }}</th>
+          <th>{{ t('sales.ordersCount') }}</th>
+          <th>{{ t('sales.commPaid') }}</th>
+          <th>{{ t('sales.commPending') }}</th>
+        </tr>
+      </thead>
+      <tbody id="team-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== QUOTE MODAL ==================== -->
+<div class="modal-overlay" id="quote-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="quote-modal-title">{{ t('sales.newQuote') }}</h3><button class="modal-close" onclick="closeModal('quote-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="quote-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.quoteTitle') }}</label><input type="text" id="quote-title" placeholder="{{ t('sales.quotePlaceholder') }}"></div>
+        <div class="form-group"><label>{{ t('sales.selectCustomer') }} *</label><select id="quote-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.validUntil') }}</label><input type="date" id="quote-valid"></div>
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="quote-status"><option value="draft">{{ t('status.draft') }}</option><option value="sent">{{ t('status.sent') }}</option></select></div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('sales.orderItems') }}</label>
+        <table class="quote-items-table">
+          <thead><tr><th>{{ t('sales.itemDescription') }}</th><th style="width:80px;">{{ t('sales.qty') }}</th><th style="width:110px;">{{ t('sales.unitPrice') }}</th><th style="width:110px;">{{ t('doc.total') }}</th><th style="width:40px;"></th></tr></thead>
+          <tbody id="quote-items-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addQuoteItem()">{{ t('sales.addItem') }}</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('doc.subtotal') }}</label><input type="number" id="quote-subtotal" readonly></div>
+        <div class="form-group"><label>{{ t('doc.discount') }}</label><input type="number" id="quote-discount" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.taxRate') }}</label><input type="number" id="quote-tax" min="0" max="100" step="0.01" value="0"></div>
+        <div class="form-group"><label>{{ t('doc.grandTotal') }}</label><input type="number" id="quote-total" readonly></div>
+      </div>
+      <div class="form-group"><label>{{ t('crm.notes') }}</label><textarea id="quote-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveQuote()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('quote-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== ORDER MODAL ==================== -->
+<div class="modal-overlay" id="order-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="order-modal-title">{{ t('sales.newOrder') }}</h3><button class="modal-close" onclick="closeModal('order-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="order-id">
+      <input type="hidden" id="order-quote-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.selectCustomer') }} *</label><select id="order-customer"></select></div>
+        <div class="form-group"><label>{{ t('sales.salesperson') }}</label><select id="order-salesperson"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.orderDate') }}</label><input type="date" id="order-date"></div>
+        <div class="form-group"><label>{{ t('sales.dueDate') }}</label><input type="date" id="order-due"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="order-status"><option value="draft">{{ t('status.draft') }}</option><option value="confirmed">{{ t('status.confirmed') }}</option><option value="delivered">{{ t('sales.delivered') }}</option><option value="completed">{{ t('sales.completed') }}</option><option value="cancelled">{{ t('status.cancelled') }}</option></select></div>
+        <div class="form-group"><label>{{ t('sales.paid') }}</label><input type="number" id="order-paid" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('sales.orderItems') }}</label>
+        <table class="quote-items-table">
+          <thead><tr><th>{{ t('sales.itemDescription') }}</th><th style="width:80px;">{{ t('sales.qty') }}</th><th style="width:110px;">{{ t('sales.unitPrice') }}</th><th style="width:90px;">{{ t('sales.taxRate') }}</th><th style="width:110px;">{{ t('doc.total') }}</th><th style="width:40px;"></th></tr></thead>
+          <tbody id="order-items-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addOrderItem()">{{ t('sales.addItem') }}</button>
+      </div>
+      <div class="form-group"><label>{{ t('sales.orderNotes') }}</label><textarea id="order-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveOrder()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('order-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== INVOICE MODAL ==================== -->
+<div class="modal-overlay" id="invoice-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="invoice-modal-title">{{ t('sales.newInvoice') }}</h3><button class="modal-close" onclick="closeModal('invoice-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="invoice-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.invoiceNumber') }}</label><input type="text" id="invoice-number"></div>
+        <div class="form-group"><label>{{ t('sales.selectCustomer') }} *</label><select id="invoice-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.issueDate') }}</label><input type="date" id="invoice-issue"></div>
+        <div class="form-group"><label>{{ t('sales.dueDate') }}</label><input type="date" id="invoice-due"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.paid') }}</label><input type="number" id="invoice-paid" min="0" step="0.01" value="0"></div>
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="invoice-status"><option value="pending">{{ t('status.pending') }}</option><option value="partial">{{ t('status.partial') }}</option><option value="paid">{{ t('status.paid') }}</option></select></div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('sales.orderItems') }}</label>
+        <table class="quote-items-table">
+          <thead><tr><th>{{ t('sales.itemDescription') }}</th><th style="width:80px;">{{ t('sales.qty') }}</th><th style="width:110px;">{{ t('sales.unitPrice') }}</th><th style="width:90px;">{{ t('sales.taxRate') }}</th><th style="width:110px;">{{ t('doc.total') }}</th><th style="width:40px;"></th></tr></thead>
+          <tbody id="invoice-items-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addInvoiceItem()">{{ t('sales.addItem') }}</button>
+      </div>
+      <div class="form-group"><label>{{ t('sales.invoiceNotes') }}</label><textarea id="invoice-notes"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveInvoice()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('invoice-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== PAY MODAL ==================== -->
+<div class="modal-overlay" id="pay-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('sales.recordPayment') }}</h3><button class="modal-close" onclick="closeModal('pay-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pay-invoice-id">
+      <div class="form-group"><label>{{ t('sales.paymentAmount') }} *</label><input type="number" id="pay-amount" min="0" step="0.01"></div>
+      <div class="form-group"><label>{{ t('sales.paymentDate') }}</label><input type="date" id="pay-date"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="savePayment()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('pay-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== RETURN MODAL ==================== -->
+<div class="modal-overlay" id="return-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="return-modal-title">{{ t('sales.newReturn') }}</h3><button class="modal-close" onclick="closeModal('return-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="return-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.selectInvoice') }}</label><select id="return-invoice"></select></div>
+        <div class="form-group"><label>{{ t('sales.selectCustomer') }}</label><select id="return-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.returnDate') }}</label><input type="date" id="return-date"></div>
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="return-status"><option value="draft">{{ t('status.draft') }}</option><option value="processed">{{ t('status.processed') }}</option><option value="completed">{{ t('status.completed') }}</option><option value="rejected">{{ t('status.rejected') }}</option></select></div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('sales.returnItems') }}</label>
+        <table class="quote-items-table">
+          <thead><tr><th>{{ t('sales.itemDescription') }}</th><th style="width:80px;">{{ t('sales.qty') }}</th><th style="width:110px;">{{ t('sales.unitPrice') }}</th><th style="width:90px;">{{ t('sales.taxRate') }}</th><th style="width:110px;">{{ t('doc.total') }}</th><th style="width:40px;"></th></tr></thead>
+          <tbody id="return-items-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addReturnItem()">{{ t('sales.addItem') }}</button>
+      </div>
+      <div class="form-group"><label>{{ t('sales.returnReason') }}</label><textarea id="return-reason"></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveReturn()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('return-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- ==================== COMMISSION MODAL ==================== -->
+<div class="modal-overlay" id="commission-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="commission-modal-title">{{ t('sales.newCommission') }}</h3><button class="modal-close" onclick="closeModal('commission-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="commission-id">
+      <div class="form-group"><label>{{ t('sales.selectSalesperson') }} *</label><select id="commission-salesperson"></select></div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.selectQuote') }}/{{ t('sales.orderNumber') }}</label><select id="commission-order"></select></div>
+        <div class="form-group"><label>{{ t('sales.selectInvoice') }}</label><select id="commission-invoice"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.commissionDate') }}</label><input type="date" id="commission-date"></div>
+        <div class="form-group"><label>{{ t('sales.commissionRate') }}</label><input type="number" id="commission-rate" min="0" step="0.01" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('sales.commissionAmount') }} *</label><input type="number" id="commission-amount" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="commission-status"><option value="pending">{{ t('status.pending') }}</option><option value="approved">{{ t('status.approved') }}</option><option value="paid">{{ t('status.paid') }}</option><option value="cancelled">{{ t('status.cancelled') }}</option></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('sales.commissionNotes') }}</label><input type="text" id="commission-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCommission()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('commission-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sales.js') }}"></script>
+{% endblock %}

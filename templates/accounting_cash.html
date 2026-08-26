@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.cashTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-cash{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.cashTitle') }}</h1>
+    <p>{{ t('accounting.cashSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <select id="cash-account" class="form-select" style="min-width:220px;margin-right:8px;" onchange="loadCash()"></select>
+    <span class="stat-inline" id="cash-balance"></span>
+    {% if can('accounting', 'create') %}
+    <button class="btn btn-success" onclick="openOpModal('receive')">{{ t('accounting.receive') }}</button>
+    <button class="btn btn-danger" onclick="openOpModal('pay')">{{ t('accounting.pay') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.date') }}</th>
+          <th>{{ t('accounting.entryNumber') }}</th>
+          <th>{{ t('common.description') }}</th>
+          <th>{{ t('accounting.debit') }}</th>
+          <th>{{ t('accounting.credit') }}</th>
+          <th>{{ t('accounting.balance') }}</th>
+        </tr>
+      </thead>
+      <tbody id="cash-table">
+        <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="op-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="op-modal-title">{{ t('accounting.receive') }}</h3>
+      <button class="modal-close" onclick="closeOpModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('accounting.amount') }} *</label>
+        <input type="number" id="op-amount" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.date') }}</label>
+        <input type="date" id="op-date">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.counterpart') }}</label>
+        <select id="op-counterpart"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.costCenter') }}</label>
+        <select id="op-cc"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.financialYear') }}</label>
+        <select id="op-year"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="op-desc">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeOpModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveOp()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_cash.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.allowances') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-allowances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.allowances') }}</h1>
+    <p>{{ t('payroll.allowancesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-primary" onclick="openAllowanceModal()">{{ t('payroll.addAllowance') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.allowances') }} <span class="card-count" id="allowances-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('payroll.allowanceName') }}</th>
+            <th>{{ t('payroll.amount') }}</th>
+            <th>{{ t('common.type') }}</th>
+            <th>{{ t('common.notes') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="allowances-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="allowances-empty" style="display:none;">
+      <div class="empty-icon">🎁</div>
+      <div>{{ t('payroll.noAllowances') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Allowance Modal -->
+<div class="modal-overlay" id="allowance-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="allowance-modal-title">{{ t('payroll.addAllowance') }}</div>
+      <button class="icon-btn modal-close" onclick="closeAllowanceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="allowance-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="allowance-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.allowanceName') }} *</label>
+        <input type="text" id="allowance-name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.type') }}</label>
+          <select id="allowance-type">
+            <option value="fixed">{{ t('payroll.fixedAmount') }}</option>
+            <option value="percentage">{{ t('payroll.percentage') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.amount') }}</label>
+          <input type="number" id="allowance-amount" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.percentage') }}</label>
+          <input type="number" id="allowance-percentage" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="allowance-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAllowanceModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveAllowance()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_allowances.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.budgetTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-budget{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.budgetTitle') }}</h1>
+    <p>{{ t('accounting.budgetSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <select id="budget-year" class="form-select" style="min-width:160px;margin-right:8px;" onchange="loadBudget()"></select>
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="saveBudget()">{{ t('common.save') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="stats-grid" style="margin-top:16px;">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--info-tint);color:var(--info);">🎯</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.totalBudget') }}</div>
+      <div class="stat-value" id="budget-total">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--success-tint);color:var(--success);">✅</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.totalActual') }}</div>
+      <div class="stat-value" id="budget-actual">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--warning-tint);color:var(--warning);">📉</div>
+    <div class="stat-info">
+      <div class="stat-label">{{ t('accounting.variance') }}</div>
+      <div class="stat-value" id="budget-variance">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.code') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('accounting.type') }}</th>
+          <th>{{ t('accounting.budgetedAmount') }}</th>
+          <th>{{ t('accounting.actualAmount') }}</th>
+          <th>{{ t('accounting.variance') }}</th>
+        </tr>
+      </thead>
+      <tbody id="budget-table">
+        <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_budget.js') }}"></script>
+{% endblock %}

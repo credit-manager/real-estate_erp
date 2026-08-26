@@ -1,0 +1,713 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.realestate') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}real-estate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('realestate.title') }}</h1>
+    <p>{{ t('realestate.subtitle') }}</p>
+  </div>
+</div>
+
+<!-- Scroll Links -->
+<div class="tabs-scroll" id="re-tabs">
+  <a href="#re-units" class="tab-btn">{{ t('re.tabUnits') }}</a>
+  <a href="#re-buildings" class="tab-btn">{{ t('re.tabBuildings') }}</a>
+  <a href="#re-floors" class="tab-btn">{{ t('re.tabFloors') }}</a>
+  <a href="#re-unit-types" class="tab-btn">{{ t('re.tabUnitTypes') }}</a>
+  <a href="#re-pricing" class="tab-btn">{{ t('re.tabPricing') }}</a>
+  <a href="#re-reservations" class="tab-btn">{{ t('re.tabReservations') }}</a>
+  <a href="#re-allocations" class="tab-btn">{{ t('re.tabAllocations') }}</a>
+  <a href="#re-contracts" class="tab-btn">{{ t('re.tabContracts') }}</a>
+  <a href="#re-plans" class="tab-btn">{{ t('re.tabPlans') }}</a>
+  <a href="#re-commissions" class="tab-btn">{{ t('re.tabCommissions') }}</a>
+  <a href="#re-brokers" class="tab-btn">{{ t('re.tabBrokers') }}</a>
+  <a href="#re-owners" class="tab-btn">{{ t('re.tabOwners') }}</a>
+  <a href="#re-deliveries" class="tab-btn">{{ t('re.tabDeliveries') }}</a>
+  <a href="#re-maintenance" class="tab-btn">{{ t('re.tabMaintenance') }}</a>
+  <a href="#re-shares" class="tab-btn">{{ t('re.tabShares') }}</a>
+  <a href="#re-analytics" class="tab-btn">{{ t('re.tabAnalytics') }}</a>
+  <a href="#re-screenings" class="tab-btn">{{ t('re.tabScreenings') }}</a>
+  <a href="#re-mortgages" class="tab-btn">{{ t('re.tabMortgages') }}</a>
+</div>
+
+<!-- ==================== UNITS SECTION ==================== -->
+<div class="tab-content" id="re-units">
+  <div class="page-header">
+    <div>
+      <h2>{{ t('realestate.title') }}</h2>
+      <p>{{ t('re.tabUnits') }}</p>
+    </div>
+    <div class="page-actions">
+      {% if can('realestate', 'create') %}
+      <button class="btn btn-primary" onclick="openUnitModal()">{{ t('realestate.newUnit') }}</button>
+      {% endif %}
+      <button class="btn btn-outline" onclick="exportUnits()">{{ t('common.export') }}</button>
+    </div>
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card"><div class="kpi-label">{{ t('realestate.totalLabel') }}</div><div class="kpi-value" id="unit-total">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('status.available') }}</div><div class="kpi-value" id="unit-available" style="color:var(--primary);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('status.sold') }}</div><div class="kpi-value" id="unit-sold" style="color:var(--info);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('status.rented') }}</div><div class="kpi-value" id="unit-rented" style="color:var(--amber);">0</div></div>
+  </div>
+  <div class="filters-bar" style="margin-top:12px;">
+    <select id="filter-status"><option value="">{{ t('common.allStatuses') }}</option><option value="available">{{ t('status.available') }}</option><option value="reserved">{{ t('status.reserved') }}</option><option value="sold">{{ t('status.sold') }}</option><option value="rented">{{ t('status.rented') }}</option></select>
+    <input type="text" id="filter-search" placeholder="{{ t('realestate.searchPlaceholder') }}">
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('re.buildingName') }}</th><th>{{ t('common.project') }}</th><th>{{ t('common.type') }}</th><th>{{ t('common.area') }}</th><th>{{ t('common.floor') }}</th><th>{{ t('common.price') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="units-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div>
+  <div id="units-pagination"></div></div>
+</div>
+
+<!-- ==================== BUILDINGS SECTION ==================== -->
+<div class="tab-content" id="re-buildings">
+  <div class="page-header">
+    <div><h2>{{ t('re.buildingsTitle') }}</h2><p>{{ t('re.buildingsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openBuildingModal()">{{ t('re.newBuilding') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.buildingCode') }}</th><th>{{ t('re.buildingName') }}</th><th>{{ t('re.buildingProject') }}</th><th>{{ t('re.buildingFloors') }}</th><th>{{ t('re.buildingUnits') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="buildings-table"><tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== FLOORS SECTION ==================== -->
+<div class="tab-content" id="re-floors">
+  <div class="page-header">
+    <div><h2>{{ t('re.floorsTitle') }}</h2><p>{{ t('re.floorsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openFloorModal()">{{ t('re.newFloor') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.floorNumber') }}</th><th>{{ t('re.floorName') }}</th><th>{{ t('re.floorBuilding') }}</th><th>{{ t('re.floorUnits') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="floors-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== UNIT TYPES SECTION ==================== -->
+<div class="tab-content" id="re-unit-types">
+  <div class="page-header">
+    <div><h2>{{ t('re.unitTypesTitle') }}</h2><p>{{ t('re.unitTypesSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openUnitTypeModal()">{{ t('re.newUnitType') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.unitTypeName') }}</th><th>{{ t('re.unitTypeCode') }}</th><th>{{ t('re.unitTypeActive') }}</th><th>{{ t('re.buildingUnits') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="unit-types-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== PRICING SECTION ==================== -->
+<div class="tab-content" id="re-pricing">
+  <div class="page-header">
+    <div><h2>{{ t('re.pricingTitle') }}</h2><p>{{ t('re.pricingSub') }}</p></div>
+  </div>
+  <div class="filters-bar" style="margin-top:12px;">
+    <select id="filter-price-unit"><option value="">{{ t('common.all') }}</option></select>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('re.oldPrice') }}</th><th>{{ t('re.newPrice') }}</th><th>{{ t('re.changeDate') }}</th><th>{{ t('re.reason') }}</th></tr></thead>
+    <tbody id="pricing-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== RESERVATIONS SECTION ==================== -->
+<div class="tab-content" id="re-reservations">
+  <div class="page-header">
+    <div><h2>{{ t('re.reservationsTitle') }}</h2><p>{{ t('re.reservationsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openReservationModal()">{{ t('re.newReservation') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('common.customer') }}</th><th>{{ t('re.reservedDate') }}</th><th>{{ t('re.expiryDate') }}</th><th>{{ t('re.deposit') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="reservations-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== ALLOCATIONS SECTION ==================== -->
+<div class="tab-content" id="re-allocations">
+  <div class="page-header">
+    <div><h2>{{ t('re.allocationsTitle') }}</h2><p>{{ t('re.allocationsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openAllocationModal()">{{ t('re.newAllocation') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('common.customer') }}</th><th>{{ t('re.allocatedDate') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="allocations-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== CONTRACTS SECTION ==================== -->
+<div class="tab-content" id="re-contracts">
+  <div class="page-header">
+    <div><h2>{{ t('re.contractsTitle') }}</h2><p>{{ t('re.contractsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openContractModal()">{{ t('re.newContract') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.contractNumber') }}</th><th>{{ t('realestate.colCode') }}</th><th>{{ t('common.customer') }}</th><th>{{ t('re.totalAmount') }}</th><th>{{ t('re.discount') }}</th><th>{{ t('re.netAmount') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="contracts-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== PLANS SECTION ==================== -->
+<div class="tab-content" id="re-plans">
+  <div class="page-header">
+    <div><h2>{{ t('plans.title') }}</h2><p>{{ t('plans.subtitle') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openPlanModal()">{{ t('plans.newPlan') }}</button>{% endif %}</div>
+  </div>
+  <div class="filters-bar" style="margin-top:12px;">
+    <select id="filter-year-plans"><option value="">{{ t('common.allYears') }}</option></select>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('plans.colUnit') }}</th><th>{{ t('plans.colCustomer') }}</th><th>{{ t('plans.colTotal') }}</th><th>{{ t('plans.colDown') }}</th><th>{{ t('plans.colPaid') }}</th><th>{{ t('plans.colBalance') }}</th><th>{{ t('plans.colMonths') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="plans-table"><tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== COMMISSIONS SECTION ==================== -->
+<div class="tab-content" id="re-commissions">
+  <div class="page-header">
+    <div><h2>{{ t('re.commissionsTitle') }}</h2><p>{{ t('re.commissionsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openCommissionModal()">{{ t('re.newCommission') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.contractNumber') }}</th><th>{{ t('re.employee') }}</th><th>{{ t('re.rate') }}</th><th>{{ t('re.amount') }}</th><th>{{ t('re.dueDate') }}</th><th>{{ t('re.paidDate') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="commissions-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== BROKERS SECTION ==================== -->
+<div class="tab-content" id="re-brokers">
+  <div class="page-header">
+    <div><h2>{{ t('re.brokersTitle') }}</h2><p>{{ t('re.brokersSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openBrokerModal()">{{ t('re.newBroker') }}</button>{% endif %}</div>
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.brokersTotal') }}</div><div class="kpi-value" id="broker-total">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.brokersActive') }}</div><div class="kpi-value" id="broker-active" style="color:var(--primary);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.commissionsTitle') }}</div><div class="kpi-value" id="broker-commissions">0</div></div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.brokerName') }}</th><th>{{ t('re.agencyName') }}</th><th>{{ t('common.phone') }}</th><th>{{ t('common.email') }}</th><th>{{ t('re.brokerRate') }}</th><th>{{ t('re.unitTypeActive') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="brokers-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== OWNERS SECTION ==================== -->
+<div class="tab-content" id="re-owners">
+  <div class="page-header">
+    <div><h2>{{ t('re.ownersTitle') }}</h2><p>{{ t('re.ownersSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openOwnerModal()">{{ t('re.newOwner') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('re.ownerName') }}</th><th>{{ t('re.idNumber') }}</th><th>{{ t('common.phone') }}</th><th>{{ t('common.email') }}</th><th>{{ t('re.ownerType') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="owners-table"><tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== DELIVERIES SECTION ==================== -->
+<div class="tab-content" id="re-deliveries">
+  <div class="page-header">
+    <div><h2>{{ t('re.deliveriesTitle') }}</h2><p>{{ t('re.deliveriesSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openDeliveryModal()">{{ t('re.newDelivery') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('common.customer') }}</th><th>{{ t('re.deliveryDate') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="deliveries-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== MAINTENANCE SECTION ==================== -->
+<div class="tab-content" id="re-maintenance">
+  <div class="page-header">
+    <div><h2>{{ t('re.maintenanceTitle') }}</h2><p>{{ t('re.maintenanceSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openMaintenanceModal()">{{ t('re.newMaintenance') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('re.issueType') }}</th><th>{{ t('re.requestDate') }}</th><th>{{ t('re.cost') }}</th><th>{{ t('re.assignedTo') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="maintenance-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== SHARES SECTION ==================== -->
+<div class="tab-content" id="re-shares">
+  <div class="page-header">
+    <div><h2>{{ t('re.sharesTitle') }}</h2><p>{{ t('re.sharesSub') }}</p></div>
+    <div class="page-actions">
+      {% if can('realestate', 'edit') %}<button class="btn btn-outline" onclick="openDistributeModal()">{{ t('re.distributeRevenue') }}</button>{% endif %}
+      {% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openShareModal()">{{ t('re.newShare') }}</button>{% endif %}
+    </div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('re.owner') }}</th><th>{{ t('re.sharePercent') }}</th><th>{{ t('common.notes') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="shares-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== ANALYTICS SECTION ==================== -->
+<div class="tab-content" id="re-analytics">
+  <div class="page-header">
+    <div><h2>{{ t('re.analyticsTitle') }}</h2><p>{{ t('re.analyticsSub') }}</p></div>
+    <div class="page-actions">
+      <select id="analytics-project" style="min-width:180px;"><option value="">{{ t('common.all') }}</option></select>
+      <button class="btn btn-outline" onclick="loadAnalytics()">{{ t('common.refresh') }}</button>
+    </div>
+  </div>
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.totalUnits') }}</div><div class="kpi-value" id="an-total">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('status.available') }}</div><div class="kpi-value" id="an-available" style="color:var(--primary);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.occupancyRate') }}</div><div class="kpi-value" id="an-occupancy">0%</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('re.vacancyRate') }}</div><div class="kpi-value" id="an-vacancy" style="color:var(--amber);">0%</div></div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('common.project') }}</th><th>{{ t('re.totalUnits') }}</th><th>{{ t('re.occupiedUnits') }}</th><th>{{ t('re.occupancyRate') }}</th></tr></thead>
+    <tbody id="analytics-table"><tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== SCREENINGS SECTION ==================== -->
+<div class="tab-content" id="re-screenings">
+  <div class="page-header">
+    <div><h2>{{ t('re.screeningsTitle') }}</h2><p>{{ t('re.screeningsSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openScreeningModal()">{{ t('re.newScreening') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('common.customer') }}</th><th>{{ t('re.monthlyIncome') }}</th><th>{{ t('re.employer') }}</th><th>{{ t('re.creditStatus') }}</th><th>{{ t('re.blacklist') }}</th><th>{{ t('re.result') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="screenings-table"><tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== MORTGAGES SECTION ==================== -->
+<div class="tab-content" id="re-mortgages">
+  <div class="page-header">
+    <div><h2>{{ t('re.mortgagesTitle') }}</h2><p>{{ t('re.mortgagesSub') }}</p></div>
+    <div class="page-actions">{% if can('realestate', 'create') %}<button class="btn btn-primary" onclick="openMortgageModal()">{{ t('re.newMortgage') }}</button>{% endif %}</div>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table><thead><tr><th>{{ t('realestate.colCode') }}</th><th>{{ t('re.lender') }}</th><th>{{ t('re.loanAmount') }}</th><th>LTV %</th><th>{{ t('re.interestRate') }}</th><th>{{ t('re.lienNumber') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+    <tbody id="mortgages-table"><tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ============ MODALS ============ -->
+
+<!-- Unit Modal -->
+<div class="modal-overlay" id="unit-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="unit-modal-title">{{ t('realestate.newUnit') }}</h3><button class="modal-close" onclick="closeModal('unit-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="unit-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.codeLabel') }} *</label><input type="text" id="unit-code" placeholder="A-101"></div>
+        <div class="form-group"><label>{{ t('common.project') }}</label><select id="unit-project"><option value="">{{ t('realestate.selectProject') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.buildingName') }}</label><select id="unit-building"><option value="">{{ t('common.choose') }}</option></select></div>
+        <div class="form-group"><label>{{ t('common.floor') }}</label><select id="unit-floor-select"><option value="">{{ t('common.choose') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.type') }}</label><select id="unit-type-select"><option value="">{{ t('common.choose') }}</option></select></div>
+        <div class="form-group"><label>{{ t('re.owner') }}</label><select id="unit-owner"><option value="">{{ t('common.choose') }}</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.areaLabel') }}</label><input type="number" id="unit-area" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('common.price') }}</label><input type="number" id="unit-price" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.status') }}</label><select id="unit-status"><option value="available">{{ t('status.available') }}</option><option value="reserved">{{ t('status.reserved') }}</option><option value="sold">{{ t('status.sold') }}</option><option value="rented">{{ t('status.rented') }}</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveUnit()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('unit-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Building Modal -->
+<div class="modal-overlay" id="building-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="building-modal-title">{{ t('re.newBuilding') }}</h3><button class="modal-close" onclick="closeModal('building-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="building-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.buildingName') }} *</label><input type="text" id="building-name"></div>
+        <div class="form-group"><label>{{ t('re.buildingCode') }}</label><input type="text" id="building-code"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.buildingProject') }}</label><select id="building-project"></select></div>
+        <div class="form-group"><label>{{ t('re.buildingFloors') }}</label><input type="number" id="building-floors" min="0" value="0"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="building-desc"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveBuilding()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('building-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Floor Modal -->
+<div class="modal-overlay" id="floor-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="floor-modal-title">{{ t('re.newFloor') }}</h3><button class="modal-close" onclick="closeModal('floor-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="floor-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.floorNumber') }}</label><input type="number" id="floor-number" min="1" value="1"></div>
+        <div class="form-group"><label>{{ t('re.floorName') }}</label><input type="text" id="floor-name"></div>
+      </div>
+      <div class="form-group"><label>{{ t('re.floorBuilding') }} *</label><select id="floor-building"></select></div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="floor-desc"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveFloor()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('floor-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Unit Type Modal -->
+<div class="modal-overlay" id="unit-type-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="unit-type-modal-title">{{ t('re.newUnitType') }}</h3><button class="modal-close" onclick="closeModal('unit-type-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="unit-type-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.unitTypeName') }} *</label><input type="text" id="unit-type-name"></div>
+        <div class="form-group"><label>{{ t('re.unitTypeCode') }}</label><input type="text" id="unit-type-code"></div>
+      </div>
+      <div class="form-group"><label class="switch-row"><input type="checkbox" id="unit-type-active" checked><span class="switch"></span>{{ t('re.unitTypeActive') }}</label></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveUnitType()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('unit-type-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Reservation Modal -->
+<div class="modal-overlay" id="reservation-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="reservation-modal-title">{{ t('re.newReservation') }}</h3><button class="modal-close" onclick="closeModal('reservation-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="reservation-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="reservation-unit"></select></div>
+        <div class="form-group"><label>{{ t('common.customer') }}</label><select id="reservation-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.reservedDate') }}</label><input type="date" id="reservation-date"></div>
+        <div class="form-group"><label>{{ t('re.expiryDate') }}</label><input type="date" id="reservation-expiry"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.deposit') }}</label><input type="number" id="reservation-deposit" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="reservation-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveReservation()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('reservation-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Allocation Modal -->
+<div class="modal-overlay" id="allocation-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="allocation-modal-title">{{ t('re.newAllocation') }}</h3><button class="modal-close" onclick="closeModal('allocation-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="allocation-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="allocation-unit"></select></div>
+        <div class="form-group"><label>{{ t('common.customer') }}</label><select id="allocation-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.allocatedDate') }}</label><input type="date" id="allocation-date"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="allocation-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveAllocation()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('allocation-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Contract Modal -->
+<div class="modal-overlay" id="contract-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="contract-modal-title">{{ t('re.newContract') }}</h3><button class="modal-close" onclick="closeModal('contract-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="contract-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.contractNumber') }}</label><input type="text" id="contract-number"></div>
+        <div class="form-group"><label>{{ t('re.contractDate') }}</label><input type="date" id="contract-date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="contract-unit"></select></div>
+        <div class="form-group"><label>{{ t('common.customer') }}</label><select id="contract-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.totalAmount') }}</label><input type="number" id="contract-total" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('re.discount') }}</label><input type="number" id="contract-discount" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="contract-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveContract()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('contract-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Plan Modal -->
+<div class="modal-overlay" id="plan-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="plan-modal-title">{{ t('plans.newPlan') }}</h3><button class="modal-close" onclick="closeModal('plan-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('plans.unit') }} *</label><select id="plan-unit"></select></div>
+        <div class="form-group"><label>{{ t('plans.customer') }}</label><select id="plan-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('plans.downPayment') }}</label><input type="number" id="plan-down" min="0" step="0.01"></div>
+        <div class="form-group"><label>{{ t('plans.startDate') }}</label><input type="date" id="plan-start"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('plans.months') }}</label><input type="number" id="plan-months" min="1" value="12"></div>
+        <div class="form-group"><label>{{ t('plans.monthlyAmount') }}</label><input type="number" id="plan-monthly" min="0" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>{{ t('financialYears.year') }}</label><select id="plan-year"></select></div>
+      <div class="form-hint" id="plan-summary"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="savePlan()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('plan-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Commission Modal -->
+<div class="modal-overlay" id="commission-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="commission-modal-title">{{ t('re.newCommission') }}</h3><button class="modal-close" onclick="closeModal('commission-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="commission-id"><input type="hidden" id="commission-contract-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.employee') }}</label><select id="commission-employee"></select></div>
+        <div class="form-group"><label>{{ t('re.commissionBroker') }}</label><select id="commission-broker"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.rate') }}</label><input type="number" id="commission-rate" min="0" max="100" step="0.01"></div>
+        <div class="form-group"><label>{{ t('re.amount') }}</label><input type="number" id="commission-amount" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.dueDate') }}</label><input type="date" id="commission-due"></div>
+        <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="commission-notes"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveCommission()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('commission-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Broker Modal -->
+<div class="modal-overlay" id="broker-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="broker-modal-title">{{ t('re.newBroker') }}</h3><button class="modal-close" onclick="closeModal('broker-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="broker-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.brokerName') }} *</label><input type="text" id="broker-name"></div>
+        <div class="form-group"><label>{{ t('re.agencyName') }}</label><input type="text" id="broker-agency"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.phone') }}</label><input type="text" id="broker-phone"></div>
+        <div class="form-group"><label>{{ t('common.email') }}</label><input type="email" id="broker-email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.idNumber') }}</label><input type="text" id="broker-idnumber"></div>
+        <div class="form-group"><label>{{ t('re.brokerRate') }}</label><input type="number" id="broker-rate" min="0" max="100" step="0.01" value="0"></div>
+      </div>
+      <div class="form-group"><label class="switch-row"><input type="checkbox" id="broker-active" checked><span class="switch"></span>{{ t('re.brokerActive') }}</label></div>
+      <div class="form-group"><label>{{ t('common.notes') }}</label><input type="text" id="broker-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveBroker()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('broker-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Owner Modal -->
+<div class="modal-overlay" id="owner-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="owner-modal-title">{{ t('re.newOwner') }}</h3><button class="modal-close" onclick="closeModal('owner-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="owner-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.ownerName') }} *</label><input type="text" id="owner-name"></div>
+        <div class="form-group"><label>{{ t('re.idNumber') }}</label><input type="text" id="owner-idnumber"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.phone') }}</label><input type="text" id="owner-phone"></div>
+        <div class="form-group"><label>{{ t('common.email') }}</label><input type="email" id="owner-email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.ownerType') }}</label><select id="owner-type"><option value="individual">{{ t('re.individual') }}</option><option value="company">{{ t('re.company') }}</option></select></div>
+        <div class="form-group"><label>{{ t('common.address') }}</label><input type="text" id="owner-address"></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveOwner()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('owner-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Delivery Modal -->
+<div class="modal-overlay" id="delivery-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="delivery-modal-title">{{ t('re.newDelivery') }}</h3><button class="modal-close" onclick="closeModal('delivery-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="delivery-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="delivery-unit"></select></div>
+        <div class="form-group"><label>{{ t('common.customer') }}</label><select id="delivery-customer"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.deliveryDate') }}</label><input type="date" id="delivery-date"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="delivery-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveDelivery()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('delivery-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Maintenance Modal -->
+<div class="modal-overlay" id="maintenance-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="maintenance-modal-title">{{ t('re.newMaintenance') }}</h3><button class="modal-close" onclick="closeModal('maintenance-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="maintenance-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="maintenance-unit"></select></div>
+        <div class="form-group"><label>{{ t('re.issueType') }}</label><input type="text" id="maintenance-issue"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.requestDate') }}</label><input type="date" id="maintenance-date"></div>
+        <div class="form-group"><label>{{ t('re.cost') }}</label><input type="number" id="maintenance-cost" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.assignedTo') }}</label><select id="maintenance-assigned"></select></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="maintenance-desc"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveMaintenance()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('maintenance-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div class="modal-overlay" id="share-modal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="share-modal-title">{{ t('re.newShare') }}</h3><button class="modal-close" onclick="closeModal('share-modal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="share-id">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="share-unit"></select></div>
+        <div class="form-group"><label>{{ t('re.owner') }} *</label><select id="share-owner"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.sharePercent') }} *</label><input type="number" id="share-percent" min="0" max="100" step="0.01"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.description') }}</label><input type="text" id="share-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveShare()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('share-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Screening Modal -->
+<div class="modal-overlay" id="screening-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('re.newScreening') }}</h3><button class="modal-close" onclick="closeModal('screening-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('common.customer') }} *</label><select id="screening-customer"></select></div>
+        <div class="form-group"><label>{{ t('re.monthlyIncome') }}</label><input type="number" id="screening-income" min="0" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.employer') }}</label><input type="text" id="screening-employer"></div>
+        <div class="form-group"><label>{{ t('re.creditStatus') }}</label><select id="screening-credit"><option value="unknown">{{ t('re.credit_unknown') }}</option><option value="good">{{ t('re.credit_good') }}</option><option value="fair">{{ t('re.credit_fair') }}</option><option value="bad">{{ t('re.credit_bad') }}</option></select></div>
+      </div>
+      <div class="form-group"><label class="switch-row"><input type="checkbox" id="screening-blacklist"><span class="switch"></span>{{ t('re.blacklist') }}</label></div>
+      <div class="form-group"><label>{{ t('common.notes') }}</label><input type="text" id="screening-notes"></div>
+      <div class="form-hint">{{ t('re.screeningAutoRule') }}</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveScreening()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('screening-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Mortgage Modal -->
+<div class="modal-overlay" id="mortgage-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('re.newMortgage') }}</h3><button class="modal-close" onclick="closeModal('mortgage-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="mortgage-unit"></select></div>
+        <div class="form-group"><label>{{ t('re.lender') }} *</label><input type="text" id="mortgage-lender"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.loanAmount') }} *</label><input type="number" id="mortgage-loan" min="1" step="0.01"></div>
+        <div class="form-group"><label>LTV %</label><input type="number" id="mortgage-ltv" min="0" max="100" step="0.01"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.interestRate') }}</label><input type="number" id="mortgage-interest" min="0" max="100" step="0.01"></div>
+        <div class="form-group"><label>{{ t('re.lienNumber') }}</label><input type="text" id="mortgage-lien"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('re.startDate') }}</label><input type="date" id="mortgage-start"></div>
+        <div class="form-group"><label>{{ t('re.endDate') }}</label><input type="date" id="mortgage-end"></div>
+      </div>
+      <div class="form-group"><label>{{ t('common.notes') }}</label><input type="text" id="mortgage-notes"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="saveMortgage()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('mortgage-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- Checklist Modal (Snagging) -->
+<div class="modal-overlay" id="checklist-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="checklist-title">{{ t('re.checklistTitle') }}</h3><button class="modal-close" onclick="closeModal('checklist-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="table-wrapper"><table><thead><tr><th>{{ t('re.itemDescription') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+        <tbody id="checklist-table"></tbody></table></div>
+      <div class="form-row" style="margin-top:12px;">
+        <div class="form-group"><label>{{ t('re.itemDescription') }}</label><input type="text" id="checklist-new-desc"></div>
+        <div class="form-group" style="align-self:end;"><button class="btn btn-primary" onclick="addChecklistItem()">{{ t('re.addItem') }}</button></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      {% if can('realestate', 'edit') %}<button class="btn btn-success" onclick="completeDeliveryFromModal()">{{ t('re.completeDelivery') }}</button>{% endif %}
+      <button class="btn btn-outline" onclick="closeModal('checklist-modal')">{{ t('common.close') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Distribute Revenue Modal -->
+<div class="modal-overlay" id="distribute-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('re.distributeRevenue') }}</h3><button class="modal-close" onclick="closeModal('distribute-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>{{ t('realestate.colCode') }} *</label><select id="distribute-unit"></select></div>
+        <div class="form-group"><label>{{ t('re.amount') }} *</label><input type="number" id="distribute-amount" min="1" step="0.01"></div>
+      </div>
+      <div class="form-hint" id="distribute-result"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="runDistribute()">{{ t('re.distributeNow') }}</button><button class="btn btn-outline" onclick="closeModal('distribute-modal')">{{ t('common.close') }}</button></div>
+  </div>
+</div>
+
+<!-- Installments Modal -->
+<div class="modal-overlay" id="installments-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h3 id="installments-modal-title">{{ t('plans.installments') }}</h3><button class="modal-close" onclick="closeModal('installments-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="table-wrapper"><table><thead><tr><th>{{ t('plans.installmentNo') }}</th><th>{{ t('plans.amount') }}</th><th>{{ t('plans.dueDate') }}</th><th>{{ t('plans.paidAmount') }}</th><th>{{ t('common.status') }}</th><th>{{ t('common.actions') }}</th></tr></thead>
+        <tbody id="installments-table"><tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>{{ t('plans.recordPayment') }}</h3><button class="modal-close" onclick="closeModal('payment-modal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>{{ t('plans.paidAmount') }} *</label><input type="number" id="payment-amount" min="0" step="0.01"></div>
+      <div class="form-group"><label>{{ t('plans.paidDate') }}</label><input type="date" id="payment-date"></div>
+      <div class="form-hint" id="payment-summary"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="savePayment()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('payment-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pagination.js') }}"></script>
+<script src="{{ url_for('static', filename='js/real-estate.js') }}"></script>
+{% endblock %}

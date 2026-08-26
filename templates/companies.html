@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('companies.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}companies{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('companies.title') }}</h1>
+    <p>{{ t('companies.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('companies', 'create') %}
+    <button class="btn btn-primary" onclick="openCompanyModal()">{{ t('companies.addCompany') }}</button>
+    <button class="btn btn-secondary" onclick="openBranchModal()">{{ t('companies.addBranch') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div>
+        <div class="kpi-label">{{ t('companies.kpiCompanies') }}</div>
+        <div class="kpi-value" id="kpi-companies">—</div>
+        <div class="kpi-change up">{{ t('companies.kpiCompaniesSub') }}</div>
+      </div>
+      <div class="kpi-icon kpi-olive">🏢</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div>
+        <div class="kpi-label">{{ t('companies.kpiActive') }}</div>
+        <div class="kpi-value" id="kpi-active">—</div>
+        <div class="kpi-change up">{{ t('companies.activeStatus') }}</div>
+      </div>
+      <div class="kpi-icon kpi-moss">✅</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-top">
+      <div>
+        <div class="kpi-label">{{ t('companies.kpiBranches') }}</div>
+        <div class="kpi-value" id="kpi-branches">—</div>
+        <div class="kpi-change up">{{ t('companies.kpiBranchesSub') }}</div>
+      </div>
+      <div class="kpi-icon kpi-sage">🏷️</div>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar: tabs + search -->
+<div class="companies-toolbar">
+  <div class="companies-tabs">
+    <button class="chip chip-active" id="tab-companies" onclick="switchTab('companies')">{{ t('companies.companyTab') }} <span id="tab-companies-count"></span></button>
+    <button class="chip" id="tab-branches" onclick="switchTab('branches')">{{ t('companies.branchTab') }} <span id="tab-branches-count"></span></button>
+  </div>
+  <div class="companies-search">
+    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <input type="text" id="company-search" placeholder="{{ t('common.search') }}" autocomplete="off" oninput="filterCompanies()">
+  </div>
+</div>
+
+<!-- ===== Companies (table) ===== -->
+<div id="panel-companies">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('companies.companyList') }} <span class="card-count" id="companies-count"></span></div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('common.name') }}</th>
+              <th>{{ t('companies.legalName') }}</th>
+              <th>{{ t('companies.taxNumber') }}</th>
+              <th>{{ t('companies.commercialReg') }}</th>
+              <th>{{ t('common.phone') }}</th>
+              <th>{{ t('companies.currency') }}</th>
+              <th>{{ t('companies.branchesCount') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th>{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody id="companies-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="companies-empty" style="display:none;">
+        <div class="empty-icon">🏢</div>
+        <div>{{ t('companies.noCompanies') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Branches (table) ===== -->
+<div id="panel-branches" style="display:none;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('companies.branchList') }} <span class="card-count" id="branches-count"></span></div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('common.name') }}</th>
+              <th>{{ t('companies.companyName') }}</th>
+              <th>{{ t('companies.branchCode') }}</th>
+              <th>{{ t('companies.branchCity') }}</th>
+              <th>{{ t('companies.managerName') }}</th>
+              <th>{{ t('common.phone') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th>{{ t('common.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody id="branches-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="branches-empty" style="display:none;">
+        <div class="empty-icon">🏷️</div>
+        <div>{{ t('companies.noBranches') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Company Modal ===== -->
+<div class="modal-overlay" id="company-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="company-modal-title">{{ t('companies.addCompany') }}</div>
+      <button class="icon-btn modal-close" onclick="closeCompanyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="company-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.name') }} *</label>
+          <input type="text" id="company-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('companies.legalName') }}</label>
+          <input type="text" id="company-legal-name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.taxNumber') }}</label>
+          <input type="text" id="company-tax">
+        </div>
+        <div class="form-group">
+          <label>{{ t('companies.commercialReg') }}</label>
+          <input type="text" id="company-reg">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.phone') }}</label>
+          <input type="text" id="company-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.email') }}</label>
+          <input type="text" id="company-email">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.website') }}</label>
+          <input type="text" id="company-website">
+        </div>
+        <div class="form-group">
+          <label>{{ t('companies.currency') }}</label>
+          <input type="text" id="company-currency" value="EGP">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.address') }}</label>
+        <textarea id="company-address" rows="2"></textarea>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('common.active') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="company-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCompanyModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveCompany()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Branch Modal ===== -->
+<div class="modal-overlay" id="branch-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="branch-modal-title">{{ t('companies.addBranch') }}</div>
+      <button class="icon-btn modal-close" onclick="closeBranchModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="branch-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.companyName') }} *</label>
+          <select id="branch-company"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('companies.branchName') }} *</label>
+          <input type="text" id="branch-name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.branchCode') }}</label>
+          <input type="text" id="branch-code">
+        </div>
+        <div class="form-group">
+          <label>{{ t('companies.branchCity') }}</label>
+          <input type="text" id="branch-city">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('companies.managerName') }}</label>
+          <input type="text" id="branch-manager">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.phone') }}</label>
+          <input type="text" id="branch-phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.address') }}</label>
+        <textarea id="branch-address" rows="2"></textarea>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('common.active') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="branch-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeBranchModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveBranch()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/companies.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,165 @@
+name: DynamicPro ERP CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: '3.11'
+  DATABASE_URL: postgresql://postgres:0100@localhost:5432/dynamicpro_test
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: 0100
+          POSTGRES_DB: dynamicpro_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov httpx
+
+      - name: Verify Python syntax (py_compile)
+        run: |
+          python -c "
+          import py_compile, os, sys
+          errors = []
+          for root, dirs, files in os.walk('.'):
+              # Skip virtual envs, migrations, cache dirs
+              dirs[:] = [d for d in dirs if d not in ('__pycache__', '.venv', 'venv', 'env', 'migrations', '.git', 'build', 'dist')]
+              for f in files:
+                  if f.endswith('.py'):
+                      path = os.path.join(root, f)
+                      try:
+                          py_compile.compile(path, doraise=True)
+                      except Exception as e:
+                          errors.append(f'{path}: {e}')
+          if errors:
+              print('\\n'.join(errors))
+              sys.exit(1)
+          print('All', len([f for f in os.listdir('.') if f.endswith('.py')]), 'Python files compile OK')
+          "
+
+      - name: Run Alembic check (migration validity)
+        run: |
+          # Set test DB env
+          export DB_PASSWORD=0100
+          export DB_NAME=dynamicpro_test
+          python -c "
+          from alembic.config import Config
+          from alembic import command
+          cfg = Config('alembic.ini')
+          command.check(cfg)
+          print('Alembic migration check OK')
+          "
+
+      - name: Run database migrations (test)
+        run: |
+          export DB_PASSWORD=0100
+          export DB_NAME=dynamicpro_test
+          python -c "
+          from alembic.config import Config
+          from alembic import command
+          cfg = Config('alembic.ini')
+          command.upgrade(cfg, 'head')
+          print('Database migrated to head')
+          "
+
+      - name: Run smoke tests
+        run: |
+          export DB_PASSWORD=0100
+          export DB_NAME=dynamicpro_test
+          export PYTHONIOENCODING=utf-8
+          python -m pytest tests/ -v --tb=short -x
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          python -m pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing --ignore=tests/integration 2>/dev/null || true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run bandit security scan
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json --exclude .venv,venv,migrations,build,dist --skip B101,B601 || true
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  build-docker:
+    needs: lint-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        run: |
+          docker build -t dynamicpro/erp:${{ github.sha }} .
+      - name: Push to registry (configure your registry)
+        # run: |
+        #   echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+        #   docker push dynamicpro/erp:${{ github.sha }}
+        run: echo "Docker image built successfully (push step commented out)"
+
+  deploy-staging:
+    needs: build-docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy to staging
+        run: |
+          echo "Deploy to staging environment (configure your deployment)"
+          # Example: kubectl apply, ansible, terraform, etc.
+
+  # Manual production deployment
+  deploy-production:
+    needs: build-docker
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Manual production deployment triggered"
+          # Add your production deployment steps here

@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('settings.title') }} | {{ system_name }}{% endblock %}
+
+{% block page %}general-settings{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+  <!-- Settings Sidebar -->
+  <nav class="settings-sidebar" id="settings-sidebar">
+    <div class="settings-sidebar-header">
+      <h2>{{ t('settings.title') }}</h2>
+    </div>
+    <ul class="settings-nav">
+      <li class="settings-nav-item active" data-section="appearance">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span>{{ t('settings.appearance') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="general">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>{{ t('settings.general') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="defaults">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>{{ t('settings.defaults') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="printing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>{{ t('settings.printing') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <span>{{ t('settings.menuLayout') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="ai">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a2 2 0 012 2v1a2 2 0 01-2 2h-1l4 4H5l4-4H8a2 2 0 01-2-2V9a2 2 0 012-2h1V6a4 4 0 014-4z"/></svg>
+        <span>{{ t('settings.ai') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="backup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>{{ t('settings.backup') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="company">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>{{ t('settings.company') }}</span>
+      </li>
+      <li class="settings-nav-item" data-section="mobile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        <span>{{ t('settings.mobile') }}</span>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Settings Content -->
+  <div class="settings-content" id="settings-form-wrap">
+
+    <!-- ===== Appearance ===== -->
+    <div class="settings-section active" id="section-appearance">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.appearance') }}</h3>
+        <p>{{ t('settings.appearanceSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.systemName') }}</div>
+          <div class="form-group">
+            <input type="text" id="set-system-name">
+            <p class="form-hint">{{ t('settings.systemNameHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.logoUrl') }}</div>
+          <div class="form-group">
+            <input type="text" id="set-logo-url" placeholder="https://.../logo.png">
+            <p class="form-hint">{{ t('settings.logoUrlHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultTheme') }}</div>
+          <div class="settings-theme-grid">
+            <label class="settings-theme-option">
+              <input type="radio" name="theme-pick" value="light">
+              <div class="settings-theme-preview light-preview">
+                <div class="theme-preview-bar"></div>
+                <div class="theme-preview-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+              </div>
+              <span>{{ t('settings.themeLight') }}</span>
+            </label>
+            <label class="settings-theme-option">
+              <input type="radio" name="theme-pick" value="dark">
+              <div class="settings-theme-preview dark-preview">
+                <div class="theme-preview-bar"></div>
+                <div class="theme-preview-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+              </div>
+              <span>{{ t('settings.themeDark') }}</span>
+            </label>
+          </div>
+          <input type="hidden" id="set-default-theme">
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultLang') }}</div>
+          <div class="settings-radio-group">
+            <label class="settings-radio"><input type="radio" name="lang-pick" value="ar"> {{ t('settings.langAr') }}</label>
+            <label class="settings-radio"><input type="radio" name="lang-pick" value="en"> {{ t('settings.langEn') }}</label>
+          </div>
+          <input type="hidden" id="set-default-lang">
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.numberDecimals') }}</div>
+          <div class="form-group">
+            <select id="set-number-decimals">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.dateFormat') }}</div>
+          <div class="form-group">
+            <select id="set-date-format">
+              <option value="dd/mm/yyyy">{{ t('settings.dateDmy') }}</option>
+              <option value="yyyy-mm-dd">{{ t('settings.dateIso') }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== General ===== -->
+    <div class="settings-section" id="section-general">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.general') }}</h3>
+        <p>{{ t('settings.generalSub') }}</p>
+      </div>
+    </div>
+
+    <!-- ===== Defaults ===== -->
+    <div class="settings-section" id="section-defaults">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.defaults') }}</h3>
+        <p>{{ t('settings.defaultsSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultCompany') }}</div>
+          <div class="form-group"><select id="set-default-company"></select></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultCurrency') }}</div>
+          <div class="form-group"><select id="set-default-currency"></select></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultFinancialYear') }}</div>
+          <div class="form-group"><select id="set-default-year"></select></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.defaultTax') }}</div>
+          <div class="form-group"><select id="set-default-tax"></select></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Printing ===== -->
+    <div class="settings-section" id="section-printing">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.printing') }}</h3>
+        <p>{{ t('settings.printingSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.invoicePrefix') }}</div>
+          <div class="form-group"><input type="text" id="set-invoice-prefix" placeholder="INV-"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.poPrefix') }}</div>
+          <div class="form-group"><input type="text" id="set-po-prefix" placeholder="PO-"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.contractPrefix') }}</div>
+          <div class="form-group"><input type="text" id="set-contract-prefix" placeholder="RC-"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.docTaxRate') }}</div>
+          <div class="form-group"><input type="number" id="set-doc-tax-rate" min="0" max="100" step="0.01"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.footerText') }}</div>
+          <div class="form-group">
+            <input type="text" id="set-footer-text" placeholder="{{ t('settings.footerTextPlaceholder') }}">
+            <p class="form-hint">{{ t('settings.footerTextHint') }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Menu Layout ===== -->
+    <div class="settings-section" id="section-menu">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.menuLayout') }}</h3>
+        <p>{{ t('settings.menuLayoutSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.layoutStyle') }}</div>
+          <div class="settings-theme-grid">
+            <label class="settings-theme-option">
+              <input type="radio" name="layout-pick" value="vertical">
+              <div class="settings-theme-preview vertical-preview">
+                <div class="layout-v-bar"></div>
+                <div class="layout-v-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+              </div>
+              <span>{{ t('settings.layoutVertical') }}</span>
+            </label>
+            <label class="settings-theme-option">
+              <input type="radio" name="layout-pick" value="horizontal">
+              <div class="settings-theme-preview horizontal-preview">
+                <div class="layout-h-bar"></div>
+                <div class="layout-h-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+              </div>
+              <span>{{ t('settings.layoutHorizontal') }}</span>
+            </label>
+          </div>
+          <input type="hidden" id="set-layout-style">
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.sidebarWidth') }}</div>
+          <div class="settings-range-row">
+            <input type="range" id="set-sidebar-width" min="200" max="320" step="10" value="258">
+            <span class="settings-range-val" id="sidebar-width-val">258px</span>
+          </div>
+          <p class="form-hint">{{ t('settings.sidebarWidthHint') }}</p>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.compactMenu') }}</div>
+          <div class="settings-toggle-row">
+            <p class="form-hint">{{ t('settings.compactMenuHint') }}</p>
+            <label class="switch">
+              <input type="checkbox" id="set-compact-menu">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.groupedModules') }}</div>
+          <div class="settings-toggle-row">
+            <p class="form-hint">{{ t('settings.groupedModulesHint') }}</p>
+            <label class="switch">
+              <input type="checkbox" id="set-grouped-modules" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AI ===== -->
+    <div class="settings-section" id="section-ai">
+      <div class="settings-section-header">
+        <h3>{{ t('serverSettings.ai') }}</h3>
+        <p>{{ t('serverSettings.aiHint') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('serverSettings.geminiKey') }}</div>
+          <div class="form-group">
+            <input type="password" id="set-gemini-key" placeholder="AIza..." autocomplete="off">
+            <p class="form-hint">{{ t('serverSettings.geminiKeyHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('serverSettings.geminiModel') }}</div>
+          <div class="form-group">
+            <select id="set-gemini-model">
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            </select>
+            <p class="form-hint">{{ t('serverSettings.geminiModelHint') }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Backup ===== -->
+    <div class="settings-section" id="section-backup">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.backup') }}</h3>
+        <p>{{ t('settings.backupSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.backupAuto') }}</div>
+          <div class="settings-toggle-row">
+            <p class="form-hint">{{ t('settings.backupAutoHint') }}</p>
+            <label class="switch">
+              <input type="checkbox" id="set-backup-auto-enabled">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.backupInterval') }}</div>
+          <div class="form-group">
+            <input type="number" id="set-backup-interval" min="1" max="365" value="1">
+            <p class="form-hint">{{ t('settings.backupIntervalHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.backupKeep') }}</div>
+          <div class="form-group">
+            <input type="number" id="set-backup-keep" min="1" max="100" value="10">
+            <p class="form-hint">{{ t('settings.backupKeepHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.backupFolder') }}</div>
+          <div class="form-group">
+            <input type="text" id="set-backup-folder" placeholder="C:\Backups">
+            <p class="form-hint">{{ t('settings.backupFolderHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card" id="backup-last-info" style="display:none;">
+          <div class="settings-card-title">{{ t('settings.backupLast') }}</div>
+          <p class="form-hint" id="backup-last-value">-</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Company ===== -->
+    <div class="settings-section" id="section-company">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.company') }}</h3>
+        <p>{{ t('settings.companySub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.selectCompanyToEdit') }}</div>
+          <div class="form-group">
+            <select id="set-company-select"></select>
+            <p class="form-hint">{{ t('settings.companyEditHint') }}</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('companies.name') }}</div>
+          <div class="form-row">
+            <div class="form-group"><label>{{ t('companies.name') }} *</label><input type="text" id="set-company-name"></div>
+            <div class="form-group"><label>{{ t('companies.legalName') }}</label><input type="text" id="set-company-legal"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>{{ t('companies.taxNumber') }}</label><input type="text" id="set-company-tax"></div>
+            <div class="form-group"><label>{{ t('companies.commercialReg') }}</label><input type="text" id="set-company-commercial"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>{{ t('common.phone') }}</label><input type="text" id="set-company-phone"></div>
+            <div class="form-group"><label>{{ t('common.email') }}</label><input type="email" id="set-company-email"></div>
+          </div>
+          <div class="form-group"><label>{{ t('common.address') }}</label><input type="text" id="set-company-address"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Mobile ===== -->
+    <div class="settings-section" id="section-mobile">
+      <div class="settings-section-header">
+        <h3>{{ t('settings.mobile') }}</h3>
+        <p>{{ t('settings.mobileSub') }}</p>
+      </div>
+      <div class="settings-section-body">
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.workLocation') }}</div>
+          <div class="form-row">
+            <div class="form-group"><label>{{ t('settings.workLat') }}</label><input type="number" id="set-work-lat" step="any" placeholder="30.0444"></div>
+            <div class="form-group"><label>{{ t('settings.workLng') }}</label><input type="number" id="set-work-lng" step="any" placeholder="31.2357"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>{{ t('settings.attendanceRadius') }}</label><input type="number" id="set-attendance-radius" min="10" max="100000" step="1" value="200"></div>
+            <div class="form-group"><button class="btn btn-outline" type="button" id="set-use-my-location" style="margin-top:26px;">{{ t('settings.useMyLocation') }}</button></div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-card-title">{{ t('settings.gpsInterval') }}</div>
+          <div class="form-group">
+            <input type="number" id="set-gps-interval" min="5" max="3600" value="30">
+            <p class="form-hint">{{ t('settings.gpsIntervalHint') }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Bar -->
+    <div class="settings-save-bar">
+      <div class="settings-save-bar-inner">
+        <button class="btn btn-primary" id="settings-save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          {{ t('serverSettings.save') }}
+        </button>
+      </div>
+      <div id="settings-msg" class="settings-msg" style="display:none;"></div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/general_settings.js') }}"></script>
+{% endblock %}

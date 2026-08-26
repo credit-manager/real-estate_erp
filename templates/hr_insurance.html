@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.insurance') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-insurance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.insurance') }}</h1>
+    <p>{{ t('payroll.insuranceSub') }}</p>
+  </div>
+  {% if can('payroll', 'edit') %}
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="saveSettings()">{{ t('common.save') }}</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.insurance') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="form-row" style="max-width:720px;">
+      <div class="form-group">
+        <label>{{ t('payroll.insuranceEmployee') }}</label>
+        <input type="number" id="ins-employee-rate" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.insuranceEmployer') }}</label>
+        <input type="number" id="ins-employer-rate" step="0.01" min="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.insuranceCeiling') }}</label>
+        <input type="number" id="ins-ceiling" step="0.01" min="0">
+      </div>
+    </div>
+    <p class="muted" style="font-size:0.85rem;">{{ t('common.none') }}: 0 = {{ t('payroll.insuranceCeiling') }}</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_insurance.js') }}"></script>
+{% endblock %}

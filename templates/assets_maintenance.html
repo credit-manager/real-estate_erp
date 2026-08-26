@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('assets.maintenance') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}assets-maintenance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('assets.maintenance') }}</h1>
+    <p>{{ t('assets.maintenanceSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openMaintenanceModal()">{{ t('assets.newMaintenance') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <select id="filter-asset" class="form-control" style="width:auto;" onchange="loadMaintenance()">
+        <option value="">{{ t('assets.allAssets') }}</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('assets.asset') }}</th>
+          <th>{{ t('assets.maintenanceDate') }}</th>
+          <th>{{ t('assets.maintenanceType') }}</th>
+          <th>{{ t('assets.cost') }}</th>
+          <th>{{ t('assets.vendor') }}</th>
+          <th>{{ t('assets.technician') }}</th>
+          <th>{{ t('assets.status') }}</th>
+          <th>{{ t('assets.nextMaintenance') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="maintenance-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal إضافة/تعديل صيانة -->
+<div class="modal-overlay" id="maintenance-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="maintenance-modal-title">{{ t('assets.newMaintenance') }}</h3>
+      <button class="modal-close" onclick="closeMaintenanceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('assets.asset') }} *</label>
+        <select id="mt-asset"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.maintenanceDate') }} *</label>
+          <input type="date" id="mt-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.maintenanceType') }}</label>
+          <select id="mt-type">
+            <option value="preventive">{{ t('assets.typePreventive') }}</option>
+            <option value="corrective">{{ t('assets.typeCorrective') }}</option>
+            <option value="emergency">{{ t('assets.typeEmergency') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.cost') }}</label>
+          <input type="number" id="mt-cost" min="0" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.vendor') }}</label>
+          <input type="text" id="mt-vendor">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.technician') }}</label>
+          <input type="text" id="mt-technician">
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.status') }}</label>
+          <select id="mt-status">
+            <option value="scheduled">{{ t('assets.mtScheduled') }}</option>
+            <option value="in_progress">{{ t('assets.mtInProgress') }}</option>
+            <option value="completed">{{ t('assets.mtCompleted') }}</option>
+            <option value="cancelled">{{ t('assets.mtCancelled') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('assets.nextMaintenance') }}</label>
+        <input type="date" id="mt-next">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="mt-desc">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeMaintenanceModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveMaintenance()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/assets.js') }}"></script>
+<script src="{{ url_for('static', filename='js/assets_maintenance.js') }}"></script>
+{% endblock %}

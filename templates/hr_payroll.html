@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.payroll') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-payroll{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.payroll') }}</h1>
+    <p>{{ t('payroll.payrollSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-primary" onclick="openRunModal()">{{ t('payroll.newRun') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="kpi-grid" style="margin-bottom:16px;">
+  <div class="kpi-card">
+    <div class="kpi-icon">💸</div>
+    <div class="kpi-label">{{ t('payroll.totalGross') }}</div>
+    <div class="kpi-value" id="kpi-gross">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🧾</div>
+    <div class="kpi-label">{{ t('payroll.totalDeductions') }}</div>
+    <div class="kpi-value" id="kpi-deductions">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🏦</div>
+    <div class="kpi-label">{{ t('payroll.totalNet') }}</div>
+    <div class="kpi-value" id="kpi-net">0</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">👥</div>
+    <div class="kpi-label">{{ t('payroll.employeesCount') }}</div>
+    <div class="kpi-value" id="kpi-emps">0</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.payroll') }} <span class="card-count" id="runs-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('payroll.runName') }}</th>
+            <th>{{ t('payroll.month') }}</th>
+            <th>{{ t('payroll.period') }}</th>
+            <th>{{ t('payroll.employeesCount') }}</th>
+            <th>{{ t('payroll.totalGross') }}</th>
+            <th>{{ t('payroll.totalDeductions') }}</th>
+            <th>{{ t('payroll.totalNet') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="runs-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="runs-empty" style="display:none;">
+      <div class="empty-icon">📊</div>
+      <div>{{ t('payroll.noRuns') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- New Run Modal -->
+<div class="modal-overlay" id="run-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">{{ t('payroll.newRun') }}</div>
+      <button class="icon-btn modal-close" onclick="closeRunModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('payroll.runName') }} *</label>
+        <input type="text" id="run-name">
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.month') }}</label>
+        <input type="month" id="run-month">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.fromDate') }}</label>
+          <input type="date" id="run-from">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.toDate') }}</label>
+          <input type="date" id="run-to">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRunModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="createRun()">{{ t('payroll.generate') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Run Lines Modal -->
+<div class="modal-overlay" id="lines-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="lines-modal-title">{{ t('payroll.payroll') }}</div>
+      <button class="icon-btn modal-close" onclick="closeLinesModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.employee') }}</th>
+              <th>{{ t('payroll.baseSalary') }}</th>
+              <th>{{ t('payroll.allowances') }}</th>
+              <th>{{ t('payroll.totalDeductions') }}</th>
+              <th>{{ t('payroll.gross') }}</th>
+              <th>{{ t('payroll.net') }}</th>
+              <th>{{ t('payroll.payslip') }}</th>
+            </tr>
+          </thead>
+          <tbody id="lines-table"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeLinesModal()">{{ t('common.close') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payslip Modal -->
+<div class="modal-overlay" id="payslip-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="payslip-title">{{ t('payroll.payslip') }}</div>
+      <button class="icon-btn modal-close" onclick="closePayslipModal()">✕</button>
+    </div>
+    <div class="modal-body" id="payslip-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="printPayslip()">🖨️ {{ t('common.print') }}</button>
+      <button class="btn btn-secondary" onclick="closePayslipModal()">{{ t('common.close') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_payroll.js') }}"></script>
+{% endblock %}

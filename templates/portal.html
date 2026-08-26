@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}بوابة العميل | Dynamic Pro ERP{% endblock %}
+{% block page %}portal{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>🏠 بوابة العميل</h1>
+    <p>استعلم عن عقدك وأقساطك وطلبات الصيانة</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:600px;margin:0 auto;">
+  <div class="card-body">
+    <div class="form-row">
+      <div class="form-group"><label>رقم العقد *</label><input type="text" id="portal-contract" placeholder="SC-2026-0001"></div>
+      <div class="form-group"><label>رقم الهاتف (اختياري للتحقق)</label><input type="text" id="portal-phone" placeholder="05xxxxxxxx"></div>
+    </div>
+    <button class="btn btn-primary" onclick="portalLookup()" style="width:100%;">استعلام</button>
+    <div id="portal-result" style="margin-top:16px;"></div>
+  </div>
+</div>
+
+<div id="portal-details" style="display:none;max-width:900px;margin:16px auto;">
+  <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="kpi-card"><div class="kpi-label">رقم العقد</div><div class="kpi-value" id="p-contract-no">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">الوحدة</div><div class="kpi-value" id="p-unit">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">الحالة</div><div class="kpi-value" id="p-status">—</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>الأقساط</h3></div>
+    <div class="table-wrapper"><table><thead><tr><th>#</th><th>المبلغ</th><th>المدفوع</th><th>الاستحقاق</th><th>الحالة</th></tr></thead><tbody id="p-installments"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>طلبات الصيانة</h3></div>
+    <div class="table-wrapper"><table><thead><tr><th>النوع</th><th>الوصف</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody id="p-maintenance"></tbody></table></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function portalLookup(){
+  const cn = document.getElementById('portal-contract').value.trim();
+  const ph = document.getElementById('portal-phone').value.trim();
+  if(!cn){ showToast('رقم العقد مطلوب','warning'); return; }
+  const res = document.getElementById('portal-result');
+  res.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  try{
+    const q = new URLSearchParams({contract_number:cn});
+    if(ph) q.set('phone', ph);
+    const data = await api.get('/api/portal/lookup?'+q.toString());
+    res.innerHTML='';
+    document.getElementById('portal-details').style.display='block';
+    document.getElementById('p-contract-no').textContent = data.contract.contract_number||'—';
+    document.getElementById('p-unit').textContent = data.unit? data.unit.unit_code : '—';
+    document.getElementById('p-status').textContent = data.contract.status||'—';
+    const itb=document.getElementById('p-installments');
+    const inst=data.installments||[];
+    itb.innerHTML = inst.length? inst.map(i=>`<tr><td>${i.installment_number||i.id}</td><td>${formatMoney(i.amount)}</td><td>${formatMoney(i.paid_amount)}</td><td>${i.due_date||'—'}</td><td><span class="badge badge-${i.status=='paid'?'success':i.status=='overdue'?'danger':'muted'}">${i.status}</span></td></tr>`).join('') : '<tr><td colspan="5">لا توجد أقساط</td></tr>';
+    const mtb=document.getElementById('p-maintenance');
+    const maint=data.maintenance||[];
+    mtb.innerHTML = maint.length? maint.map(m=>`<tr><td>${escapeHtml(m.issue_type||'—')}</td><td>${escapeHtml(m.description||'')}</td><td>${m.status}</td><td>${m.request_date||''}</td></tr>`).join('') : '<tr><td colspan="4">لا توجد طلبات</td></tr>';
+  }catch(e){
+    res.innerHTML='<div class="alert alert-error">'+escapeHtml(e.message||'خطأ')+'</div>';
+    document.getElementById('portal-details').style.display='none';
+  }
+}
+</script>
+{% endblock %}

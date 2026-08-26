@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('roles.permissionDeniedTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}profile{% endblock %}
+
+{% block content %}
+<div class="denied-page">
+  <div class="denied-icon">&#128274;</div>
+  <h1>{{ t('roles.permissionDeniedTitle') }}</h1>
+  <p>{{ t('permissions.denied') }}</p>
+  <p class="denied-sub">{{ t('permissions.deniedSub') }}</p>
+  <a href="/dashboard" class="btn btn-primary">{{ t('nav.dashboard') }}</a>
+</div>
+{% endblock %}

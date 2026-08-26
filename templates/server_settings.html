@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('serverSettings.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}server-settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('serverSettings.title') }}</h1>
+    <p>{{ t('serverSettings.subtitle') }}</p>
+  </div>
+</div>
+
+{% if local_only %}
+<div class="settings-local-only">
+  {{ t('serverSettings.localOnly') }}
+</div>
+{% else %}
+
+<div id="settings-loading" class="settings-loading">{{ t('serverSettings.loading') }}</div>
+
+<div id="settings-form-wrap" style="display:none;">
+  <div class="profile-grid">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">{{ t('serverSettings.general') }}</div>
+      </div>
+      <div class="card-body settings-body">
+        <div class="form-group">
+          <label for="settings-port">{{ t('serverSettings.port') }}</label>
+          <input type="number" id="settings-port" min="1024" max="65535">
+          <p class="form-hint">{{ t('serverSettings.portHint') }}</p>
+        </div>
+
+        <div class="form-group">
+          <label for="settings-access-password">{{ t('serverSettings.accessPassword') }}</label>
+          <div class="pw-wrap">
+            <input type="password" id="settings-access-password" autocomplete="off">
+            <button type="button" class="pw-toggle" tabindex="-1" aria-label="Toggle password visibility">
+              <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+          <p class="form-hint">{{ t('serverSettings.accessPasswordHint') }}</p>
+        </div>
+
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-title">{{ t('serverSettings.autoStart') }}</div>
+            <div class="form-hint">{{ t('serverSettings.autoStartHint') }}</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="settings-autostart">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-primary" id="settings-save">{{ t('serverSettings.save') }}</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">{{ t('serverSettings.network') }}</div>
+        <div class="card-subtitle">{{ t('serverSettings.networkHint') }}</div>
+      </div>
+      <div class="card-body">
+        <div class="settings-address-list" id="settings-addresses"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-msg" class="settings-msg" style="display:none;"></div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/server_settings.js') }}"></script>
+{% endblock %}

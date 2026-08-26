@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.projects') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}projects{% endblock %}
+
+{% block content %}
+<!-- ==================== LIST VIEW ==================== -->
+<div id="projects-list-view">
+  <div class="page-header">
+    <div>
+      <h1>{{ t('projects.title') }}</h1>
+      <p>{{ t('projects.subtitle') }}</p>
+    </div>
+    <div class="page-actions">
+      {% if can('projects', 'create') %}
+      <button class="btn btn-primary" onclick="openProjectModal()">{{ t('common.newProject') }}</button>
+      {% endif %}
+      <button class="btn btn-outline" onclick="exportProjects()">{{ t('common.export') }}</button>
+    </div>
+  </div>
+
+  <!-- KPI summary -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="kpi-card"><div class="kpi-label">{{ t('projects.totalLabel') }}</div><div class="kpi-value" id="sum-total">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('projects.activeLabel') }}</div><div class="kpi-value" id="sum-active" style="color:var(--primary);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('projects.finishingLabel') }}</div><div class="kpi-value" id="sum-finishing" style="color:var(--warning);">0</div></div>
+    <div class="kpi-card"><div class="kpi-label">{{ t('projects.completedLabel') }}</div><div class="kpi-value" id="sum-completed" style="color:var(--success);">0</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-bar" style="margin-top:16px;">
+    <select id="filter-status">
+      <option value="">{{ t('common.allStatuses') }}</option>
+      <option value="active">{{ t('status.active') }}</option>
+      <option value="finishing">{{ t('status.finishing') }}</option>
+      <option value="completed">{{ t('status.completed') }}</option>
+      <option value="suspended">{{ t('status.suspended') }}</option>
+    </select>
+    <select id="filter-priority">
+      <option value="">{{ t('common.allPriorities') }}</option>
+      <option value="high">{{ t('status.high') }}</option>
+      <option value="medium">{{ t('status.medium') }}</option>
+      <option value="low">{{ t('status.low') }}</option>
+    </select>
+    <input type="text" id="filter-search" placeholder="{{ t('common.searchByName') }}">
+  </div>
+
+  <!-- Projects table -->
+  <div class="card">
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ t('projects.colName') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.priority') }}</th>
+            <th>{{ t('common.budget') }}</th>
+            <th>{{ t('common.spent') }}</th>
+            <th>{{ t('common.completion') }}</th>
+            <th>{{ t('projects.managerLabel') }}</th>
+            <th>{{ t('common.location') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="projects-table">
+          <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== WORKSPACE VIEW ==================== -->
+<div id="project-workspace" style="display:none;">
+  <div class="ws-header">
+    <div style="min-width:0;">
+      <button class="btn btn-outline btn-sm" onclick="closeWorkspace()" style="margin-bottom:12px;">← {{ t('projects.back') }}</button>
+      <h1 id="ws-project-name" style="margin:0;">—</h1>
+      <div class="ws-badges" id="ws-project-badges"></div>
+      <p id="ws-project-meta" style="color:var(--muted-foreground);margin-top:8px;"></p>
+    </div>
+    <div class="page-actions" style="flex-shrink:0;">
+      <button class="btn btn-outline" onclick="exportProjectReport()">{{ t('common.exportReport') }}</button>
+      {% if can('projects', 'edit') %}
+      <button class="btn btn-secondary" id="ws-edit-btn" onclick="editWorkspaceProject()">{{ t('common.edit') }}</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="ws-summary" id="ws-summary"></div>
+
+  <div class="tabs-scroll" id="ws-tabs"></div>
+
+  <div id="tab-content">
+    <div class="tab-panel active" id="tab-overview"></div>
+    <div class="tab-panel" id="tab-phases"></div>
+    <div class="tab-panel" id="tab-wbs"></div>
+    <div class="tab-panel" id="tab-boq"></div>
+    <div class="tab-panel" id="tab-contracts"></div>
+    <div class="tab-panel" id="tab-subcontractors"></div>
+    <div class="tab-panel" id="tab-statements"></div>
+    <div class="tab-panel" id="tab-changeOrders"></div>
+    <div class="tab-panel" id="tab-progress"></div>
+    <div class="tab-panel" id="tab-execution"></div>
+    <div class="tab-panel" id="tab-costs"></div>
+    <div class="tab-panel" id="tab-risks"></div>
+    <div class="tab-panel" id="tab-quality"></div>
+    <div class="tab-panel" id="tab-siteLogs"></div>
+    <div class="tab-panel" id="tab-equipment"></div>
+    <div class="tab-panel" id="tab-labor"></div>
+  </div>
+</div>
+
+<!-- ==================== PROJECT MODAL ==================== -->
+<div class="modal-overlay" id="project-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="project-modal-title">{{ t('common.newProject') }}</h3>
+      <button class="modal-close" onclick="closeProjectModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="project-id">
+      <div class="form-group">
+        <label>{{ t('projects.nameLabel') }} *</label>
+        <input type="text" id="project-name" required placeholder="{{ t('projects.namePlaceholder') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.location') }}</label>
+        <input type="text" id="project-location" placeholder="{{ t('projects.locationPlaceholder') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="project-status">
+            <option value="active">{{ t('status.active') }}</option>
+            <option value="finishing">{{ t('status.finishing') }}</option>
+            <option value="completed">{{ t('status.completed') }}</option>
+            <option value="suspended">{{ t('status.suspended') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.priority') }}</label>
+          <select id="project-priority">
+            <option value="high">{{ t('status.high') }}</option>
+            <option value="medium" selected>{{ t('status.medium') }}</option>
+            <option value="low">{{ t('status.low') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.budget') }}</label>
+          <input type="number" id="project-budget" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>{{ t('projects.spentLabel') }}</label>
+          <input type="number" id="project-spent" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('projects.managerLabel') }}</label>
+          <select id="project-manager">
+            <option value="">{{ t('projects.selectManager') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('projects.completionLabel') }} %</label>
+          <input type="number" id="project-completion" min="0" max="100" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.start') }}</label>
+          <input type="date" id="project-start-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('projects.deadlineLabel') }}</label>
+          <input type="date" id="project-deadline">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <textarea id="project-description" rows="3" placeholder="{{ t('projects.descPlaceholder') }}"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveProject()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeProjectModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dynamic modal container (generated by JS) -->
+<div class="modal-overlay" id="entity-modal" style="display:none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/projects.js') }}?v=20260807-3"></script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.finance') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}finance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('finance.title') }}</h1>
+    <p>{{ t('finance.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('finance', 'create') %}
+    <button class="btn btn-primary" onclick="openInvoiceModal()">{{ t('finance.newInvoice') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportInvoices()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('finance.totalLabel') }}</div><div class="kpi-value" id="fin-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('finance.salesLabel') }}</div><div class="kpi-value" id="fin-sales" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('finance.expensesLabel') }}</div><div class="kpi-value" id="fin-purchases" style="color:var(--red);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('finance.pendingLabel') }}</div><div class="kpi-value" id="fin-pending" style="color:var(--warning);">0</div></div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-type">
+    <option value="">{{ t('common.allTypes') }}</option>
+    <option value="sales">{{ t('finance.salesLabel') }}</option>
+    <option value="purchase">{{ t('finance.expensesLabel') }}</option>
+  </select>
+  <select id="filter-status">
+    <option value="">{{ t('common.allStatuses') }}</option>
+    <option value="pending">{{ t('status.pending') }}</option>
+    <option value="paid">{{ t('status.paid') }}</option>
+    <option value="partial">{{ t('status.partial') }}</option>
+    <option value="overdue">{{ t('status.overdue') }}</option>
+  </select>
+  <select id="filter-year">
+    <option value="">{{ t('common.allYears') }}</option>
+  </select>
+</div>
+
+<div class="card">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('finance.colNumber') }}</th>
+          <th>{{ t('common.type') }}</th>
+          <th>{{ t('common.description') }}</th>
+          <th>{{ t('common.amount') }}</th>
+          <th>{{ t('common.paid') }}</th>
+          <th>{{ t('common.balance') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('workflow.title') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="invoices-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div class="modal-overlay" id="invoice-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="invoice-modal-title">{{ t('finance.newInvoice') }}</h3>
+      <button class="modal-close" onclick="closeInvoiceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="invoice-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('finance.numberLabel') }} *</label>
+          <input type="text" id="invoice-number" placeholder="INV-1001">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.type') }}</label>
+          <select id="invoice-type" onchange="populatePartySelect()">
+            <option value="sales">{{ t('finance.salesLabel') }}</option>
+            <option value="purchase">{{ t('finance.expensesLabel') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="invoice-party-label">{{ t('common.customer') }}</label>
+        <select id="invoice-party"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="invoice-description" placeholder="{{ t('finance.descPlaceholder') }}">
+      </div>
+      <div class="form-group">
+        <label>{{ t('invoice.itemsTitle') }}</label>
+        <div class="items-cols">
+          <span>{{ t('invoice.descCol') }}</span>
+          <span>{{ t('invoice.qtyCol') }}</span>
+          <span>{{ t('invoice.priceCol') }}</span>
+          <span>{{ t('invoice.taxCol') }}</span>
+          <span>{{ t('invoice.totalCol') }}</span>
+          <span></span>
+        </div>
+        <div class="items-editor" id="invoice-items">
+          <div class="item-row">
+            <input type="text" class="item-desc" placeholder="{{ t('invoice.descPlaceholder') }}">
+            <input type="number" class="item-qty" min="0" step="0.01" value="1" title="{{ t('invoice.qtyCol') }}">
+            <input type="number" class="item-price" min="0" step="0.01" placeholder="0.00" title="{{ t('invoice.priceCol') }}">
+            <input type="number" class="item-tax" min="0" step="0.01" value="0" title="{{ t('invoice.taxCol') }}">
+            <span class="item-line-total" title="{{ t('invoice.totalCol') }}">0.00</span>
+            <button type="button" class="btn btn-danger btn-sm item-remove" onclick="removeInvoiceItem(this)" title="{{ t('invoice.removeItem') }}">✕</button>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addInvoiceItem()">+ {{ t('invoice.addItem') }}</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.amount') }}</label>
+          <input type="number" id="invoice-amount" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>{{ t('finance.paidLabel') }}</label>
+          <input type="number" id="invoice-paid" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('finance.issueDate') }}</label>
+          <input type="date" id="invoice-issue-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('finance.dueDate') }}</label>
+          <input type="date" id="invoice-due-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="invoice-status">
+          <option value="pending">{{ t('status.pending') }}</option>
+          <option value="paid">{{ t('status.paid') }}</option>
+          <option value="partial">{{ t('status.partial') }}</option>
+          <option value="overdue">{{ t('status.overdue') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('financialYears.year') }}</label>
+        <select id="invoice-year"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveInvoice()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeInvoiceModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/fy_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/finance.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.recruitment') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-recruitment{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.recruitment') }}</h1>
+    <p>{{ t('hr.recruitmentSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openRecModal()">{{ t('hr.addRecruitment') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.recruitment') }} <span class="card-count" id="recs-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.candidateName') }}</th>
+            <th>{{ t('hr.candidatePosition') }}</th>
+            <th>{{ t('hr.candidateDepartment') }}</th>
+            <th>{{ t('hr.candidatePhone') }}</th>
+            <th>{{ t('hr.applicationDate') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="recs-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="recs-empty" style="display:none;">
+      <div class="empty-icon">🔍</div>
+      <div>{{ t('hr.noRecruitments') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Recruitment Modal -->
+<div class="modal-overlay" id="rec-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="rec-modal-title">{{ t('hr.addRecruitment') }}</div>
+      <button class="icon-btn modal-close" onclick="closeRecModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rec-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.candidateName') }} *</label>
+          <input type="text" id="rec-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.source') }}</label>
+          <input type="text" id="rec-source">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.candidatePosition') }}</label>
+          <select id="rec-position"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.candidateDepartment') }}</label>
+          <select id="rec-department"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.candidatePhone') }}</label>
+          <input type="text" id="rec-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.candidateEmail') }}</label>
+          <input type="email" id="rec-email">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.applicationDate') }}</label>
+          <input type="date" id="rec-app-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.hireDate') }}</label>
+          <input type="date" id="rec-hire-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.salary') }}</label>
+          <input type="number" id="rec-salary" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="rec-status">
+            <option value="applied">{{ t('hr.recApplied') }}</option>
+            <option value="interview">{{ t('hr.recInterview') }}</option>
+            <option value="offered">{{ t('hr.recOffered') }}</option>
+            <option value="hired">{{ t('hr.recHired') }}</option>
+            <option value="rejected">{{ t('hr.recRejected') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <textarea id="rec-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRecModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveRec()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_recruitment.js') }}"></script>
+{% endblock %}

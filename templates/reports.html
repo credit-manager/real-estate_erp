@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('nav.reports') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('reports.title') }}</h1>
+    <p>{{ t('reports.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="printReport()" style="margin-left:8px;">{{ t('common.print') }}</button>
+    <button class="btn btn-outline" onclick="exportReport()" style="margin-left:8px;">{{ t('common.export') }}</button>
+    <div class="filter-group" style="display:inline-flex;gap:8px;margin-left:8px;">
+      <select id="yearFilter" class="form-select" style="min-width:120px;">
+        <option value="">{{ t('reports.allYears') }}</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div class="card-title">{{ t('reports.projectsTitle') }}</div>
+        <div class="card-subtitle">{{ t('reports.projectsSubtitle') }}</div>
+      </div>
+      <div class="card-body"><div class="chart-container" style="height:260px;"><canvas id="reportsProjects"></canvas></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">{{ t('reports.departmentsTitle') }}</div>
+        <div class="card-subtitle">{{ t('reports.departmentsSubtitle') }}</div>
+      </div>
+      <div class="card-body"><div class="chart-container" style="height:260px;"><canvas id="reportsDepartments"></canvas></div></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div class="card-title">{{ t('reports.invoicesTitle') }}</div>
+        <div class="card-subtitle">{{ t('reports.invoicesSubtitle') }}</div>
+      </div>
+      <div class="card-body"><div class="chart-container" style="height:260px;"><canvas id="reportsInvoices"></canvas></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">{{ t('reports.assetsTitle') }}</div>
+      </div>
+      <div class="card-body" id="reports-summary">
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:50%;height:12px;"></div></div><div class="skeleton" style="width:50px;height:14px;"></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:40%;height:12px;"></div></div><div class="skeleton" style="width:50px;height:14px;"></div></div>
+        <div class="skeleton-row"><div class="skeleton" style="width:36px;height:36px;border-radius:11px;flex-shrink:0;"></div><div style="flex:1;"><div class="skeleton" style="width:60%;height:12px;"></div></div><div class="skeleton" style="width:50px;height:14px;"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}

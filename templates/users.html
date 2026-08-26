@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('users.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}users{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('users.title') }}</h1>
+    <p>{{ t('users.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('users', 'create') %}
+    <button class="btn btn-primary" onclick="openUserModal()">{{ t('users.newUser') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportUsers()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('users.totalLabel') }}</div><div class="kpi-value" id="user-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('users.activeLabel') }}</div><div class="kpi-value" id="user-active" style="color:var(--success);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('users.adminsLabel') }}</div><div class="kpi-value" id="user-admins" style="color:var(--info);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('users.colUsername') }}</th>
+          <th>{{ t('users.colName') }}</th>
+          <th>{{ t('users.colRole') }}</th>
+          <th>{{ t('users.colEmail') }}</th>
+          <th>{{ t('users.colStatus') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="users-table">
+        <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="user-modal-title">{{ t('users.newUser') }}</h3>
+      <button class="modal-close" onclick="closeUserModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="user-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('users.usernameLabel') }} *</label>
+          <input type="text" id="user-username" placeholder="username">
+        </div>
+        <div class="form-group">
+          <label>{{ t('users.fullNameLabel') }} *</label>
+          <input type="text" id="user-fullname" placeholder="{{ t('users.fullNameLabel') }}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('users.colEmail') }}</label>
+          <input type="email" id="user-email" placeholder="{{ t('users.emailPlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('users.colRole') }}</label>
+          <select id="user-role">
+            <option value="admin">{{ t('users.roleAdmin') }}</option>
+            <option value="employee">{{ t('users.roleEmployee') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('users.passwordLabel') }} *</label>
+        <div class="pw-wrap">
+          <input type="password" id="user-password" placeholder="{{ t('users.passwordPlaceholder') }}">
+          <button type="button" class="pw-toggle" tabindex="-1" aria-label="Toggle password visibility">
+            <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="form-hint" id="password-hint">{{ t('users.passwordHint') }}</div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('users.colStatus') }}</label>
+        <select id="user-active">
+          <option value="1">{{ t('users.activeStatus') }}</option>
+          <option value="0">{{ t('users.inactiveStatus') }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveUser()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeUserModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/users.js') }}"></script>
+{% endblock %}

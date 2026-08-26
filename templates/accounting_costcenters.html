@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.costCentersTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-cost-centers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.costCentersTitle') }}</h1>
+    <p>{{ t('accounting.costCentersSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openCCModal()">{{ t('accounting.newCostCenter') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.code') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('accounting.active') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="cc-table">
+        <tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cc-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="cc-modal-title">{{ t('accounting.newCostCenter') }}</h3>
+      <button class="modal-close" onclick="closeCCModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('accounting.code') }} *</label>
+        <input type="text" id="cc-code">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.name') }} *</label>
+        <input type="text" id="cc-name">
+      </div>
+      <label class="switch-row"><input type="checkbox" id="cc-active" checked><span class="switch"></span>{{ t('accounting.active') }}</label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCCModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveCC()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_costcenters.js') }}"></script>
+{% endblock %}

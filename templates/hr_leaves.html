@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.leaves') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-leaves{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.leaves') }}</h1>
+    <p>{{ t('hr.leavesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openLeaveModal()">{{ t('hr.addLeave') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.leaves') }} <span class="card-count" id="leaves-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.leaveType') }}</th>
+            <th>{{ t('hr.leaveStart') }}</th>
+            <th>{{ t('hr.leaveEnd') }}</th>
+            <th>{{ t('hr.leaveDays') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="leaves-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="leaves-empty" style="display:none;">
+      <div class="empty-icon">🏖️</div>
+      <div>{{ t('hr.noLeaves') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Modal -->
+<div class="modal-overlay" id="leave-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="leave-modal-title">{{ t('hr.addLeave') }}</div>
+      <button class="icon-btn modal-close" onclick="closeLeaveModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="leave-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="leave-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.leaveType') }}</label>
+          <select id="leave-type">
+            <option value="annual">{{ t('hr.leaveAnnual') }}</option>
+            <option value="sick">{{ t('hr.leaveSick') }}</option>
+            <option value="unpaid">{{ t('hr.leaveUnpaid') }}</option>
+            <option value="emergency">{{ t('hr.leaveEmergency') }}</option>
+            <option value="maternity">{{ t('hr.leaveMaternity') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="leave-status">
+            <option value="pending">{{ t('hr.statusPending') }}</option>
+            <option value="approved">{{ t('hr.statusApproved') }}</option>
+            <option value="rejected">{{ t('hr.statusRejected') }}</option>
+            <option value="cancelled">{{ t('hr.statusCancelled') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.leaveStart') }}</label>
+          <input type="date" id="leave-start" onchange="calcLeaveDays()">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.leaveEnd') }}</label>
+          <input type="date" id="leave-end" onchange="calcLeaveDays()">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.leaveDays') }}</label>
+        <input type="number" id="leave-days" step="0.5" min="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.leaveReason') }}</label>
+        <textarea id="leave-reason" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeLeaveModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveLeave()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_leaves.js') }}"></script>
+{% endblock %}

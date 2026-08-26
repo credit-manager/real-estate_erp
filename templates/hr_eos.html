@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('payroll.eos') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-eos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('payroll.eos') }}</h1>
+    <p>{{ t('payroll.eosSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('payroll', 'create') %}
+    <button class="btn btn-primary" onclick="openEosModal()">{{ t('payroll.addEos') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.gratuityPerYear') }}</div>
+    {% if can('payroll', 'edit') %}
+    <button class="btn btn-sm btn-outline" onclick="saveSettings()">{{ t('common.save') }}</button>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="form-row" style="max-width:720px;">
+      <div class="form-group">
+        <label>{{ t('payroll.gratuityPerYear') }}</label>
+        <input type="number" id="eos-per-year" step="0.1" min="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('payroll.gratuityAfterFive') }}</label>
+        <input type="number" id="eos-after-five" step="0.1" min="0">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('payroll.eos') }} <span class="card-count" id="eos-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('payroll.hireDate') }}</th>
+            <th>{{ t('payroll.endDate') }}</th>
+            <th>{{ t('payroll.serviceYears') }}</th>
+            <th>{{ t('payroll.gratuityDays') }}</th>
+            <th>{{ t('payroll.gratuityAmount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="eos-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="eos-empty" style="display:none;">
+      <div class="empty-icon">📄</div>
+      <div>{{ t('payroll.noEos') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- EOS Modal -->
+<div class="modal-overlay" id="eos-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="eos-modal-title">{{ t('payroll.addEos') }}</div>
+      <button class="icon-btn modal-close" onclick="closeEosModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eos-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="eos-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.hireDate') }}</label>
+          <input type="date" id="eos-hire">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.endDate') }}</label>
+          <input type="date" id="eos-end">
+        </div>
+      </div>
+      {% if can('payroll', 'edit') %}
+      <div class="form-row" style="align-items:flex-end;">
+        <button class="btn btn-outline" onclick="calculateEos()">{{ t('payroll.calculate') }}</button>
+        <span class="muted" id="eos-preview" style="margin-left:auto;font-size:0.85rem;"></span>
+      </div>
+      {% endif %}
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.serviceYears') }}</label>
+          <input type="number" id="eos-years" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.gratuityDays') }}</label>
+          <input type="number" id="eos-days" step="0.1" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('payroll.baseSalary') }}</label>
+          <input type="number" id="eos-base" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('payroll.gratuityAmount') }}</label>
+          <input type="number" id="eos-amount" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="eos-status">
+          <option value="draft">{{ t('payroll.statusDraft') }}</option>
+          <option value="approved">{{ t('payroll.statusApproved') }}</option>
+          <option value="paid">{{ t('payroll.statusPaid') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="eos-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEosModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveEos()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/payroll_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_eos.js') }}"></script>
+{% endblock %}

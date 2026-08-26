@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.stocktakes') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory-stocktakes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.stocktakes') }}</h1>
+    <p>{{ t('inventory.stocktakesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('inventory', 'create') %}
+    <button class="btn btn-primary" onclick="openStocktakeModal()">{{ t('inventory.newStocktake') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('inventory.stocktakes') }} <span class="card-count" id="stocktakes-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('inventory.takeNumber') }}</th>
+            <th>{{ t('inventory.warehouse') }}</th>
+            <th>{{ t('inventory.takeDate') }}</th>
+            <th>{{ t('inventory.itemsCount') }}</th>
+            <th>{{ t('inventory.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="stocktakes-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="stocktakes-empty" style="display:none;">
+      <div class="empty-icon">✅</div>
+      <div>{{ t('inventory.noStocktakes') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== New Stocktake Modal ===== -->
+<div class="modal-overlay" id="stocktake-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">{{ t('inventory.newStocktake') }}</div>
+      <button class="icon-btn modal-close" onclick="closeStocktakeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('inventory.warehouse') }} *</label>
+        <select id="st-warehouse"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('inventory.takeDate') }}</label>
+          <input type="date" id="st-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('inventory.notes') }}</label>
+          <input type="text" id="st-notes">
+        </div>
+      </div>
+      <div class="form-group" style="color:var(--muted);font-size:13px;">{{ t('inventory.stocktakesSub') }}</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeStocktakeModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="createStocktake()">{{ t('inventory.newStocktake') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Stocktake Detail Modal ===== -->
+<div class="modal-overlay" id="take-detail-modal">
+  <div class="modal" style="width:760px;max-width:95%;">
+    <div class="modal-header">
+      <div class="modal-title" id="take-detail-title"></div>
+      <button class="icon-btn modal-close" onclick="closeTakeDetail()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.itemName') }}</th>
+              <th>{{ t('inventory.systemQty') }}</th>
+              <th>{{ t('inventory.countedQty') }}</th>
+              <th>{{ t('inventory.diffQty') }}</th>
+            </tr>
+          </thead>
+          <tbody id="take-items"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTakeDetail()">{{ t('common.close') }}</button>
+      <button class="btn btn-primary" id="take-complete-btn" onclick="completeStocktake()">{{ t('inventory.completeStocktake') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory_stocktakes.js') }}"></script>
+{% endblock %}

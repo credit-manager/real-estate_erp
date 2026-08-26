@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('workflow.requestsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}workflow-requests{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('workflow.requestsTitle') }}</h1>
+    <p>{{ t('workflow.requestsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <a href="/workflow/approvals" class="btn btn-outline">{{ t('workflow.backToApprovals') }}</a>
+    {% if can('workflow', 'edit') %}
+    <a href="/workflow/templates" class="btn btn-outline">{{ t('workflow.manageTemplates') }}</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="wf-filter-status">
+    <option value="">{{ t('workflow.all') }}</option>
+    <option value="pending">{{ t('workflow.statusPending') }}</option>
+    <option value="approved">{{ t('workflow.statusApproved') }}</option>
+    <option value="rejected">{{ t('workflow.statusRejected') }}</option>
+    <option value="cancelled">{{ t('workflow.cancelled') }}</option>
+  </select>
+  <select id="wf-filter-doctype">
+    <option value="">{{ t('workflow.all') }}</option>
+    <option value="invoice">{{ t('workflow.docInvoice') }}</option>
+    <option value="po">{{ t('workflow.docPo') }}</option>
+    <option value="rental_contract">{{ t('workflow.docRental') }}</option>
+  </select>
+  <button class="btn btn-outline" onclick="exportWorkflowRequests()">{{ t('common.export') }}</button>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('workflow.docType') }}</th>
+          <th>{{ t('workflow.docNumber') }}</th>
+          <th>{{ t('workflow.docTitle') }}</th>
+          <th>{{ t('workflow.amount') }}</th>
+          <th>{{ t('workflow.status') }}</th>
+          <th>{{ t('workflow.currentStep') }}</th>
+          <th>{{ t('workflow.submittedBy') }}</th>
+          <th>{{ t('workflow.submittedAt') }}</th>
+          <th>{{ t('workflow.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="requests-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="request-detail-modal" style="display:none;">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>{{ t('workflow.actions') }}</h3>
+      <button class="modal-close" onclick="closeDetailModal()">✕</button>
+    </div>
+    <div class="modal-body" id="request-detail-body"></div>
+    <div class="modal-footer">
+      <div id="request-detail-actions" style="display:none;gap:8px;"></div>
+      <button class="btn btn-outline" onclick="closeDetailModal()">{{ t('workflow.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workflow_requests.js') }}"></script>
+{% endblock %}

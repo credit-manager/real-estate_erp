@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.employees') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-employees{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.employees') }}</h1>
+    <p>{{ t('hr.employeesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openEmployeeModal()">{{ t('hr.newEmployee') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportEmployeesToCSV()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('hr.totalLabel') }}</div><div class="kpi-value" id="emp-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('hr.activeLabel') }}</div><div class="kpi-value" id="emp-active" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('hr.salaryLabel') }}</div><div class="kpi-value" id="emp-salary" style="color:var(--amber);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('hr.departmentsCount') }}</div><div class="kpi-value" id="emp-depts" style="color:var(--success);">0</div></div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-dept" onchange="renderEmployees()">
+    <option value="">{{ t('hr.allDepartments') }}</option>
+  </select>
+  <select id="filter-status" onchange="renderEmployees()">
+    <option value="">{{ t('common.allStatuses') }}</option>
+    <option value="active">{{ t('status.active') }}</option>
+    <option value="on_leave">{{ t('status.on_leave') }}</option>
+    <option value="terminated">{{ t('status.terminated') }}</option>
+  </select>
+  <input type="text" id="filter-search" placeholder="{{ t('common.searchByName') }}" oninput="renderEmployees()">
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{{ t('hr.employee') }}</th>
+          <th>{{ t('hr.department') }}</th>
+          <th>{{ t('hr.position') }}</th>
+          <th>{{ t('hr.personId') }}</th>
+          <th>{{ t('hr.phone') }}</th>
+          <th>{{ t('hr.salary') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="employees-table"></tbody>
+    </table>
+  </div>
+  <div class="empty-state" id="employees-empty" style="display:none;">
+    <div class="empty-icon">👥</div>
+    <div>{{ t('hr.noEmployees') }}</div>
+  </div>
+</div>
+
+<!-- Employee Modal -->
+<div class="modal-overlay" id="employee-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="employee-modal-title">{{ t('hr.newEmployee') }}</div>
+      <button class="icon-btn modal-close" onclick="closeEmployeeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="employee-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.fullName') }} *</label>
+          <input type="text" id="employee-full-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.nationalId') }}</label>
+          <input type="text" id="employee-national-id">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.phone') }}</label>
+          <input type="text" id="employee-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.email') }}</label>
+          <input type="email" id="employee-email">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.department') }}</label>
+          <select id="employee-department"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.position') }}</label>
+          <select id="employee-position"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.manager') }}</label>
+          <select id="employee-manager"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.linkAccount') }}</label>
+          <select id="employee-user"><option value="">{{ t('hr.noAccount') }}</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.employmentType') }}</label>
+          <select id="employee-employment-type">
+            <option value="full_time">{{ t('hr.empFullTime') }}</option>
+            <option value="part_time">{{ t('hr.empPartTime') }}</option>
+            <option value="fixed_term">{{ t('hr.empFixedTerm') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.gender') }}</label>
+          <select id="employee-gender">
+            <option value="">{{ t('common.select') }}</option>
+            <option value="male">{{ t('hr.male') }}</option>
+            <option value="female">{{ t('hr.female') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.birthDate') }}</label>
+          <input type="date" id="employee-birth-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.hireDate') }}</label>
+          <input type="date" id="employee-hire-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.salary') }}</label>
+          <input type="number" id="employee-salary" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="employee-status">
+            <option value="active">{{ t('status.active') }}</option>
+            <option value="on_leave">{{ t('status.on_leave') }}</option>
+            <option value="terminated">{{ t('status.terminated') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.address') }}</label>
+          <input type="text" id="employee-address">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEmployeeModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_employees.js') }}"></script>
+{% endblock %}

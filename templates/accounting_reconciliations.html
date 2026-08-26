@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.reconcileTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-reconciliations{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.reconcileTitle') }}</h1>
+    <p>{{ t('accounting.reconcileSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <select id="rec-account" class="form-select" style="min-width:220px;margin-right:8px;" onchange="loadRec()"></select>
+    <span class="stat-inline" id="rec-balance"></span>
+    {% if can('accounting', 'edit') %}<button class="btn btn-primary" onclick="doReconcile()">{{ t('accounting.markReconciled') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px;"><input type="checkbox" id="rec-select-all" onclick="toggleSelectAll(this)"></th>
+          <th>{{ t('accounting.date') }}</th>
+          <th>{{ t('accounting.entryNumber') }}</th>
+          <th>{{ t('common.description') }}</th>
+          <th>{{ t('accounting.debit') }}</th>
+          <th>{{ t('accounting.credit') }}</th>
+        </tr>
+      </thead>
+      <tbody id="rec-table">
+        <tr><td colspan="6"><div class="empty-state">{{ t('accounting.selectAccount') }}</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_reconcile.js') }}"></script>
+{% endblock %}

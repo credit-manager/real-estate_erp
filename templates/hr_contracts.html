@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.contracts') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-contracts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.contracts') }}</h1>
+    <p>{{ t('hr.contractsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openContractModal()">{{ t('hr.addContract') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.contracts') }} <span class="card-count" id="contracts-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.contractNumber') }}</th>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.contractType') }}</th>
+            <th>{{ t('hr.startDate') }}</th>
+            <th>{{ t('hr.endDate') }}</th>
+            <th>{{ t('hr.salary') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="contracts-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="contracts-empty" style="display:none;">
+      <div class="empty-icon">📄</div>
+      <div>{{ t('hr.noContracts') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Contract Modal -->
+<div class="modal-overlay" id="contract-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="contract-modal-title">{{ t('hr.addContract') }}</div>
+      <button class="icon-btn modal-close" onclick="closeContractModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="contract-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.employee') }} *</label>
+          <select id="contract-employee"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.contractNumber') }}</label>
+          <input type="text" id="contract-number">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.contractType') }}</label>
+          <select id="contract-type">
+            <option value="full_time">{{ t('hr.empFullTime') }}</option>
+            <option value="part_time">{{ t('hr.empPartTime') }}</option>
+            <option value="fixed_term">{{ t('hr.empFixedTerm') }}</option>
+            <option value="probation">{{ t('hr.contractPending') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.status') }}</label>
+          <select id="contract-status">
+            <option value="active">{{ t('hr.contractActive') }}</option>
+            <option value="pending">{{ t('hr.contractPending') }}</option>
+            <option value="expired">{{ t('hr.contractExpired') }}</option>
+            <option value="terminated">{{ t('hr.contractTerminated') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.startDate') }}</label>
+          <input type="date" id="contract-start-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.endDate') }}</label>
+          <input type="date" id="contract-end-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.salary') }}</label>
+          <input type="number" id="contract-salary" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.workingHours') }}</label>
+          <input type="number" id="contract-hours" step="0.5" min="0" value="8">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <textarea id="contract-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeContractModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveContract()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_contracts.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('rentals.tenantsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}rentals-tenants{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('rentals.tenantsTitle') }}</h1>
+    <p>{{ t('rentals.tenantsSubtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('rentals', 'create') %}
+    <button class="btn btn-primary" onclick="openTenantModal()">{{ t('rentals.newTenant') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="tabs-scroll" id="rental-tabs">
+  <a href="/rentals" class="tab-btn">{{ t('rentals.tabContracts') }}</a>
+  <a href="/rentals/tenants" class="tab-btn active">{{ t('rentals.tabTenants') }}</a>
+  <a href="/rentals/renewals" class="tab-btn">{{ t('rentals.tabRenewals') }}</a>
+  <a href="/rentals/collections" class="tab-btn">{{ t('rentals.tabCollections') }}</a>
+  <a href="/rentals/notifications" class="tab-btn">{{ t('rentals.tabNotifications') }}</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.tenantsTotal') }}</div><div class="kpi-value" id="tenant-total">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.tenantsActive') }}</div><div class="kpi-value" id="tenant-active" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.monthlyLabel') }}</div><div class="kpi-value" id="tenant-monthly" style="color:var(--amber);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('rentals.tenantName') }}</th>
+          <th>{{ t('rentals.tenantContact') }}</th>
+          <th>{{ t('rentals.tenantType') }}</th>
+          <th>{{ t('rentals.activeContracts') }}</th>
+          <th>{{ t('rentals.monthlyTotal') }}</th>
+          <th>{{ t('rentals.unitsLabel') }}</th>
+          <th>{{ t('common.status') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="tenants-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Tenant Modal -->
+<div class="modal-overlay" id="tenant-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="tenant-modal-title">{{ t('rentals.newTenant') }}</h3>
+      <button class="modal-close" onclick="closeTenantModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="tenant-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.tenantName') }} *</label>
+          <input type="text" id="tenant-full-name" placeholder="{{ t('rentals.tenantNamePlaceholder') }}">
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.tenantType') }}</label>
+          <select id="tenant-type">
+            <option value="individual">{{ t('rentals.typeIndividual') }}</option>
+            <option value="company">{{ t('rentals.typeCompany') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.tenantPhone') }}</label>
+          <input type="text" id="tenant-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.tenantEmail') }}</label>
+          <input type="email" id="tenant-email">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.tenantCompany') }}</label>
+          <input type="text" id="tenant-company">
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.tenantAddress') }}</label>
+          <input type="text" id="tenant-address">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('rentals.tenantNotes') }}</label>
+        <textarea id="tenant-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveTenant()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closeTenantModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rental_tenants.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.training') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-training{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.training') }}</h1>
+    <p>{{ t('hr.trainingSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openTrainingModal()">{{ t('hr.addTraining') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.training') }} <span class="card-count" id="trainings-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.trainingTitle') }}</th>
+            <th>{{ t('hr.provider') }}</th>
+            <th>{{ t('hr.startDate') }}</th>
+            <th>{{ t('hr.endDate') }}</th>
+            <th>{{ t('hr.cost') }}</th>
+            <th>{{ t('hr.traineesCount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="trainings-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="trainings-empty" style="display:none;">
+      <div class="empty-icon">🎓</div>
+      <div>{{ t('hr.noTrainings') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Training Modal -->
+<div class="modal-overlay" id="training-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="training-modal-title">{{ t('hr.addTraining') }}</div>
+      <button class="icon-btn modal-close" onclick="closeTrainingModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="training-id">
+      <div class="form-group">
+        <label>{{ t('hr.trainingTitle') }} *</label>
+        <input type="text" id="training-title">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.provider') }}</label>
+          <input type="text" id="training-provider">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.cost') }}</label>
+          <input type="number" id="training-cost" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.startDate') }}</label>
+          <input type="date" id="training-start">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.endDate') }}</label>
+          <input type="date" id="training-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="training-status">
+          <option value="planned">{{ t('hr.trainingPlanned') }}</option>
+          <option value="ongoing">{{ t('hr.trainingOngoing') }}</option>
+          <option value="completed">{{ t('hr.trainingCompleted') }}</option>
+          <option value="cancelled">{{ t('hr.trainingCancelled') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <textarea id="training-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTrainingModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveTraining()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Enrollments Modal -->
+<div class="modal-overlay" id="enroll-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title" id="enroll-modal-title">{{ t('hr.enrolledEmployees') }}</div>
+      <button class="icon-btn modal-close" onclick="closeEnrollModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label>{{ t('hr.employee') }}</label>
+          <select id="enroll-employee"><option value="">{{ t('common.select') }}</option></select>
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary" onclick="addEnrollment()">{{ t('hr.enrollEmployee') }}</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.employee') }}</th>
+              <th>{{ t('hr.enrollmentStatus') }}</th>
+              <th>{{ t('hr.score') }}</th>
+              <th>{{ t('hr.completedAt') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="enrollments-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="enrollments-empty" style="display:none;">
+        <div class="empty-icon">🎓</div>
+        <div>{{ t('hr.noEnrollments') }}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEnrollModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_training.js') }}"></script>
+{% endblock %}

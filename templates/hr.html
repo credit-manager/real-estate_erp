@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.hubTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.hubTitle') }}</h1>
+    <p>{{ t('hr.hubSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <a href="/hr/employees" class="btn btn-primary">{{ t('hr.employees') }}</a>
+  </div>
+</div>
+
+<div class="module-grid">
+  <a href="/hr/employees" class="module-card">
+    <div class="module-icon">👥</div>
+    <div class="module-title">{{ t('hr.employees') }}</div>
+    <div class="module-sub">{{ t('hr.employeesSub') }}</div>
+  </a>
+  <a href="/hr/departments" class="module-card">
+    <div class="module-icon">🏢</div>
+    <div class="module-title">{{ t('hr.departments') }}</div>
+    <div class="module-sub">{{ t('hr.departmentsSub') }}</div>
+  </a>
+  <a href="/hr/positions" class="module-card">
+    <div class="module-icon">💼</div>
+    <div class="module-title">{{ t('hr.positions') }}</div>
+    <div class="module-sub">{{ t('hr.positionsSub') }}</div>
+  </a>
+  <a href="/hr/org-chart" class="module-card">
+    <div class="module-icon">🌳</div>
+    <div class="module-title">{{ t('hr.orgChart') }}</div>
+    <div class="module-sub">{{ t('hr.orgChartSub') }}</div>
+  </a>
+  <a href="/hr/contracts" class="module-card">
+    <div class="module-icon">📄</div>
+    <div class="module-title">{{ t('hr.contracts') }}</div>
+    <div class="module-sub">{{ t('hr.contractsSub') }}</div>
+  </a>
+  <a href="/hr/recruitment" class="module-card">
+    <div class="module-icon">🔍</div>
+    <div class="module-title">{{ t('hr.recruitment') }}</div>
+    <div class="module-sub">{{ t('hr.recruitmentSub') }}</div>
+  </a>
+  <a href="/hr/attendance" class="module-card">
+    <div class="module-icon">⏰</div>
+    <div class="module-title">{{ t('hr.attendance') }}</div>
+    <div class="module-sub">{{ t('hr.attendanceSub') }}</div>
+  </a>
+  <a href="/hr/leaves" class="module-card">
+    <div class="module-icon">🏖️</div>
+    <div class="module-title">{{ t('hr.leaves') }}</div>
+    <div class="module-sub">{{ t('hr.leavesSub') }}</div>
+  </a>
+  <a href="/hr/penalties" class="module-card">
+    <div class="module-icon">⚠️</div>
+    <div class="module-title">{{ t('hr.penalties') }}</div>
+    <div class="module-sub">{{ t('hr.penaltiesSub') }}</div>
+  </a>
+  <a href="/hr/advances" class="module-card">
+    <div class="module-icon">💰</div>
+    <div class="module-title">{{ t('hr.advances') }}</div>
+    <div class="module-sub">{{ t('hr.advancesSub') }}</div>
+  </a>
+  <a href="/hr/loans" class="module-card">
+    <div class="module-icon">🏦</div>
+    <div class="module-title">{{ t('hr.loans') }}</div>
+    <div class="module-sub">{{ t('hr.loansSub') }}</div>
+  </a>
+  <a href="/hr/reviews" class="module-card">
+    <div class="module-icon">⭐</div>
+    <div class="module-title">{{ t('hr.reviews') }}</div>
+    <div class="module-sub">{{ t('hr.reviewsSub') }}</div>
+  </a>
+  <a href="/hr/training" class="module-card">
+    <div class="module-icon">🎓</div>
+    <div class="module-title">{{ t('hr.training') }}</div>
+    <div class="module-sub">{{ t('hr.trainingSub') }}</div>
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.advances') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-advances{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.advances') }}</h1>
+    <p>{{ t('hr.advancesSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openAdvanceModal()">{{ t('hr.addAdvance') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.advances') }} <span class="card-count" id="advances-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.employee') }}</th>
+            <th>{{ t('hr.advanceDate') }}</th>
+            <th>{{ t('hr.advanceAmount') }}</th>
+            <th>{{ t('hr.installments') }}</th>
+            <th>{{ t('hr.paidAmount') }}</th>
+            <th>{{ t('hr.remaining') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="advances-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="advances-empty" style="display:none;">
+      <div class="empty-icon">💰</div>
+      <div>{{ t('hr.noAdvances') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Advance Modal -->
+<div class="modal-overlay" id="advance-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="advance-modal-title">{{ t('hr.addAdvance') }}</div>
+      <button class="icon-btn modal-close" onclick="closeAdvanceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="advance-id">
+      <div class="form-group">
+        <label>{{ t('hr.employee') }} *</label>
+        <select id="advance-employee"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.advanceAmount') }}</label>
+          <input type="number" id="advance-amount" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.advanceDate') }}</label>
+          <input type="date" id="advance-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.installments') }}</label>
+          <input type="number" id="advance-installments" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.paidAmount') }}</label>
+          <input type="number" id="advance-paid" step="0.01" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.status') }}</label>
+        <select id="advance-status">
+          <option value="open">{{ t('hr.advOpen') }}</option>
+          <option value="partial">{{ t('hr.advPartial') }}</option>
+          <option value="settled">{{ t('hr.advSettled') }}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.advanceReason') }}</label>
+        <input type="text" id="advance-reason">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAdvanceModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveAdvance()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_advances.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('backup.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}backup{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('backup.title') }}</h1>
+    <p>{{ t('backup.subtitle') }}</p>
+  </div>
+</div>
+
+<div class="profile-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('backup.exportTitle') }}</div>
+      <div class="card-subtitle">{{ t('backup.exportSub') }}</div>
+    </div>
+    <div class="card-body">
+      <p class="backup-desc">{{ t('backup.exportDesc') }}</p>
+      <ul class="backup-list">
+        <li>{{ t('nav.users') }}</li>
+        <li>{{ t('nav.hr') }}</li>
+        <li>{{ t('nav.projects') }}</li>
+        <li>{{ t('nav.sales') }}</li>
+        <li>{{ t('nav.procurement') }}</li>
+        <li>{{ t('nav.finance') }}</li>
+        <li>{{ t('nav.realestate') }}</li>
+        <li>{{ t('nav.rentals') }}</li>
+        <li>{{ t('nav.audit') }}</li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary" onclick="exportBackup()">{{ t('backup.exportBtn') }}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('backup.importTitle') }}</div>
+      <div class="card-subtitle">{{ t('backup.importSub') }}</div>
+    </div>
+    <div class="card-body">
+      <p class="backup-desc backup-desc-danger">{{ t('backup.importDesc') }}</p>
+      <div class="form-group">
+        <label>{{ t('backup.fileLabel') }}</label>
+        <input type="file" id="backup-file" accept=".json,application/json">
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary" onclick="importBackup()">{{ t('backup.importBtn') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="profile-grid" style="margin-top:16px;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('backup.autoTitle') }}</div>
+      <div class="card-subtitle">{{ t('backup.autoSub') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-title">{{ t('backup.autoEnabled') }}</div>
+          <div class="form-hint">{{ t('backup.autoEnabledHint') }}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="backup-auto-enabled">
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('backup.autoInterval') }}</label>
+          <input type="number" id="backup-auto-interval" min="1" step="1" value="1">
+        </div>
+        <div class="form-group">
+          <label>{{ t('backup.autoKeep') }}</label>
+          <input type="number" id="backup-auto-keep" min="1" step="1" value="10">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('backup.autoFolder') }}</label>
+        <input type="text" id="backup-auto-folder" placeholder="...">
+      </div>
+      <div class="form-hint" id="backup-auto-last"></div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary" onclick="saveBackupSettings()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/backup.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.journalTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-journal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.journalTitle') }}</h1>
+    <p>{{ t('accounting.journalSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <div class="filter-group" style="display:inline-flex;gap:8px;margin-right:8px;">
+      <select id="journal-year" class="form-select" style="min-width:130px;" onchange="loadJournal()">
+        <option value="">{{ t('accounting.allYears') }}</option>
+      </select>
+      <input type="date" id="journal-start" class="form-input" onchange="loadJournal()" style="width:auto;">
+      <input type="date" id="journal-end" class="form-input" onchange="loadJournal()" style="width:auto;">
+    </div>
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openJournalModal()">{{ t('accounting.newEntry') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.entryNumber') }}</th>
+          <th>{{ t('accounting.date') }}</th>
+          <th>{{ t('common.description') }}</th>
+          <th>{{ t('accounting.source') }}</th>
+          <th>{{ t('accounting.debit') }}</th>
+          <th>{{ t('accounting.credit') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="journal-table">
+        <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="journal-pagination"></div>
+</div>
+
+<div class="modal-overlay" id="journal-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>{{ t('accounting.newEntry') }}</h3>
+      <button class="modal-close" onclick="closeJournalModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.date') }} *</label>
+          <input type="date" id="jv-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.financialYear') }}</label>
+          <select id="jv-year"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="jv-desc">
+      </div>
+      <div class="settings-row" style="margin:10px 0 4px;">
+        <div class="settings-row-title">{{ t('accounting.entryLines') }}</div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="addLine()">+ {{ t('accounting.addLine') }}</button>
+      </div>
+      <div class="jv-lines" id="jv-lines"></div>
+      <div class="jv-total-row">
+        <span>{{ t('accounting.totalDebit') }}: <strong id="jv-total-dr">0.00</strong></span>
+        <span>{{ t('accounting.totalCredit') }}: <strong id="jv-total-cr">0.00</strong></span>
+        <span id="jv-balance-badge"></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeJournalModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveJournal()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="jv-view-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="jv-view-title">{{ t('accounting.viewEntry') }}</h3>
+      <button class="modal-close" onclick="closeViewModal()">✕</button>
+    </div>
+    <div class="modal-body" id="jv-view-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeViewModal()">{{ t('common.close') }}</button>
+      <button class="btn btn-warning" id="jv-reverse-btn" onclick="reverseEntry()">{{ t('accounting.reverse') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pagination.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_journal.js') }}"></script>
+{% endblock %}

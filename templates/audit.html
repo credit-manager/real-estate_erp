@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('audit.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}audit{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('audit.title') }}</h1>
+    <p>{{ t('audit.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="exportAudit()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-entity">
+    <option value="">{{ t('audit.allEntities') }}</option>
+    <option value="unit">{{ t('audit.unit') }}</option>
+    <option value="project">{{ t('audit.project') }}</option>
+    <option value="employee">{{ t('audit.employee') }}</option>
+    <option value="customer">{{ t('audit.customer') }}</option>
+    <option value="supplier">{{ t('audit.supplier') }}</option>
+    <option value="invoice">{{ t('audit.invoice') }}</option>
+    <option value="order">{{ t('audit.order') }}</option>
+    <option value="rental">{{ t('audit.rental') }}</option>
+    <option value="plan">{{ t('audit.plan') }}</option>
+    <option value="installment">{{ t('audit.installment') }}</option>
+    <option value="user">{{ t('audit.user') }}</option>
+    <option value="company">{{ t('audit.company') }}</option>
+    <option value="branch">{{ t('audit.branch') }}</option>
+    <option value="financial_year">{{ t('audit.financialYear') }}</option>
+    <option value="currency">{{ t('audit.currency') }}</option>
+    <option value="workflow">{{ t('audit.workflow') }}</option>
+    <option value="approval">{{ t('audit.approval') }}</option>
+  </select>
+  <select id="filter-action">
+    <option value="">{{ t('audit.allActions') }}</option>
+    <option value="create">{{ t('audit.create') }}</option>
+    <option value="update">{{ t('audit.update') }}</option>
+    <option value="delete">{{ t('audit.delete') }}</option>
+    <option value="payment">{{ t('audit.payment') }}</option>
+    <option value="login">{{ t('audit.login') }}</option>
+    <option value="logout">{{ t('audit.logout') }}</option>
+    <option value="submit">{{ t('audit.submit') }}</option>
+    <option value="approve">{{ t('audit.approve') }}</option>
+    <option value="reject">{{ t('audit.reject') }}</option>
+  </select>
+  <input type="text" id="filter-search" placeholder="{{ t('audit.searchPlaceholder') }}">
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('audit.when') }}</th>
+          <th>{{ t('audit.user') }}</th>
+          <th>{{ t('audit.action') }}</th>
+          <th>{{ t('audit.entity') }}</th>
+          <th>{{ t('audit.details') }}</th>
+        </tr>
+      </thead>
+      <tbody id="audit-table">
+        <tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/audit.js') }}"></script>
+{% endblock %}

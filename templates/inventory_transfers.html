@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.transfers') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory-transfers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.transfers') }}</h1>
+    <p>{{ t('inventory.transfersSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('inventory', 'create') %}
+    <button class="btn btn-primary" onclick="openTransferModal()">{{ t('inventory.newTransfer') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('inventory.transfers') }} <span class="card-count" id="transfers-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('inventory.transferNumber') }}</th>
+            <th>{{ t('inventory.fromWarehouse') }}</th>
+            <th>{{ t('inventory.toWarehouse') }}</th>
+            <th>{{ t('inventory.transferDate') }}</th>
+            <th>{{ t('inventory.itemsCount') }}</th>
+            <th>{{ t('inventory.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="transfers-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="transfers-empty" style="display:none;">
+      <div class="empty-icon">🔀</div>
+      <div>{{ t('inventory.noTransfers') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Transfer Modal ===== -->
+<div class="modal-overlay" id="transfer-modal">
+  <div class="modal" style="width:720px;max-width:95%;">
+    <div class="modal-header">
+      <div class="modal-title">{{ t('inventory.newTransfer') }}</div>
+      <button class="icon-btn modal-close" onclick="closeTransferModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('inventory.fromWarehouse') }} *</label>
+          <select id="tr-from"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('inventory.toWarehouse') }} *</label>
+          <select id="tr-to"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('inventory.transferDate') }}</label>
+          <input type="date" id="tr-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('inventory.notes') }}</label>
+          <input type="text" id="tr-notes">
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:8px;">
+        <div class="card-header">
+          <div class="card-title">{{ t('inventory.addItems') }}</div>
+        </div>
+        <div class="card-body">
+          <div class="form-row" style="align-items:flex-end;">
+            <div class="form-group">
+              <label>{{ t('inventory.itemName') }}</label>
+              <select id="tr-line-item"></select>
+            </div>
+            <div class="form-group">
+              <label>{{ t('inventory.quantity') }}</label>
+              <input type="number" id="tr-line-qty" step="any" min="0" style="width:110px;">
+            </div>
+            <button class="btn btn-primary" onclick="addTransferLine()" style="margin-bottom:2px;">+</button>
+          </div>
+          <div class="table-responsive" style="margin-top:8px;">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('inventory.itemName') }}</th>
+                  <th>{{ t('inventory.quantity') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tr-lines"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTransferModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveTransfer()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+<script src="{{ url_for('static', filename='js/inventory_transfers.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('workflow.title') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}workflow-approvals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('workflow.title') }}</h1>
+    <p>{{ t('workflow.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <a href="/workflow/requests" class="btn btn-outline">{{ t('workflow.viewRequests') }}</a>
+    {% if can('workflow', 'edit') %}
+    <a href="/workflow/templates" class="btn btn-outline">{{ t('workflow.manageTemplates') }}</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);" id="workflow-stats">
+  <div class="kpi-card"><div class="kpi-label">{{ t('workflow.pendingStatus') }}</div><div class="kpi-value" id="wf-stat-pending">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('workflow.notifTitle') }}</div><div class="kpi-value" id="wf-stat-mine" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('workflow.approved') }}</div><div class="kpi-value" id="wf-stat-approved" style="color:var(--success);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('workflow.rejected') }}</div><div class="kpi-value" id="wf-stat-rejected" style="color:var(--danger);">0</div></div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <div class="card-title">{{ t('workflow.pending') }}</div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('workflow.docType') }}</th>
+          <th>{{ t('workflow.docNumber') }}</th>
+          <th>{{ t('workflow.docTitle') }}</th>
+          <th>{{ t('workflow.amount') }}</th>
+          <th>{{ t('workflow.currentStep') }}</th>
+          <th>{{ t('workflow.submittedBy') }}</th>
+          <th>{{ t('workflow.submittedAt') }}</th>
+          <th>{{ t('workflow.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="approvals-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="approve-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('workflow.approveTitle') }}</h3>
+      <button class="modal-close" onclick="closeApproveModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="approve-doc-summary" class="modal-summary"></p>
+      <div class="form-group">
+        <label for="approve-comment">{{ t('workflow.comment') }}</label>
+        <textarea id="approve-comment" rows="3" placeholder="{{ t('workflow.commentPlaceholder') }}"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeApproveModal()">{{ t('workflow.cancel') }}</button>
+      <button class="btn btn-primary" id="approve-confirm" onclick="confirmApprove()">{{ t('workflow.confirmApprove') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reject-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('workflow.rejectTitle') }}</h3>
+      <button class="modal-close" onclick="closeRejectModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="reject-doc-summary" class="modal-summary"></p>
+      <div class="form-group">
+        <label for="reject-comment">{{ t('workflow.comment') }}</label>
+        <textarea id="reject-comment" rows="3" placeholder="{{ t('workflow.rejectCommentPlaceholder') }}"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeRejectModal()">{{ t('workflow.cancel') }}</button>
+      <button class="btn btn-danger" id="reject-confirm" onclick="confirmReject()">{{ t('workflow.confirmReject') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workflow_approvals.js') }}"></script>
+{% endblock %}

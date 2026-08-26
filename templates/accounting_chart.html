@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.chartTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-chart{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.chartTitle') }}</h1>
+    <p>{{ t('accounting.chartSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-outline" onclick="openDefaultsModal()">{{ t('accounting.defaultAccounts') }}</button>
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openAccountModal()">{{ t('accounting.newAccount') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <div class="card-title">{{ t('accounting.chartTitle') }}</div>
+    <input type="date" id="chart-end" onchange="loadAccounts()" title="{{ t('accounting.asOfDate') }}">
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.code') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('accounting.type') }}</th>
+          <th>{{ t('accounting.flags') }}</th>
+          <th>{{ t('accounting.balance') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="accounts-table">
+        <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="account-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="account-modal-title">{{ t('accounting.newAccount') }}</h3>
+      <button class="modal-close" onclick="closeAccountModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.code') }} *</label>
+          <input type="text" id="acc-code">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.name') }} *</label>
+          <input type="text" id="acc-name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.type') }}</label>
+          <select id="acc-type">
+            <option value="asset">{{ t('accounting.asset') }}</option>
+            <option value="liability">{{ t('accounting.liability') }}</option>
+            <option value="equity">{{ t('accounting.equity') }}</option>
+            <option value="revenue">{{ t('accounting.revenue') }}</option>
+            <option value="expense">{{ t('accounting.expense') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.parent') }}</label>
+          <select id="acc-parent"><option value="">—</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.openingBalance') }}</label>
+          <input type="number" id="acc-opening" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.currencyCode') }}</label>
+          <input type="text" id="acc-currency" maxlength="10" placeholder="EGP">
+        </div>
+      </div>
+      <div class="settings-row" style="flex-wrap:wrap;gap:16px;">
+        <label class="switch-row"><input type="checkbox" id="acc-active" checked><span class="switch"></span>{{ t('accounting.active') }}</label>
+        <label class="switch-row"><input type="checkbox" id="acc-cash"><span class="switch"></span>{{ t('accounting.isCash') }}</label>
+        <label class="switch-row"><input type="checkbox" id="acc-bank"><span class="switch"></span>{{ t('accounting.isBank') }}</label>
+        <label class="switch-row"><input type="checkbox" id="acc-contra"><span class="switch"></span>{{ t('accounting.isContra') }}</label>
+      </div>
+      <div class="form-row" id="bank-fields" style="display:none;">
+        <div class="form-group">
+          <label>{{ t('accounting.bankName') }}</label>
+          <input type="text" id="acc-bankname">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.accountNumber') }}</label>
+          <input type="text" id="acc-acctnum">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="acc-desc">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAccountModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveAccount()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="defaults-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>{{ t('accounting.defaultAccounts') }}</h3>
+      <button class="modal-close" onclick="closeDefaultsModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="card-subtitle" style="margin-bottom:12px;">{{ t('accounting.defaultsHint') }}</p>
+      <div class="form-row" id="defaults-fields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeDefaultsModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveDefaults()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_chart.js') }}"></script>
+{% endblock %}

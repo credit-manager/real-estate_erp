@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('rentals.collectionsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}rentals-collections{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('rentals.collectionsTitle') }}</h1>
+    <p>{{ t('rentals.collectionsSubtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('rentals', 'create') %}
+    <button class="btn btn-primary" onclick="openPaymentModal()">{{ t('rentals.newPayment') }}</button>
+    {% endif %}
+    <button class="btn btn-outline" onclick="exportCollections()">{{ t('common.export') }}</button>
+  </div>
+</div>
+
+<div class="tabs-scroll" id="rental-tabs">
+  <a href="/rentals" class="tab-btn">{{ t('rentals.tabContracts') }}</a>
+  <a href="/rentals/tenants" class="tab-btn">{{ t('rentals.tabTenants') }}</a>
+  <a href="/rentals/renewals" class="tab-btn">{{ t('rentals.tabRenewals') }}</a>
+  <a href="/rentals/collections" class="tab-btn active">{{ t('rentals.tabCollections') }}</a>
+  <a href="/rentals/notifications" class="tab-btn">{{ t('rentals.tabNotifications') }}</a>
+</div>
+
+<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.collectedTotal') }}</div><div class="kpi-value" id="collected-total" style="color:var(--primary);">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.paymentsCount') }}</div><div class="kpi-value" id="payments-count">0</div></div>
+  <div class="kpi-card"><div class="kpi-label">{{ t('rentals.balanceOutstanding') }}</div><div class="kpi-value" id="balance-total" style="color:var(--amber);">0</div></div>
+</div>
+
+<div class="filters-bar" style="margin-top:16px;">
+  <select id="filter-contract">
+    <option value="">{{ t('rentals.allContracts') }}</option>
+  </select>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('rentals.colPaymentNumber') }}</th>
+          <th>{{ t('rentals.renewalContract') }}</th>
+          <th>{{ t('common.customer') }}</th>
+          <th>{{ t('common.unit') }}</th>
+          <th>{{ t('rentals.paymentDate') }}</th>
+          <th>{{ t('rentals.amount') }}</th>
+          <th>{{ t('rentals.method') }}</th>
+          <th>{{ t('rentals.reference') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="payments-table">
+        <tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="payment-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('rentals.newPayment') }}</h3>
+      <button class="modal-close" onclick="closePaymentModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="payment-id">
+      <div class="form-group">
+        <label>{{ t('rentals.renewalContract') }} *</label>
+        <select id="payment-contract">
+          <option value="">{{ t('rentals.selectContract') }}</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.amount') }} *</label>
+          <input type="number" id="payment-amount" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.paymentDate') }}</label>
+          <input type="date" id="payment-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('rentals.method') }}</label>
+          <select id="payment-method">
+            <option value="cash">{{ t('rentals.methodCash') }}</option>
+            <option value="bank">{{ t('rentals.methodBank') }}</option>
+            <option value="transfer">{{ t('rentals.methodTransfer') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('rentals.reference') }}</label>
+          <input type="text" id="payment-reference">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('rentals.paymentNotes') }}</label>
+        <textarea id="payment-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="savePayment()">{{ t('common.save') }}</button>
+      <button class="btn btn-outline" onclick="closePaymentModal()">{{ t('common.cancel') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rental_collections.js') }}"></script>
+{% endblock %}

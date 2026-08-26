@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.assetsTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-assets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.assetsTitle') }}</h1>
+    <p>{{ t('accounting.assetsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openAssetModal()">{{ t('accounting.newAsset') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.assetCode') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('accounting.category') }}</th>
+          <th>{{ t('accounting.cost') }}</th>
+          <th>{{ t('accounting.accumulated') }}</th>
+          <th>{{ t('accounting.nbv') }}</th>
+          <th>{{ t('accounting.monthlyDep') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="assets-table">
+        <tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="asset-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 id="asset-modal-title">{{ t('accounting.newAsset') }}</h3>
+      <button class="modal-close" onclick="closeAssetModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.assetCode') }} *</label>
+          <input type="text" id="as-code">
+        </div>
+        <div class="form-group">
+          <label>{{ t('common.name') }} *</label>
+          <input type="text" id="as-name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.category') }}</label>
+          <input type="text" id="as-category">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.purchaseDate') }}</label>
+          <input type="date" id="as-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.cost') }} *</label>
+          <input type="number" id="as-cost" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.usefulLife') }}</label>
+          <input type="number" id="as-life" min="1" value="5">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.salvageValue') }}</label>
+          <input type="number" id="as-salvage" min="0" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.method') }}</label>
+          <select id="as-method">
+            <option value="straight">{{ t('accounting.straight') }}</option>
+            <option value="declining">{{ t('accounting.declining') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('accounting.funding') }}</label>
+          <select id="as-funding">
+            <option value="credit">{{ t('accounting.onCredit') }}</option>
+            <option value="cash">{{ t('accounting.viaCash') }}</option>
+            <option value="bank">{{ t('accounting.viaBank') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('accounting.cashAccount') }}</label>
+          <select id="as-cashaccount"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="as-desc">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAssetModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveAsset()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="rec-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="rec-modal-title">{{ t('accounting.depreciationHistory') }}</h3>
+      <button class="modal-close" onclick="closeRecModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <table>
+        <thead><tr>
+          <th>{{ t('accounting.period') }}</th>
+          <th>{{ t('accounting.date') }}</th>
+          <th>{{ t('accounting.amount') }}</th>
+        </tr></thead>
+        <tbody id="rec-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_assets.js') }}"></script>
+{% endblock %}

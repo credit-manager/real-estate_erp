@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('assets.custody') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}assets-custody{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('assets.custody') }}</h1>
+    <p>{{ t('assets.custodySub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openCustodyModal()">{{ t('assets.newCustody') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <select id="filter-status" class="form-control" style="width:auto;" onchange="loadCustody()">
+        <option value="">{{ t('assets.allStatuses') }}</option>
+        <option value="active">{{ t('assets.custodyActive') }}</option>
+        <option value="returned">{{ t('assets.custodyReturned') }}</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('assets.asset') }}</th>
+          <th>{{ t('assets.employee') }}</th>
+          <th>{{ t('assets.custodyDate') }}</th>
+          <th>{{ t('assets.returnDate') }}</th>
+          <th>{{ t('assets.status') }}</th>
+          <th>{{ t('common.notes') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="custody-table">
+        <tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal إضافة عهدة -->
+<div class="modal-overlay" id="custody-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('assets.newCustody') }}</h3>
+      <button class="modal-close" onclick="closeCustodyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('assets.asset') }} *</label>
+        <select id="cu-asset"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('assets.employee') }} *</label>
+        <select id="cu-employee"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('assets.custodyDate') }} *</label>
+        <input type="date" id="cu-date">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="cu-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCustodyModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveCustody()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/assets.js') }}"></script>
+<script src="{{ url_for('static', filename='js/assets_custody.js') }}"></script>
+{% endblock %}

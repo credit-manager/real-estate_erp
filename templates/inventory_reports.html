@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('inventory.reports') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}inventory-reports{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('inventory.reports') }}</h1>
+    <p>{{ t('inventory.reportsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    <select id="reports-warehouse" class="form-select" style="min-width:180px;" onchange="loadReport()"></select>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="chip chip-active" id="tab-stock_value" onclick="switchReport('stock_value')">{{ t('inventory.stockValue') }}</button>
+  <button class="chip" id="tab-movements" onclick="switchReport('movements')">{{ t('inventory.movements') }}</button>
+  <button class="chip" id="tab-expiry" onclick="switchReport('expiry')">{{ t('inventory.expiryReport') }}</button>
+  <button class="chip" id="tab-suppliers" onclick="switchReport('suppliers')">{{ t('inventory.suppliersReport') }}</button>
+</div>
+
+<div class="report-filters">
+  <select id="reports-category" class="form-select" style="min-width:180px;display:none;" onchange="loadReport()"></select>
+</div>
+
+<!-- ===== Stock Value ===== -->
+<div id="panel-stock_value">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">{{ t('inventory.totalStockValue') }}</div><div class="stat-value" id="stat-total-value">0</div></div>
+    <div class="stat-card"><div class="stat-label">{{ t('inventory.itemsCount') }}</div><div class="stat-value" id="stat-items-count">0</div></div>
+    <div class="stat-card"><div class="stat-label">{{ t('inventory.totalCost') }}</div><div class="stat-value" id="stat-total-cost">0</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">{{ t('inventory.stockValue') }} <span class="card-count" id="stock-value-count"></span></div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.itemCode') }}</th>
+              <th>{{ t('inventory.itemName') }}</th>
+              <th>{{ t('inventory.category') }}</th>
+              <th>{{ t('inventory.warehouse') }}</th>
+              <th>{{ t('inventory.quantity') }}</th>
+              <th>{{ t('inventory.avgCost') }}</th>
+              <th>{{ t('inventory.value') }}</th>
+            </tr>
+          </thead>
+          <tbody id="stock-value-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="stock-value-empty" style="display:none;">
+        <div class="empty-icon">📊</div>
+        <div>{{ t('inventory.noData') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Movements ===== -->
+<div id="panel-movements" style="display:none;">
+  <div class="report-filters">
+    <input type="number" id="movements-month" class="form-input" style="width:90px;" min="1" max="12" placeholder="{{ t('inventory.month') }}" onchange="loadReport()">
+    <input type="number" id="movements-year" class="form-input" style="width:110px;" min="2000" max="2100" placeholder="{{ t('inventory.year') }}" onchange="loadReport()">
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">{{ t('inventory.movements') }} <span class="card-count" id="movements-count"></span></div></div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.date') }}</th>
+              <th>{{ t('inventory.itemCode') }}</th>
+              <th>{{ t('inventory.itemName') }}</th>
+              <th>{{ t('inventory.warehouse') }}</th>
+              <th>{{ t('inventory.type') }}</th>
+              <th>{{ t('inventory.quantity') }}</th>
+              <th>{{ t('inventory.batch') }}</th>
+              <th>{{ t('inventory.notes') }}</th>
+            </tr>
+          </thead>
+          <tbody id="movements-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="movements-empty" style="display:none;">
+        <div class="empty-icon">📦</div>
+        <div>{{ t('inventory.noData') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Expiry ===== -->
+<div id="panel-expiry" style="display:none;">
+  <div class="card">
+    <div class="card-header"><div class="card-title">{{ t('inventory.expiryReport') }} <span class="card-count" id="expiry-count"></span></div></div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.batch') }}</th>
+              <th>{{ t('inventory.itemCode') }}</th>
+              <th>{{ t('inventory.itemName') }}</th>
+              <th>{{ t('inventory.warehouse') }}</th>
+              <th>{{ t('inventory.quantity') }}</th>
+              <th>{{ t('inventory.expiryDate') }}</th>
+              <th>{{ t('inventory.receivedDate') }}</th>
+              <th>{{ t('inventory.status') }}</th>
+            </tr>
+          </thead>
+          <tbody id="expiry-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="expiry-empty" style="display:none;">
+        <div class="empty-icon">⏳</div>
+        <div>{{ t('inventory.noData') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Suppliers ===== -->
+<div id="panel-suppliers" style="display:none;">
+  <div class="card">
+    <div class="card-header"><div class="card-title">{{ t('inventory.suppliersReport') }} <span class="card-count" id="suppliers-count"></span></div></div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.supplier') }}</th>
+              <th>{{ t('inventory.contact') }}</th>
+              <th>{{ t('inventory.phone') }}</th>
+              <th>{{ t('inventory.totalPurchased') }}</th>
+              <th>{{ t('inventory.purchasedItems') }}</th>
+            </tr>
+          </thead>
+          <tbody id="suppliers-table"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="suppliers-empty" style="display:none;">
+        <div class="empty-icon">🏢</div>
+        <div>{{ t('inventory.noData') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory_reports.js') }}"></script>
+{% endblock %}

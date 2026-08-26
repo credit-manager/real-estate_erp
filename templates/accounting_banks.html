@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('accounting.banksTitle') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}accounting-banks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('accounting.banksTitle') }}</h1>
+    <p>{{ t('accounting.banksSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openBankModal()">{{ t('accounting.newBankAccount') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <div class="card-title">{{ t('accounting.bankAccounts') }}</div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.code') }}</th>
+          <th>{{ t('common.name') }}</th>
+          <th>{{ t('accounting.bankName') }}</th>
+          <th>{{ t('accounting.accountNumber') }}</th>
+          <th>{{ t('accounting.balance') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="banks-table">
+        <tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <div class="card-title">{{ t('accounting.bankOps') }}</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="bank-account" class="form-select" style="min-width:220px;" onchange="loadBankLedger()"></select>
+      <span class="stat-inline" id="bank-balance"></span>
+      {% if can('accounting', 'create') %}
+      <button class="btn btn-success" onclick="openOpModal('receive')">{{ t('accounting.receive') }}</button>
+      <button class="btn btn-danger" onclick="openOpModal('pay')">{{ t('accounting.pay') }}</button>
+      {% endif %}
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('accounting.date') }}</th>
+          <th>{{ t('accounting.entryNumber') }}</th>
+          <th>{{ t('common.description') }}</th>
+          <th>{{ t('accounting.debit') }}</th>
+          <th>{{ t('accounting.credit') }}</th>
+          <th>{{ t('accounting.balance') }}</th>
+        </tr>
+      </thead>
+      <tbody id="bank-ledger-table">
+        <tr><td colspan="6"><div class="empty-state">{{ t('accounting.selectAccount') }}</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bank-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('accounting.newBankAccount') }}</h3>
+      <button class="modal-close" onclick="closeBankModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('accounting.code') }} *</label>
+        <input type="text" id="bk-code">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.name') }} *</label>
+        <input type="text" id="bk-name">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.bankName') }}</label>
+        <input type="text" id="bk-bankname">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.accountNumber') }}</label>
+        <input type="text" id="bk-acctnum">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.openingBalance') }}</label>
+        <input type="number" id="bk-opening" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.currencyCode') }}</label>
+        <input type="text" id="bk-currency" maxlength="10">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeBankModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveBank()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="op-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="op-modal-title">{{ t('accounting.receive') }}</h3>
+      <button class="modal-close" onclick="closeOpModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('accounting.amount') }} *</label>
+        <input type="number" id="op-amount" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.date') }}</label>
+        <input type="date" id="op-date">
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.counterpart') }}</label>
+        <select id="op-counterpart"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.costCenter') }}</label>
+        <select id="op-cc"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('accounting.financialYear') }}</label>
+        <select id="op-year"></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.description') }}</label>
+        <input type="text" id="op-desc">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeOpModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveOp()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/accounting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/accounting_banks.js') }}"></script>
+{% endblock %}

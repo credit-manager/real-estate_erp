@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('mf.workCenters') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}mf-work-centers{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('mf.workCenters') }}</h1>
+    <p>{{ t('mf.workCentersSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('manufacturing', 'create') %}
+    <button class="btn btn-primary" onclick="openWorkCenterModal()">{{ t('mf.addWorkCenter') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Work Centers Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('mf.workCenters') }}</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('mf.wcCode') }}</th>
+            <th>{{ t('mf.wcName') }}</th>
+            <th>{{ t('mf.wcType') }}</th>
+            <th>{{ t('mf.hourlyCost') }}</th>
+            <th>{{ t('mf.capacity') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="work-centers-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="work-centers-empty" style="display:none;">
+      <div class="empty-icon">🏭</div>
+      <div id="work-centers-empty-text">{{ t('mf.noWorkCenters') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Work Center Modal -->
+<div class="modal-overlay" id="work-center-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="work-center-modal-title">{{ t('mf.addWorkCenter') }}</div>
+      <button class="icon-btn modal-close" onclick="closeWorkCenterModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="work-center-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.wcCode') }}</label>
+          <input type="text" id="work-center-code" placeholder="WC-0001" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.wcName') }} *</label>
+          <input type="text" id="work-center-name" placeholder="{{ t('mf.wcName') }}" maxlength="150">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.wcType') }}</label>
+          <select id="work-center-type">
+            <option value="machine">{{ t('mf.type.machine') }}</option>
+            <option value="labor">{{ t('mf.type.labor') }}</option>
+            <option value="line">{{ t('mf.type.line') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('mf.hourlyCost') }}</label>
+          <input type="number" id="work-center-hourly-cost" step="any" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('mf.capacity') }}</label>
+          <input type="number" id="work-center-capacity" step="any" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-title">{{ t('common.active') }}</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="work-center-active" checked>
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="work-center-notes" maxlength="300">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeWorkCenterModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveWorkCenter()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/mf_work_centers.js') }}"></script>
+{% endblock %}

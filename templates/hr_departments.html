@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('hr.departments') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}hr-departments{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('hr.departments') }}</h1>
+    <p>{{ t('hr.departmentsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('hr', 'create') %}
+    <button class="btn btn-primary" onclick="openDeptModal()">{{ t('hr.addDepartment') }}</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">{{ t('hr.departments') }} <span class="card-count" id="depts-count"></span></div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('hr.deptName') }}</th>
+            <th>{{ t('hr.deptCode') }}</th>
+            <th>{{ t('hr.deptManager') }}</th>
+            <th>{{ t('hr.employeesCount') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('common.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody id="depts-table"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="depts-empty" style="display:none;">
+      <div class="empty-icon">🏢</div>
+      <div>{{ t('hr.noDepartments') }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Department Modal -->
+<div class="modal-overlay" id="dept-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="dept-modal-title">{{ t('hr.addDepartment') }}</div>
+      <button class="icon-btn modal-close" onclick="closeDeptModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="dept-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('hr.deptName') }} *</label>
+          <input type="text" id="dept-name">
+        </div>
+        <div class="form-group">
+          <label>{{ t('hr.deptCode') }}</label>
+          <input type="text" id="dept-code">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.deptManager') }}</label>
+        <select id="dept-manager"><option value="">{{ t('common.select') }}</option></select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('hr.deptDescription') }}</label>
+        <textarea id="dept-description" rows="2"></textarea>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-row-title">{{ t('hr.deptActive') }}</div></div>
+        <label class="switch">
+          <input type="checkbox" id="dept-active" checked>
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeDeptModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveDept()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hr_shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hr_departments.js') }}"></script>
+{% endblock %}

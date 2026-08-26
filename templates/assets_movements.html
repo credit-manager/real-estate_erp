@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('assets.movements') }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}assets-movements{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('assets.movements') }}</h1>
+    <p>{{ t('assets.movementsSub') }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can('accounting', 'create') %}<button class="btn btn-primary" onclick="openMovementModal()">{{ t('assets.newMovement') }}</button>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <select id="filter-asset" class="form-control" style="width:auto;" onchange="loadMovements()">
+        <option value="">{{ t('assets.allAssets') }}</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ t('assets.asset') }}</th>
+          <th>{{ t('assets.movementDate') }}</th>
+          <th>{{ t('assets.movementType') }}</th>
+          <th>{{ t('assets.fromLocation') }}</th>
+          <th>{{ t('assets.toLocation') }}</th>
+          <th>{{ t('assets.fromEmployee') }}</th>
+          <th>{{ t('assets.toEmployee') }}</th>
+          <th>{{ t('assets.reference') }}</th>
+          <th>{{ t('common.notes') }}</th>
+          <th>{{ t('common.actions') }}</th>
+        </tr>
+      </thead>
+      <tbody id="movements-table">
+        <tr><td colspan="10"><div class="loading"><div class="spinner"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal إضافة حركة -->
+<div class="modal-overlay" id="movement-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>{{ t('assets.newMovement') }}</h3>
+      <button class="modal-close" onclick="closeMovementModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('assets.asset') }} *</label>
+        <select id="mv-asset"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.movementDate') }} *</label>
+          <input type="date" id="mv-date">
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.movementType') }} *</label>
+          <select id="mv-type">
+            <option value="received">{{ t('assets.mvReceived') }}</option>
+            <option value="transferred">{{ t('assets.mvTransferred') }}</option>
+            <option value="returned">{{ t('assets.mvReturned') }}</option>
+            <option value="disposed">{{ t('assets.mvDisposed') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.fromLocation') }}</label>
+          <select id="mv-from-location"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.toLocation') }}</label>
+          <select id="mv-to-location"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('assets.fromEmployee') }}</label>
+          <select id="mv-from-employee"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('assets.toEmployee') }}</label>
+          <select id="mv-to-employee"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('assets.reference') }}</label>
+        <input type="text" id="mv-reference">
+      </div>
+      <div class="form-group">
+        <label>{{ t('common.notes') }}</label>
+        <input type="text" id="mv-notes">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeMovementModal()">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveMovement()">{{ t('common.save') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/assets.js') }}"></script>
+<script src="{{ url_for('static', filename='js/assets_movements.js') }}"></script>
+{% endblock %}
