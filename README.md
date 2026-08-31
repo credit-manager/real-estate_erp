@@ -62,6 +62,8 @@ python desktop.py --dev          :: خادم مع نافذة كونسول
 |---|---|
 | `admin` | `admin123` (يُطلب تغييرها أول مرة) |
 
+> **ERP Control Center** (المالك): `/admin/` — `admin@dynamicpro.com` / `admin123` (حساب `LicMasterUser`، يُغيّر عبر صفحة "أمان المدير").
+
 > نُسي كلمة مرور المدير؟ شغّل `python reset_admin_password.py` لإعادة تعيينها.
 
 ---
@@ -95,17 +97,36 @@ python desktop.py --dev          :: خادم مع نافذة كونسول
 | الملف | الغرض |
 |---|---|
 | `app.py` | إنشاء التطبيق وتسجيل الوحدات وتشغيل الخادم (HTTP + HTTPS) |
-| `config.py` | إعدادات قاعدة البيانات والمفتاح السري |
+| `config.py` | إعدادات قاعدة البيانات والمفتاح السري (يدعم `.env`) |
 | `server_config.py` | إعدادات المنفذ وكلمة مرور الوصول والتشغيل التلقائي |
 | `database.py` | كائن SQLAlchemy |
 | `models/` | نماذج البيانات لكل وحدة |
 | `routes/` | واجهات البرمجة وصفحات الوحدات |
 | `templates/` + `static/` | الواجهة (RTL عربي/إنجليزي) |
+| `licensing/` | الترخيص والإدارة: خطط، شركات، اشتراكات، تراخيص، قواعد بيانات، مستخدمون |
+| `templates/admin_panel.html` | **ERP Control Center** — لوحة مدير المنصة (Companies, Plans, Subscriptions, Licenses, Payments, Databases, Reports, Users, Activity, Settings, Security) |
+| `audit/` `billing/` `security/` `notifications/` `modules/` | بنية الأرشيتكتشر الجديدة (Foundation — تُملأ في مراحلها) |
+| `docs/ARCHITECTURE.md` | خارطة المعمارية والمراحل |
+| `docker-compose.yml` | بنية PostgreSQL الرئيسية للنشر |
 | `desktop.py` | نافذة سطح المكتب |
 | `seed.py` / `seed_fy_demo.py` | بيانات تجريبية |
 | `reset_admin_password.py` | استرداد كلمة مرور المدير |
 | `scripts\generate_ssl_cert.py` | توليد شهادة HTTPS ذاتية التوقيع |
 | `build.bat` / `build_installer.bat` | بناء نسخة مجمّدة وملف تثبيت |
+
+---
+
+## ERP Control Center (لوحة مدير المنصة)
+
+تُدار من `/admin/` وهي **لوحة مالك البرنامج فقط** — العميل لا يدخل إليها:
+
+- **Dashboard**: شركات، إيراد، مستخدمون، تنبيهات، آخر الشركات، آخر النشاطات
+- **الشركات**: قائمة + تأسيس (إنشاء شركة → قاعدة بيانات → مدير → باقة → تجربة)
+- **الباقات / الاشتراكات / التراخيص**: دورة حياة كاملة (تجريبي/نشط/سماح/منتهي/ملغى)
+- **قواعد بيانات الشركات**: حالة الاستعداد وحجم كل DB (بلا كشف كلمات المرور)
+- **الفوترة / التقارير / المستخدمون / سجل النشاط / إعدادات النظام / أمان المدير**
+
+التفاصيل في `docs/ARCHITECTURE.md`.
 
 ---
 

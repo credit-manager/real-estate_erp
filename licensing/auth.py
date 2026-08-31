@@ -234,11 +234,37 @@ def authenticate_master_user(email, password):
 
     user = LicMasterUser.query.filter_by(email=email).first()
     if not user or not user.is_active:
+        try:
+            from security.security_events import record_event
+            record_event("login_failure", master_user_email=email,
+                         ip=getattr(request, 'remote_addr', None),
+                         user_agent=getattr(request, 'user_agent', {}).get('string', None) if hasattr(request, 'user_agent') else None,
+                         details={"reason": "user_not_found_or_inactive"},
+                         severity="warning")
+        except Exception:
+            pass
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
     if not check_password_hash(user.password_hash, password):
         log.warning("Failed platform-admin login: %s", email)
+        try:
+            from security.security_events import record_event
+            record_event("login_failure", master_user_id=user.id, master_user_email=email,
+                         ip=getattr(request, 'remote_addr', None),
+                         details={"reason": "wrong_password"},
+                         severity="warning")
+        except Exception:
+            pass
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
+
+    # Phase 6 — record successful login
+    try:
+        from security.security_events import record_event
+        record_event("login_success", master_user_id=user.id, master_user_email=email,
+                     ip=getattr(request, 'remote_addr', None),
+                     details={"role": user.role}, severity="info")
+    except Exception:
+        pass
 
     user.last_login = datetime.utcnow()
     clear_company_session()  # mutual exclusion: a client session can't enter admin
@@ -247,17 +273,94 @@ def authenticate_master_user(email, password):
     session[SESS_MASTER_EMAIL] = user.email
     session[SESS_MASTER_NAME] = user.full_name or user.email
     session[SESS_MASTER_ROLE] = user.role
+
+    # Phase 1 — link legacy role column to RBAC (idempotent)
+    try:
+        from security.rbac import ensure_user_role_link
+        ensure_user_role_link(user.id, user.role)
+    except Exception:
+        pass
+
+    # Phase 1 — JWT + revocable master session
+    jti = _start_master_session(user, is_company_user=False, extra=None)
+
     db.session.commit()
 
     log.info("Platform admin logged in: %s (role=%s)", email, user.role)
-    return {"success": True, "user": user.to_dict()}
+    out = {"success": True, "user": user.to_dict()}
+    if jti:
+        out["mfa_enabled"] = _mfa_enabled_for(user.id)
+    return out
 
 
 def logout_master_user():
     """Clear platform-admin session keys only."""
     email = session.get(SESS_MASTER_EMAIL, "")
     log.info("Platform admin logged out: %s", email)
+    # Phase 1 — revoke the persisted master session (invalidate its JWT refresh)
+    _end_master_session()
     clear_master_session()
+
+
+def _start_master_session(user, is_company_user=False, extra=None):
+    """Phase 1 — create a revocable MasterSession row + issue JWT tokens.
+
+    Stores the resulting ``jti`` and tokens in the master session. Returns the
+    jti (or None on failure — login still succeeds for bootstrap compatibility).
+    """
+    try:
+        import uuid
+        from datetime import timedelta
+        from security.models import MasterSession
+        from security.tokens import issue_token_pair
+        from security.rbac import user_permissions
+
+        jti = uuid.uuid4().hex
+        perms = user_permissions(user.id)
+        access, refresh, _ = issue_token_pair(user.id, user.email,
+                                              user.full_name or user.email, perms, jti=jti)
+        sess = MasterSession(
+            master_user_id=user.id,
+            jti=jti,
+            refresh_token_hash=refresh[-64:],  # store a hint only, never full token
+            ip=request.remote_addr,
+            user_agent=(request.user_agent.string[:250] if request.user_agent else None),
+            expires_at=datetime.utcnow() + timedelta(days=7),
+        )
+        db.session.add(sess)
+        session["master_jti"] = jti
+        # JWT tokens are retained server-side so the Control Center frontend can
+        # obtain an access token for its API calls without re-entering login.
+        session["master_access_token"] = access
+        session["master_refresh_token"] = refresh
+        log.info("Master session started for user %s", user.email)
+        return jti
+    except Exception as e:
+        log.error("Could not start master JWT session for %s: %s", user.email, e)
+        return None
+
+
+def _end_master_session():
+    """Phase 1 — revoke the persisted master session row bound to the current jti."""
+    jti = session.get("master_jti")
+    if not jti:
+        return
+    try:
+        from security.models import MasterSession
+        ms = MasterSession.query.filter_by(jti=jti, revoked=False).first()
+        if ms:
+            ms.revoked = True
+            db.session.commit()
+    except Exception as e:
+        log.error("Could not revoke master session %s: %s", jti, e)
+
+
+def _mfa_enabled_for(master_user_id):
+    try:
+        from security.two_factor import is_enabled
+        return is_enabled(master_user_id)
+    except Exception:
+        return False
 
 
 def get_master_session_data():

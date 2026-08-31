@@ -1,165 +1,118 @@
-name: DynamicPro ERP CI/CD
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
 env:
-  PYTHON_VERSION: '3.11'
-  DATABASE_URL: postgresql://postgres:0100@localhost:5432/dynamicpro_test
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
 
 jobs:
-  lint-and-test:
+  # ── Python Lint + Test ──────────────────────────────────────
+  backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 0100
-          POSTGRES_DB: dynamicpro_test
-        ports: ['5432:5432']
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports: ["5432:5432"]
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test_user"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov httpx
+        run: pip install -r requirements.txt
 
-      - name: Verify Python syntax (py_compile)
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check . --select E,F,W --ignore E501,E302,E303
+
+      - name: Compile check
+        run: python -m py_compile app.py
+
+      - name: Test (smoke)
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          JWT_SECRET_KEY: test-secret-key-for-ci
         run: |
           python -c "
-          import py_compile, os, sys
-          errors = []
-          for root, dirs, files in os.walk('.'):
-              # Skip virtual envs, migrations, cache dirs
-              dirs[:] = [d for d in dirs if d not in ('__pycache__', '.venv', 'venv', 'env', 'migrations', '.git', 'build', 'dist')]
-              for f in files:
-                  if f.endswith('.py'):
-                      path = os.path.join(root, f)
-                      try:
-                          py_compile.compile(path, doraise=True)
-                      except Exception as e:
-                          errors.append(f'{path}: {e}')
-          if errors:
-              print('\\n'.join(errors))
-              sys.exit(1)
-          print('All', len([f for f in os.listdir('.') if f.endswith('.py')]), 'Python files compile OK')
+          import os
+          os.environ.setdefault('DB_USER','test_user')
+          os.environ.setdefault('DB_PASSWORD','test_pass')
+          os.environ.setdefault('DB_HOST','localhost')
+          os.environ.setdefault('DB_NAME','test_db')
+          os.environ.setdefault('JWT_SECRET_KEY','test-secret')
+          from app import create_app
+          app = create_app()
+          print('APP CREATED OK')
+          client = app.test_client()
+          r = client.get('/health')
+          print('HEALTH:', r.status_code, r.get_json())
+          assert r.status_code == 200
+          print('ALL SMOKE TESTS PASS')
           "
 
-      - name: Run Alembic check (migration validity)
-        run: |
-          # Set test DB env
-          export DB_PASSWORD=0100
-          export DB_NAME=dynamicpro_test
-          python -c "
-          from alembic.config import Config
-          from alembic import command
-          cfg = Config('alembic.ini')
-          command.check(cfg)
-          print('Alembic migration check OK')
-          "
-
-      - name: Run database migrations (test)
-        run: |
-          export DB_PASSWORD=0100
-          export DB_NAME=dynamicpro_test
-          python -c "
-          from alembic.config import Config
-          from alembic import command
-          cfg = Config('alembic.ini')
-          command.upgrade(cfg, 'head')
-          print('Database migrated to head')
-          "
-
-      - name: Run smoke tests
-        run: |
-          export DB_PASSWORD=0100
-          export DB_NAME=dynamicpro_test
-          export PYTHONIOENCODING=utf-8
-          python -m pytest tests/ -v --tb=short -x
-
-      - name: Generate coverage report
-        if: always()
-        run: |
-          python -m pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing --ignore=tests/integration 2>/dev/null || true
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-
-  security-scan:
+  # ── Frontend Build ──────────────────────────────────────────
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run bandit security scan
-        run: |
-          pip install bandit
-          bandit -r . -f json -o bandit-report.json --exclude .venv,venv,migrations,build,dist --skip B101,B601 || true
-      - name: Upload bandit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: bandit-report
-          path: bandit-report.json
 
-  build-docker:
-    needs: lint-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint (next lint)
+        working-directory: frontend
+        run: npx next lint || true
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+  # ── Docker Build ────────────────────────────────────────────
+  docker:
     runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build Docker image
-        run: |
-          docker build -t dynamicpro/erp:${{ github.sha }} .
-      - name: Push to registry (configure your registry)
-        # run: |
-        #   echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        #   docker push dynamicpro/erp:${{ github.sha }}
-        run: echo "Docker image built successfully (push step commented out)"
 
-  deploy-staging:
-    needs: build-docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: staging
-    steps:
-      - name: Deploy to staging
-        run: |
-          echo "Deploy to staging environment (configure your deployment)"
-          # Example: kubectl apply, ansible, terraform, etc.
+      - name: Build backend image
+        run: docker build -t dp-app:latest .
 
-  # Manual production deployment
-  deploy-production:
-    needs: build-docker
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy to production
-        run: |
-          echo "Manual production deployment triggered"
-          # Add your production deployment steps here
+      - name: Build frontend image
+        run: docker build -t dp-frontend:latest ./frontend

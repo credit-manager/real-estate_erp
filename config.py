@@ -1,6 +1,15 @@
 import os
 import secrets
 
+# تحميل متغيرات البيئة من ملف .env إن وُجد (اختياري — لا يُرفع .env إلى Git)
+try:
+    from dotenv import load_dotenv
+    _env_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), ".env")
+    if os.path.isfile(_env_path):
+        load_dotenv(_env_path)
+except Exception:
+    pass
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ── وضع التشغيل ──

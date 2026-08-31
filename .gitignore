@@ -11,6 +11,9 @@ env/
 .secret_key
 .secret_key_*
 .db_password
+.env
+.env.*
+!.env.example
 certs/
 *.pem
 *.key

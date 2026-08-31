@@ -12,29 +12,15 @@
         log_exc("license.login-notify")
 """
 import logging
-import sys
 
-logger = logging.getLogger("dynamicpro")
+from utils.logging_setup import APP_LOGGER_NAME, configure_logging
+
+logger = logging.getLogger(APP_LOGGER_NAME)
 
 
 def _ensure_handler():
-    """يتأكد من وجود معالج واحد على الأقل (stderr + ملف logs/app.log عند الإمكان)."""
-    if logger.handlers:
-        return
-    logger.setLevel(logging.WARNING)
-    fmt = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-    sh = logging.StreamHandler(sys.stderr)
-    sh.setFormatter(fmt)
-    logger.addHandler(sh)
-    try:
-        import os
-        log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        fh = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
-        fh.setFormatter(fmt)
-        logger.addHandler(fh)
-    except Exception:
-        pass  # الملف اختياري — stderr متاح دائماً
+    """يضمن ضبط المعالجات عبر الـ logging المركزي (بدون تكرار)."""
+    configure_logging()
 
 
 def log_exc(context, exc=None):

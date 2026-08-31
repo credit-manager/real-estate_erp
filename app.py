@@ -1,8 +1,10 @@
 import json
 import os
 import sys
+import logging
 from datetime import datetime
 from flask import Flask, redirect, url_for, request, session, jsonify, current_app
+from flask_cors import CORS
 from database import db
 import config
 import server_config
@@ -251,6 +253,14 @@ def _run_migrations_and_seeds(app, db):
     from db_indexes import ensure_indexes
     ensure_indexes(db.engine, db.session)
 
+    # Phase 1 — seed Master Cloud RBAC (roles + permission catalog). Idempotent.
+    from security.rbac import seed_roles_and_permissions
+    seed_roles_and_permissions()
+
+    # Phase 5 — seed module catalog. Idempotent.
+    from security.modules import seed_module_catalog
+    seed_module_catalog()
+
 
 def _source_dir():
     """مجلد المصدر الذي يُقرأ منه القوالب والملفات الثابتة.
@@ -313,6 +323,12 @@ def create_app():
         app = Flask(__name__)
     app.config.from_object(config)
     app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+    # أساس التسجيل المركزي (Logging Foundation) — كونسول + ملف دوّار
+    from utils.logging_setup import configure_logging
+    configure_logging()
+    logging.getLogger("dynamicpro.app").info("Applying app configuration")
+
     # حد أقصى لحجم الطلبات المرفوعة (110MB للسماح بـ 100MB نسخ احتياطي + هامش)
     app.config["MAX_CONTENT_LENGTH"] = 110 * 1024 * 1024
 
@@ -327,6 +343,10 @@ def create_app():
         app.config["SESSION_COOKIE_SECURE"] = True
 
     db.init_app(app)
+
+    # CORS — allow Control Center frontend on localhost:3000
+    CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+         supports_credentials=True, expose_headers=["Content-Type"])
 
     # تهيئة OpenAPI/Swagger (flask-smorest)
     from api_spec import api as api_spec
@@ -388,6 +408,9 @@ def create_app():
     from routes.license import license_bp, validate_license
     from licensing.routes import admin_lic_bp, company_auth_bp
     from api_spec import doc_bp
+    # Phase 1 — ensure security/RBAC models are registered before db.create_all()
+    import security.models  # noqa: F401
+    from security.routes import security_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
@@ -438,6 +461,7 @@ def create_app():
     # CRITICAL #3: Admin routes فقط على الوضع الرئيسي (master port)
     if not config.COMPANY_ID:
         app.register_blueprint(admin_lic_bp)
+        app.register_blueprint(security_bp)
 
     def get_lang():
         lang = request.cookies.get("lang", DEFAULT_LANG)
@@ -489,6 +513,20 @@ def create_app():
     @app.route("/")
     def index():
         return redirect(url_for("auth.login"))
+
+    @app.route("/health")
+    def health():
+        """Health check endpoint for Docker / Nginx."""
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+            db_ok = True
+        except Exception:
+            db_ok = False
+        return jsonify({
+            "status": "healthy" if db_ok else "degraded",
+            "database": "connected" if db_ok else "disconnected",
+        }), 200 if db_ok else 503
 
     # إنشاء الجداول + مستخدم وادوار افتراضية
     # HIGH #9: company instances لا تُشغّل الترحيلات العامة

@@ -82,6 +82,15 @@ def _admin_or_abort():
     return user, None
 
 
+def _require_permission(permission_code):
+    """Return 403 JSON if the current master user lacks the given permission."""
+    from security.rbac import has_permission as _has_perm
+    uid = session.get("master_user_id")
+    if uid and not _has_perm(uid, permission_code):
+        return jsonify({"success": False, "message": "لا تملك الصلاحية لهذه العملية"}), 403
+    return None
+
+
 def _log_activity(user, action, target_type=None, target_id=None, details=None):
     try:
         log = LicActivityLog(
@@ -255,6 +264,9 @@ def list_companies():
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.view")
+    if perm_err:
+        return perm_err
 
     status = request.args.get("status")
     query = LicCompany.query
@@ -288,6 +300,9 @@ def create_new_company():
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.create")
+    if perm_err:
+        return perm_err
 
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -334,6 +349,9 @@ def get_company(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.view")
+    if perm_err:
+        return perm_err
 
     company = db.session.get(LicCompany, company_id)
     if not company:
@@ -416,6 +434,9 @@ def suspend_company_action(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.suspend")
+    if perm_err:
+        return perm_err
     affected = LicLicense.query.filter(LicLicense.company_id == company_id, LicLicense.status == "active").all()
     result = suspend_company(company_id)
     suspend_license(company_id)
@@ -429,6 +450,9 @@ def reactivate_company_action(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.edit")
+    if perm_err:
+        return perm_err
     from datetime import date as _date
     result = reactivate_company(company_id)
     lics = LicLicense.query.filter(
@@ -448,6 +472,9 @@ def reset_company_admin_password(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.edit")
+    if perm_err:
+        return perm_err
     data = request.get_json(silent=True) or {}
     new_password = (data.get("new_password") or "").strip()
     if len(new_password) < 6:
@@ -477,6 +504,9 @@ def revoke_company_license(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("licenses.revoke")
+    if perm_err:
+        return perm_err
     company = db.session.get(LicCompany, company_id)
     if not company:
         return jsonify({"success": False, "message": "Company not found"}), 404
@@ -632,6 +662,9 @@ def provision_company_db(company_id):
     user, err = _admin_or_abort()
     if err:
         return err
+    perm_err = _require_permission("companies.db")
+    if perm_err:
+        return perm_err
     company = db.session.get(LicCompany, company_id)
     if not company:
         return jsonify({"success": False, "message": "Company not found"}), 404

@@ -1,0 +1,122 @@
+# ─────────────────────────────────────────────────────────────
+# DynamicPro ERP Control Center — Production Docker Compose
+# ─────────────────────────────────────────────────────────────
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: dp-master-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-mokawlat_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: ${DB_NAME:-dynamicpro}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mokawlat_user} -d ${DB_NAME:-dynamicpro}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dp-network
+
+  # ── Flask Backend ──────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dp-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=production
+      - DYNAMICPRO_MODE=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - ./logs:/app/logs
+      - app_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    networks:
+      - dp-network
+
+  # ── Next.js Frontend ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dp-frontend
+    restart: unless-stopped
+    depends_on:
+      - app
+    networks:
+      - dp-network
+
+  # ── Nginx Reverse Proxy ────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: dp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+      - frontend
+    volumes:
+      - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dp-network
+
+  # ── Backup Cron ────────────────────────────────────────────
+  backup:
+    image: postgres:16-alpine
+    container_name: dp-backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PGPASSWORD=${DB_PASSWORD}
+      - DB_USER=${DB_USER:-mokawlat_user}
+      - DB_NAME=${DB_NAME:-dynamicpro}
+      - DB_HOST=postgres
+      - BACKUP_RETENTION=${BACKUP_RETENTION:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./deployment/backup/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    networks:
+      - dp-network
+
+volumes:
+  postgres_data:
+  app_uploads:
+
+networks:
+  dp-network:
+    driver: bridge

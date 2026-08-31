@@ -1,59 +1,88 @@
-"""Authentication module tests."""
-import pytest
+# -*- coding: utf-8 -*-
+"""Phase 10 — Authentication tests (login, JWT, sessions, me)."""
 
 
-@pytest.mark.auth
 class TestLogin:
-    """Login endpoint tests."""
+    """Master admin login flow."""
 
     def test_login_success(self, client):
-        resp = client.post("/login", json={"username": "admin", "password": "admin123"})
-        assert resp.status_code == 200
+        resp = client.post("/admin/login", json={
+            "email": "admin@dynamicpro.com",
+            "password": "admin123",
+        })
         data = resp.get_json()
+        assert resp.status_code == 200
         assert data["success"] is True
-        assert data["user"]["username"] == "admin"
+        assert "user" in data
+        assert data["user"]["email"] == "admin@dynamicpro.com"
 
     def test_login_wrong_password(self, client):
-        resp = client.post("/login", json={"username": "admin", "password": "wrong"})
-        assert resp.status_code == 401
+        resp = client.post("/admin/login", json={
+            "email": "admin@dynamicpro.com",
+            "password": "wrongpassword",
+        })
         data = resp.get_json()
         assert data["success"] is False
 
     def test_login_nonexistent_user(self, client):
-        resp = client.post("/login", json={"username": "nonexistent", "password": "test"})
-        assert resp.status_code == 401
+        resp = client.post("/admin/login", json={
+            "email": "nonexistent@dynamicpro.com",
+            "password": "admin123",
+        })
+        data = resp.get_json()
+        assert data["success"] is False
 
     def test_login_missing_fields(self, client):
-        resp = client.post("/login", json={})
-        assert resp.status_code in (400, 401)
-
-    def test_login_empty_password(self, client):
-        resp = client.post("/login", json={"username": "admin", "password": ""})
-        assert resp.status_code == 401
+        resp = client.post("/admin/login", json={})
+        data = resp.get_json()
+        assert data["success"] is False
 
 
-@pytest.mark.auth
-class TestLogout:
-    """Logout endpoint tests."""
+class TestJWT:
+    """JWT token lifecycle (session-based in test client)."""
 
-    def test_logout_success(self, auth_client):
-        resp = auth_client.post("/logout")
+    def test_me_with_session(self, client):
+        """Login via session, then call /me — tokens are in Flask session."""
+        client.post("/admin/login", json={
+            "email": "admin@dynamicpro.com",
+            "password": "admin123",
+        })
+        resp = client.get("/admin/security/me")
+        data = resp.get_json()
         assert resp.status_code == 200
+        assert data["success"] is True
+        assert data["user"]["email"] == "admin@dynamicpro.com"
 
-    def test_logout_unauthenticated(self, client):
-        resp = client.post("/logout")
-        assert resp.status_code in (200, 401)
+    def test_me_without_session(self, client):
+        resp = client.get("/admin/security/me")
+        assert resp.status_code in (401, 403)
+
+    def test_me_with_invalid_header_token(self, client):
+        resp = client.get("/admin/security/me",
+                          headers={"Authorization": "Bearer invalid.token.here"})
+        assert resp.status_code in (401, 403)
+
+    def test_token_refresh_requires_valid_token(self, client):
+        resp = client.post("/admin/security/token/refresh",
+                           json={"refresh_token": "invalid.refresh.token"})
+        assert resp.status_code in (401, 403)
 
 
-@pytest.mark.auth
 class TestSession:
-    """Session management tests."""
+    """Session management."""
 
-    def test_session_persists_after_login(self, auth_client):
-        resp = auth_client.get("/api/dashboard/stats")
+    def test_list_sessions(self, client):
+        # Login first to create a session
+        client.post("/admin/login", json={
+            "email": "admin@dynamicpro.com",
+            "password": "admin123",
+        })
+        resp = client.get("/admin/security/sessions")
+        data = resp.get_json()
         assert resp.status_code == 200
+        assert data["success"] is True
+        assert isinstance(data["sessions"], list)
 
-    def test_session_cleared_after_logout(self, auth_client):
-        auth_client.post("/logout")
-        resp = auth_client.get("/api/dashboard/stats")
-        assert resp.status_code in (302, 401)
+    def test_session_list_requires_auth(self, client):
+        resp = client.get("/admin/security/sessions")
+        assert resp.status_code in (401, 403)
