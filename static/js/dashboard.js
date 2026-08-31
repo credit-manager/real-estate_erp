@@ -109,9 +109,12 @@ function renderKpis(s) {
 // ===== Revenue vs expenses trend (interactive period) =====
 function renderTrend() {
   const slice = trendData.slice(-period);
+  const AR_SHORT = ["ينا","فبر","مارس","أبر","مايو","يون","يول","أغس","سبت","أكت","نوف","ديس"];
+  const EN_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const labels = slice.map((d) => {
     const [y, m] = d.month.split("-");
-    return new Date(+y, +m - 1, 1).toLocaleDateString(LOCALE, { month: "short", year: "2-digit" });
+    const short = LANG === "ar" ? AR_SHORT[+m - 1] : EN_SHORT[+m - 1];
+    return short + " " + String(+y).slice(-2);
   });
 
   const ctx = document.getElementById("revenueChart");

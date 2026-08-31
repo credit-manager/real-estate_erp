@@ -46,7 +46,7 @@ function setHead(title, sub) {
   const now = new Date();
   const metaParts = [];
   if (sub) metaParts.push(sub);
-  metaParts.push(`${t("accounting.generatedAt")}: ${now.toLocaleDateString()} ${now.toLocaleTimeString().slice(0, 5)}`);
+  metaParts.push(`${t("accounting.generatedAt")}: ${formatDate(now.toISOString().slice(0, 10))} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`);
   document.getElementById("rep-meta").textContent = metaParts.join("  •  ");
 }
 

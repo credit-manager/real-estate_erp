@@ -58,16 +58,24 @@ def settings_page():
 
 
 @server_bp.route("/api/server-settings", methods=["GET"])
-@_local_only
 @require_api("settings", "view")
 def get_settings():
     cfg = server_config.load_config()
     stored = cfg.get("access_password", "")
     gemini_key = cfg.get("gemini_api_key", "")
+    providers = cfg.get("ai_providers") or {}
+    # Mask API keys for security — only return whether each is set
+    safe_providers = {}
+    for pname, pcfg in providers.items():
+        safe_providers[pname] = {
+            "enabled": pcfg.get("enabled", False),
+            "api_key_set": bool((pcfg.get("api_key") or "").strip()),
+            "model": pcfg.get("model", ""),
+            "priority": pcfg.get("priority", 99),
+        }
     return jsonify({
         "success": True,
         "port": cfg["port"],
-        # لا نعيد كلمة المرور نفسها أبداً؛ نبلّغ فقط هل هي مضبوطة
         "access_password": "",
         "access_password_set": bool(stored),
         "auto_start": server_config.is_auto_start_enabled(),
@@ -75,11 +83,11 @@ def get_settings():
         "frozen": getattr(sys, "frozen", False),
         "gemini_api_key_set": bool(gemini_key),
         "gemini_model": cfg.get("gemini_model", "gemini-2.0-flash"),
+        "ai_providers": safe_providers,
     })
 
 
 @server_bp.route("/api/server-settings", methods=["POST"])
-@_local_only
 @require_api("settings", "edit")
 def save_settings():
     data = request.get_json(silent=True) or {}
@@ -97,16 +105,15 @@ def save_settings():
     if "access_password" in data:
         val = str(data["access_password"] or "").strip()
         if val:
-            # نحفظ hash فقط، لا النص الصريح
             cfg["access_password"] = server_config.hash_access_password(val)
         elif data.get("clear_access_password"):
             cfg["access_password"] = ""
-        # القيمة الفارغة بدون clear = لا تغيير (حماية من مسح كلمة المرور بالخطأ)
 
     if "auto_start" in data:
         cfg["auto_start"] = bool(data["auto_start"])
         server_config.set_auto_start(cfg["auto_start"])
 
+    # Legacy gemini fields
     if "gemini_api_key" in data:
         val = str(data["gemini_api_key"] or "").strip()
         cfg["gemini_api_key"] = val
@@ -114,12 +121,36 @@ def save_settings():
     if "gemini_model" in data:
         cfg["gemini_model"] = str(data["gemini_model"] or "gemini-2.0-flash").strip()
 
+    # Multi-provider AI settings
+    if "ai_providers" in data and isinstance(data["ai_providers"], dict):
+        providers = cfg.get("ai_providers") or {}
+        for pname, pcfg in data["ai_providers"].items():
+            if not isinstance(pcfg, dict):
+                continue
+            if pname not in providers:
+                providers[pname] = {"enabled": False, "api_key": "", "model": "", "priority": 99}
+            if "enabled" in pcfg:
+                providers[pname]["enabled"] = bool(pcfg["enabled"])
+            if "model" in pcfg:
+                providers[pname]["model"] = str(pcfg["model"]).strip()
+            if "priority" in pcfg:
+                try:
+                    providers[pname]["priority"] = int(pcfg["priority"])
+                except (TypeError, ValueError):
+                    pass
+            # Only update api_key if a non-empty value is provided (don't clear by accident)
+            if "api_key" in pcfg:
+                new_key = str(pcfg["api_key"] or "").strip()
+                if new_key:
+                    providers[pname]["api_key"] = new_key
+                elif pcfg.get("clear_api_key"):
+                    providers[pname]["api_key"] = ""
+        cfg["ai_providers"] = providers
+
     ok = server_config.save_config(cfg)
     if not ok:
         return jsonify({"success": False, "message": "write-error"}), 500
 
-    # The password is read by the app at startup; if it changed, store it in
-    # the running process so it applies immediately.
     current_app.config["SERVER_ACCESS_PASSWORD"] = cfg["access_password"]
 
     return jsonify({
@@ -143,3 +174,39 @@ def restart():
     except Exception:
         return jsonify({"success": False, "message": "restart-failed"}), 500
     return jsonify({"success": True})
+
+
+@server_bp.route("/api/ai-provider-test", methods=["POST"])
+@require_api("settings", "edit")
+def test_ai_provider():
+    """Test a single AI provider with a simple question."""
+    from ai_engine import test_provider
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    model = (data.get("model") or "").strip()
+    if not name or not api_key or not model:
+        return jsonify({"success": False, "message": "missing-params"}), 400
+    result = test_provider(name, api_key, model)
+    return jsonify(result)
+
+
+@server_bp.route("/api/factory-reset/preview", methods=["POST"])
+@require_api("settings", "edit")
+def factory_reset_preview():
+    from factory_reset import get_reset_preview
+    preview = get_reset_preview()
+    return jsonify({"success": True, "preview": preview})
+
+
+@server_bp.route("/api/factory-reset", methods=["POST"])
+@require_api("settings", "edit")
+def factory_reset():
+    from factory_reset import factory_reset as do_reset
+    data = request.get_json(silent=True) or {}
+    confirm = (data.get("confirm") or "").strip()
+    if confirm != "RESET":
+        return jsonify({"success": False, "message": "اكتب RESET للتأكيد"}), 400
+    seed_demo = data.get("seed_demo", False)
+    result = do_reset(seed_demo=seed_demo)
+    return jsonify(result)

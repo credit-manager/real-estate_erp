@@ -255,7 +255,14 @@ def trigger_ocr(doc_id):
 
 @dms_bp.route("/documents/<int:doc_id>/ocr-result", methods=["POST"])
 def ocr_callback(doc_id):
-    """callback من خدمة OCR (مثل Tesseract أو Azure Form Recognizer)."""
+    """callback من خدمة OCR (مثل Tesseract أو Azure Form Recognizer).
+    يتطلب توقيع webhook secret للحماية.
+    """
+    secret = request.headers.get("X-Webhook-Secret") or request.args.get("secret")
+    from flask import current_app
+    expected = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
+    if not expected or secret != expected:
+        return jsonify({"message": "unauthorized"}), 401
     data = request.get_json() or {}
     doc = db.session.get(Document, doc_id)
     if not doc:

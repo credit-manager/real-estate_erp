@@ -9,11 +9,16 @@ env/
 
 # Secrets — لا ترفع المفاتيح أو الشهادات أبداً
 .secret_key
+.secret_key_*
 .db_password
 certs/
 *.pem
 *.key
 *.crt
+
+# مثيل قاعدة البيانات المحلية ومجلدات التشغيل
+instance/
+logs/
 
 # سجلات التشغيل
 *.log
@@ -49,3 +54,23 @@ Desktop.ini
 dev_scripts/logs/
 *.log.*
 uploads/tmp/
+
+# مخرجات أمراض وأخطاء مؤقتة
+*.err.txt
+*_out.txt
+model_test.txt
+full_err.txt
+v2_out.txt
+
+# سكربتات صيانة/تطوير مؤقتة (ليست جزءاً من التطبيق)
+factory_reset.py
+reset_admin_password.py
+_seed.py
+_cleanup.py
+_check_companies.py
+_check_users.py
+_demo_onboarding.py
+_test_api.py
+_test_multitenant.py
+_test_phase2b.py
+test_sidebar_nav.py

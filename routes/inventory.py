@@ -49,18 +49,22 @@ def _record_movement(item_id, warehouse_id, movement_type, quantity, batch_id=No
 
 
 def _adjust_stock(item_id, warehouse_id, delta, cost=0):
-    """يحدّث رصيد الصنف في المخزن بقيمة delta (موجبة زيادة / سالبة نقص)."""
+    """يحدّث رصيد الصنف في المخزن بقيمة delta (موجبة زيادة / سالبة نقص).
+    يمنع المخزون السالب ويرجع (stock, error_msg)."""
     stock = ItemStock.query.filter_by(item_id=item_id, warehouse_id=warehouse_id).first()
     if not stock:
         stock = ItemStock(item_id=item_id, warehouse_id=warehouse_id, quantity=0, avg_cost=0)
         db.session.add(stock)
-    new_qty = float(stock.quantity or 0) + delta
-    stock.quantity = max(0, new_qty)
+    old_qty = float(stock.quantity or 0)
+    new_qty = old_qty + delta
+    if new_qty < 0:
+        return stock, "insufficient_stock"
+    old_total = old_qty * float(stock.avg_cost or 0)
+    stock.quantity = new_qty
     if cost and delta > 0:
-        old_total = float(stock.quantity or 0) * float(stock.avg_cost or 0)
         new_total = old_total + (delta * cost)
         stock.avg_cost = new_total / stock.quantity if stock.quantity else 0
-    return stock
+    return stock, None
 
 
 # ============ صفحات (Pages) ============
@@ -681,7 +685,10 @@ def create_transfer():
         if src_qty < qty:
             db.session.rollback()
             return jsonify({"message": f"الرصيد غير كافٍ في المخزن المصدر لصنف الرقم {item_id}"}), 400
-        _adjust_stock(item_id, from_wh, -qty)
+        stock_out, err = _adjust_stock(item_id, from_wh, -qty)
+        if err:
+            db.session.rollback()
+            return jsonify({"message": f"الرصيد غير كافٍ للصنف {item_id}"}), 400
         _adjust_stock(item_id, to_wh, qty)
         batch_id = line.get("batch_id") or None
         if batch_id:

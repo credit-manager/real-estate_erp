@@ -1,9 +1,15 @@
 import psycopg2
 import sys
+import os
+
+PG_SUPERUSER_PASSWORD = os.environ.get("PG_SUPERUSER_PASSWORD", "")
+if not PG_SUPERUSER_PASSWORD:
+    print("Error: Set PG_SUPERUSER_PASSWORD environment variable")
+    sys.exit(1)
 
 try:
     # Connect to postgres database first
-    conn = psycopg2.connect(dbname='postgres', user='postgres', password='0100', host='127.0.0.1')
+    conn = psycopg2.connect(dbname='postgres', user='postgres', password=PG_SUPERUSER_PASSWORD, host='127.0.0.1')
     conn.autocommit = True
     cur = conn.cursor()
     
@@ -17,7 +23,7 @@ try:
     conn.close()
     
     # Now connect to dynamicpro and set permissions
-    conn = psycopg2.connect(dbname='dynamicpro', user='postgres', password='0100', host='127.0.0.1')
+    conn = psycopg2.connect(dbname='dynamicpro', user='postgres', password=PG_SUPERUSER_PASSWORD, host='127.0.0.1')
     conn.autocommit = True
     cur = conn.cursor()
     

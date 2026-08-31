@@ -168,6 +168,126 @@ def backup():
     return render_template("backup.html")
 
 
+def _hub(title_key, sub_key, cards, hub_id=""):
+    from i18n import make_t
+    t = make_t()
+    return render_template("module_hub.html",
+        hub_title=t(title_key), hub_sub=t(sub_key), hub_id=hub_id, cards=cards)
+
+
+def _hc(url, icon, title_key, sub_key=""):
+    from i18n import make_t
+    t = make_t()
+    return {"url": url, "icon": icon, "title": t(title_key), "sub": t(sub_key) if sub_key else ""}
+
+
+@pages_bp.route("/operations")
+@require_page("projects")
+def operations_hub():
+    return _hub("nav.groupOperations", "hub.operationsSub", [
+        _hc("/projects", "📋", "nav.projects", "hub.projectsSub"),
+        _hc("/sales", "💰", "nav.sales", "hub.salesSub"),
+        _hc("/procurement", "🛒", "nav.procurement", "hub.procurementSub"),
+        _hc("/crm", "🤝", "nav.crm", "hub.crmSub"),
+    ], "operations")
+
+
+@pages_bp.route("/payroll-hub")
+@require_page("payroll")
+def payroll_hub():
+    return _hub("payroll.title", "hub.payrollSub", [
+        _hc("/hr/payroll", "📊", "payroll.payroll", "hub.payrollMainSub"),
+        _hc("/hr/salaries", "💵", "payroll.salaries", "hub.salariesSub"),
+        _hc("/hr/allowances", "🎁", "payroll.allowances", "hub.allowancesSub"),
+        _hc("/hr/deductions", "📉", "payroll.deductions", "hub.deductionsSub"),
+        _hc("/hr/bonuses", "⭐", "payroll.bonuses", "hub.bonusesSub"),
+        _hc("/hr/taxes", "🏛️", "payroll.taxes", "hub.taxesSub"),
+        _hc("/hr/insurance", "🛡️", "payroll.insurance", "hub.insuranceSub"),
+        _hc("/hr/end-of-service", "🏁", "payroll.eos", "hub.eosSub"),
+    ], "payroll")
+
+
+@pages_bp.route("/manufacturing-hub")
+@require_page("manufacturing")
+def manufacturing_hub():
+    return _hub("nav.groupManufacturing", "hub.manufacturingSub", [
+        _hc("/mf/work-centers", "🏭", "mf.workCenters", "hub.workCentersSub"),
+        _hc("/mf/raw-materials", "🧱", "mf.rawMaterials", "hub.rawMaterialsSub"),
+        _hc("/mf/bom", "📑", "mf.bomTitle", "hub.bomSub"),
+        _hc("/mf/orders", "📝", "mf.ordersTitle", "hub.ordersSub"),
+        _hc("/mf/operations", "⚙️", "mf.operationsTitle", "hub.operationsTitleSub"),
+        _hc("/mf/quality", "✅", "mf.qualityTitle", "hub.qualitySub"),
+        _hc("/mf/tracking", "📍", "mf.trackingTitle", "hub.trackingSub"),
+        _hc("/mf/costing", "💲", "mf.costingTitle", "hub.costingSub"),
+    ], "manufacturing")
+
+
+@pages_bp.route("/finance-hub")
+@require_page("finance")
+def finance_hub():
+    return _hub("nav.groupFinance", "hub.financeSub", [
+        _hc("/finance", "💰", "nav.finance", "hub.financeMainSub"),
+        _hc("/taxes", "🏛️", "nav.taxes", "hub.taxesPageSub"),
+        _hc("/reports", "📈", "nav.reports", "hub.reportsSub"),
+    ], "finance")
+
+
+@pages_bp.route("/assets-hub")
+@require_page("accounting")
+def assets_hub():
+    return _hub("nav.groupAssets", "hub.assetsSub", [
+        _hc("/assets", "🏠", "assets.title", "hub.assetsMainSub"),
+        _hc("/assets/assets", "📋", "assets.registry", "hub.registrySub"),
+        _hc("/assets/equipment", "🔧", "assets.equipment", "hub.equipmentSub"),
+        _hc("/assets/maintenance", "🛠️", "assets.maintenance", "hub.maintenanceSub"),
+        _hc("/assets/movements", "🔄", "assets.movements", "hub.movementsSub"),
+        _hc("/assets/custody", "👤", "assets.custody", "hub.custodySub"),
+        _hc("/assets/depreciation", "📉", "assets.depreciation", "hub.depreciationSub"),
+        _hc("/real-estate", "🏢", "nav.realestate", "hub.realEstateSub"),
+        _hc("/projects/map", "🗺️", "projects.masterPlan", "hub.projectMapSub"),
+        _hc("/rentals", "🏘️", "rentals.tabContracts", "hub.rentalsSub"),
+        _hc("/rentals/tenants", "👥", "rentals.tabTenants", "hub.tenantsSub"),
+        _hc("/rentals/renewals", "🔁", "rentals.tabRenewals", "hub.renewalsSub"),
+        _hc("/rentals/collections", "💰", "rentals.tabCollections", "hub.collectionsSub"),
+        _hc("/rentals/notifications", "🔔", "rentals.tabNotifications", "hub.notificationsSub"),
+    ], "assets")
+
+
+@pages_bp.route("/workflow-hub")
+@require_page("workflow")
+def workflow_hub():
+    return _hub("nav.groupWorkflow", "hub.workflowSub", [
+        _hc("/workflow/approvals", "✅", "nav.workflowApprovals", "hub.approvalsSub"),
+        _hc("/workflow/templates", "📑", "nav.workflowTemplates", "hub.templatesSub"),
+        _hc("/workflow/requests", "📝", "nav.workflowRequests", "hub.requestsSub"),
+    ], "workflow")
+
+
+@pages_bp.route("/system-hub")
+@login_required
+def system_hub():
+    return _hub("nav.groupSystem", "hub.systemSub", [
+        _hc("/profile", "👤", "nav.profile", "hub.profileSub"),
+        _hc("/audit", "📋", "nav.audit", "hub.auditSub"),
+        _hc("/general-settings", "⚙️", "nav.generalSettings", "hub.settingsSub"),
+        _hc("/server-settings", "🖥️", "nav.serverSettings", "hub.serverSub"),
+        _hc("/backup", "💾", "nav.backup", "hub.backupSub"),
+    ], "system")
+
+
+@pages_bp.route("/admin-hub")
+@require_page("roles")
+def admin_hub():
+    return _hub("nav.groupAdmin", "hub.adminSub", [
+        _hc("/users", "👥", "nav.users", "hub.usersSub"),
+        _hc("/roles", "🛡️", "nav.roles", "hub.rolesSub"),
+        _hc("/companies", "🏢", "nav.companies", "hub.companiesSub"),
+        _hc("/financial-years", "📅", "nav.financialYears", "hub.financialYearsSub"),
+        _hc("/currencies", "💱", "nav.currencies", "hub.currenciesSub"),
+        _hc("/portal", "🌐", "nav.portal", "hub.portalSub"),
+    ], "admin")
+
+
 @pages_bp.route("/documents/invoice/<int:invoice_id>")
 @require_page("finance")
 def print_invoice(invoice_id):
@@ -205,6 +325,15 @@ def print_invoice(invoice_id):
             "total": line + tax,
         })
     company = invoice.financial_year.company if invoice.financial_year else None
+    # الفاتورة الإلكترونية: QR + الحالة (تظهر في المطبوعة عند وجودها)
+    import base64 as _b64
+    qr_data_url = None
+    if invoice.einv_qr:
+        try:
+            _b64.b64decode(invoice.einv_qr, validate=True)
+            qr_data_url = "data:image/png;base64," + invoice.einv_qr
+        except Exception:
+            qr_data_url = None  # QR نصي (TLV base64) — يُطبع كنص
     return render_template(
         "print_invoice.html",
         invoice=invoice,
@@ -212,6 +341,10 @@ def print_invoice(invoice_id):
         project_name=invoice.project.name if invoice.project else None,
         company_name=company.name if company else None,
         company_tax_number=company.tax_number if company else None,
+        einv_status=invoice.einv_status,
+        einv_reference=invoice.einv_reference,
+        einv_qr=invoice.einv_qr,
+        einv_qr_is_png=bool(qr_data_url),
         items=items,
         subtotal=subtotal,
         total_tax=total_tax,

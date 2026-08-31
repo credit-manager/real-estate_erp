@@ -1,9 +1,12 @@
 """General Settings routes.
 
 Page:  /general-settings
-API:   GET  /api/general-settings          -> settings + options
-       POST /api/general-settings          -> save settings
-       GET  /api/general-settings/next-number?type=invoice|po|contract -> suggested next doc number
+API:   GET  /api                      -> settings + options
+       POST /api                      -> save all settings (legacy)
+       POST /api/<section>            -> save a single section
+       POST /api/company              -> save company data
+       POST /api/layout               -> save layout preferences
+       GET  /api/next-number?type=... -> next document number
 """
 import re
 
@@ -20,6 +23,14 @@ import utils.settings as settings
 
 
 settings_bp = Blueprint("settings", __name__, url_prefix="/general-settings")
+
+# Sections that exist in the new design
+_VALID_SECTIONS = set(settings.SECTION_KEYS) | {"company", "layout", "ai"}
+
+# ── E-Invoicing valid values ──────────────────────────────────
+_EINV_COUNTRIES = {"EG", "SA", "AE", "JO", "OM", "KW", "QA", "BH"}
+_EINV_MODES = {"clearance", "reporting", "offline"}
+_EINV_ENVS = {"preprod", "production"}
 
 
 def _company_dict(c):
@@ -62,49 +73,113 @@ def _options():
     }
 
 
-def _validate(data):
-    """Returns an error key or None."""
-    decimals = data.get("number_decimals")
-    if decimals not in (None, ""):
-        try:
-            if int(decimals) not in (0, 1, 2, 3):
+def _validate_section(section, data):
+    """Returns an error key or None for a specific section."""
+    if section == "appearance":
+        decimals = data.get("number_decimals")
+        if decimals not in (None, ""):
+            try:
+                if int(decimals) not in (0, 1, 2, 3):
+                    return "settings.numberDecimalsInvalid"
+            except (TypeError, ValueError):
                 return "settings.numberDecimalsInvalid"
-        except (TypeError, ValueError):
-            return "settings.numberDecimalsInvalid"
-    lang = data.get("default_lang")
-    if lang not in (None, "", "ar", "en"):
-        return "settings.langInvalid"
-    theme = data.get("default_theme")
-    if theme not in (None, "", "light", "dark"):
-        return "settings.themeInvalid"
-    date_fmt = data.get("date_format")
-    if date_fmt not in (None, "", "dd/mm/yyyy", "yyyy-mm-dd"):
-        return "settings.dateFormatInvalid"
-    rate = data.get("doc_default_tax_rate")
-    if rate not in (None, ""):
-        try:
-            r = float(rate)
-        except (TypeError, ValueError):
-            return "settings.taxRateInvalid"
-        if r < 0 or r > 100:
-            return "settings.taxRateInvalid"
+        lang = data.get("default_lang")
+        if lang not in (None, "", "ar", "en"):
+            return "settings.langInvalid"
+        theme = data.get("default_theme")
+        if theme not in (None, "", "light", "dark"):
+            return "settings.themeInvalid"
+        date_fmt = data.get("date_format")
+        if date_fmt not in (None, "", "dd/mm/yyyy", "yyyy-mm-dd"):
+            return "settings.dateFormatInvalid"
+    elif section == "documents":
+        rate = data.get("doc_default_tax_rate")
+        if rate not in (None, ""):
+            try:
+                r = float(rate)
+            except (TypeError, ValueError):
+                return "settings.taxRateInvalid"
+            if r < 0 or r > 100:
+                return "settings.taxRateInvalid"
+    elif section == "einvoice":
+        ec = data.get("einv_country")
+        if ec not in (None, "", *_EINV_COUNTRIES):
+            return "settings.einvCountryInvalid"
+        em = data.get("einv_mode")
+        if em not in (None, "", *_EINV_MODES):
+            return "settings.einvModeInvalid"
+        ev = data.get("einv_environment")
+        if ev not in (None, "", *_EINV_ENVS):
+            return "settings.einvEnvInvalid"
+    elif section == "realestate":
+        for key in ("realestate_max_discount_percent", "realestate_vat_percent"):
+            val = data.get(key)
+            if val not in (None, ""):
+                try:
+                    f = float(val)
+                    if f < 0 or f > 100:
+                        return "settings.percentInvalid"
+                except (TypeError, ValueError):
+                    return "settings.percentInvalid"
+    elif section == "rentals":
+        val = data.get("rental_escalation_percent")
+        if val not in (None, ""):
+            try:
+                f = float(val)
+                if f < 0 or f > 100:
+                    return "settings.percentInvalid"
+            except (TypeError, ValueError):
+                return "settings.percentInvalid"
+    elif section == "sales":
+        val = data.get("sales_commission_rate")
+        if val not in (None, ""):
+            try:
+                f = float(val)
+                if f < 0 or f > 100:
+                    return "settings.percentInvalid"
+            except (TypeError, ValueError):
+                return "settings.percentInvalid"
+    elif section == "mobile":
+        for key in ("mobile_attendance_radius_meters", "mobile_gps_interval_seconds"):
+            val = data.get(key)
+            if val not in (None, ""):
+                try:
+                    f = float(val)
+                    if f <= 0:
+                        return "settings.radiusInvalid"
+                except (TypeError, ValueError):
+                    return "settings.radiusInvalid"
+    elif section == "backup":
+        for key in ("backup_auto_interval_days", "backup_auto_keep"):
+            val = data.get(key)
+            if val not in (None, ""):
+                try:
+                    i = int(val)
+                    if i <= 0:
+                        return "settings.percentInvalid"
+                except (TypeError, ValueError):
+                    return "settings.percentInvalid"
     return None
 
 
+# ── Page ───────────────────────────────────────────────────────
 @settings_bp.route("")
 @require_page("settings")
 def page():
     return render_template("general_settings.html")
 
 
+# ── GET settings ──────────────────────────────────────────────
 @settings_bp.route("/api", methods=["GET"])
 @require_api("settings", "view")
 def get_settings():
     data = settings.get_all()
-    payload = {
-        k: settings.typed_value(k, v)
-        for k, v in data.items()
-    }
+    payload = {}
+    for k, v in data.items():
+        if k in settings.SECRET_KEYS:
+            payload[k + "_set"] = settings.masked_get(k)
+            continue
+        payload[k] = settings.typed_value(k, v)
     return jsonify({
         "success": True,
         "settings": payload,
@@ -112,18 +187,79 @@ def get_settings():
     })
 
 
+# ── POST save all (legacy) ────────────────────────────────────
 @settings_bp.route("/api", methods=["POST"])
 @require_api("settings", "edit")
 def save_settings():
     data = request.get_json(silent=True) or {}
-    err = _validate(data)
-    if err:
-        return jsonify({"success": False, "message": err, "error_key": err}), 400
     settings.save(data)
     log_action("edit", "settings", None, "تعديل الإعدادات العامة")
     return jsonify({"success": True, "message": "settings.saved"})
 
 
+# ── POST save section ─────────────────────────────────────────
+@settings_bp.route("/api/<section>", methods=["POST"])
+@require_api("settings", "edit")
+def save_section_settings(section):
+    if section not in _VALID_SECTIONS:
+        return jsonify({"success": False, "message": "invalid-section"}), 400
+    data = request.get_json(silent=True) or {}
+    err = _validate_section(section, data)
+    if err:
+        return jsonify({"success": False, "message": err, "error_key": err}), 400
+    section_keys = settings.SECTION_KEYS.get(section, set())
+    settings.save_section(section_keys, data)
+    log_action("edit", "settings", None, f"تعديل إعدادات: {section}")
+    return jsonify({"success": True, "message": "settings.saved"})
+
+
+# ── POST save company ─────────────────────────────────────────
+@settings_bp.route("/api/company", methods=["POST"])
+@require_api("settings", "edit")
+def save_company():
+    data = request.get_json(silent=True) or {}
+    company_id = data.get("id")
+    if not company_id:
+        return jsonify({"success": False, "message": "missing-id"}), 400
+    try:
+        company = db.session.get(Company, int(company_id))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "invalid-id"}), 400
+    if not company:
+        return jsonify({"success": False, "message": "not-found"}), 404
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify({"success": False, "message": "companies.nameRequired"}), 400
+    company.name = name
+    company.legal_name = (data.get("legal_name") or "").strip()
+    company.tax_number = (data.get("tax_number") or "").strip()
+    company.commercial_registration = (data.get("commercial_registration") or "").strip()
+    company.address = (data.get("address") or "").strip()
+    company.phone = (data.get("phone") or "").strip()
+    company.email = (data.get("email") or "").strip()
+    company.website = (data.get("website") or "").strip()
+    db.session.commit()
+    log_action("edit", "company", company.id, f"تعديل بيانات الشركة: {company.name}")
+    return jsonify({"success": True, "message": "companies.saved"})
+
+
+# ── POST save layout ──────────────────────────────────────────
+@settings_bp.route("/api/layout", methods=["POST"])
+@require_api("settings", "edit")
+def save_layout():
+    data = request.get_json(silent=True) or {}
+    layout = data.get("layout_style", "vertical")
+    if layout not in ("vertical", "horizontal"):
+        layout = "vertical"
+    settings.set("layout_style", layout)
+    settings.set("sidebar_width", str(data.get("sidebar_width", "258")))
+    settings.set("compact_menu", "1" if data.get("compact_menu") else "0")
+    settings.set("grouped_modules", "1" if data.get("grouped_modules") else "0")
+    db.session.commit()
+    return jsonify({"success": True, "message": "settings.saved"})
+
+
+# ── GET next document number ──────────────────────────────────
 _DOC_MODELS = {
     "invoice": (Invoice, "invoice_number"),
     "po": (PurchaseOrder, "po_number"),

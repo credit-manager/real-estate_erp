@@ -234,35 +234,7 @@ function showUnitDetail(unitId) {
 function openUnitFromMap() {
   if (!selectedUnit) return;
   closeModal('map-unit-modal');
-  // Navigate to real-estate page with unit selected
-  window.location.href = `/real-estate#re-units`;
-  // Could also open unit modal directly if on same page
-}
-
-function loadProjectMap() {
-  // Already implemented above
-  const loading = document.getElementById('map-loading');
-  const container = document.getElementById('map-svg-container');
-  loading.style.display = 'flex';
-  container.innerHTML = '';
-
-  // This will be called after project select change
-  if (!mapProjectId) return;
-
-  api.get(`/api/units?project_id=${mapProjectId}`).then(unitsRes => {
-    mapUnits = Array.isArray(unitsRes) ? unitsRes : (unitsRes.items || []);
-    return api.get(`/api/realestate/buildings?project_id=${mapProjectId}`);
-  }).then(buildingsRes => {
-    mapBuildings = Array.isArray(buildingsRes) ? buildingsRes : (buildingsRes.items || []);
-    updateMapKPIs();
-    const svg = generateMapSVG();
-    container.innerHTML = svg;
-    loading.style.display = 'none';
-    attachUnitEvents();
-  }).catch(e => {
-    loading.style.display = 'none';
-    toastError(e);
-  });
+  window.location.href = `/real-estate?unit=${selectedUnit.id}#re-units`;
 }
 
 // Make loadProjectMap globally accessible

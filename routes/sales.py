@@ -398,6 +398,133 @@ def delete_sales_invoice(invoice_id):
     return jsonify({"success": True})
 
 
+# ============ الفاتورة الإلكترونية ============
+
+@sales_bp.route("/invoices/<int:invoice_id>/einvoice/submit", methods=["POST"])
+@require_api("sales", "edit")
+def einvoice_submit(invoice_id):
+    """إرسال الفاتورة للمنظومة الضريبية حسب دولة الإعدادات."""
+    from utils.einvoice import get_connector, build_unified, COUNTRIES
+    from utils.settings import get as cfg_get
+    invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.invoice_type != "sales":
+        return jsonify({"message": "sales.notSalesInvoice", "error_key": "sales.notSalesInvoice"}), 400
+    if not cfg_get("einv_enabled", False):
+        return jsonify({"message": "الفاتورة الإلكترونية غير مفعلة في الإعدادات"}), 400
+
+    connector = get_connector()
+    if connector is None:
+        country = (cfg_get("einv_country") or "").upper()
+        info = COUNTRIES.get(country)
+        # حفظ الحالة على الفاتورة: جاهزة بصيغة UBL بانتظار تفعيل المنظومة
+        from datetime import datetime as _dt
+        invoice.einv_status = "pending"
+        invoice.einv_message = f"منظومة {info['name'] if info else country} قيد التجهيز — محفوظة بصيغة UBL"
+        invoice.einv_submitted_at = _dt.now()
+        db.session.commit()
+        return jsonify({
+            "message": invoice.einv_message,
+            "status": "pending",
+        }), 200
+
+    unified = build_unified(invoice)
+    result = connector.submit(invoice, unified)
+    invoice.einv_status = result.get("status")
+    invoice.einv_reference = result.get("reference")
+    invoice.einv_qr = result.get("qr")
+    invoice.einv_message = result.get("message")
+    if result.get("status") in ("submitted", "accepted"):
+        from datetime import datetime as _dt
+        invoice.einv_submitted_at = _dt.now()
+    db.session.commit()
+    _log("einvoicing", "invoice", invoice.id,
+         f"{connector.authority} → {result.get('status')}")
+    return jsonify({
+        "invoice_id": invoice.id,
+        "authority": getattr(connector, "authority", "—"),
+        **result,
+    })
+
+
+@sales_bp.route("/invoices/<int:invoice_id>/einvoice/status", methods=["GET"])
+@require_api("sales", "view")
+def einvoice_status(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    return jsonify({
+        "invoice_id": invoice.id,
+        "einv_status": invoice.einv_status,
+        "einv_reference": invoice.einv_reference,
+        "einv_qr": invoice.einv_qr,
+        "einv_submitted_at": invoice.einv_submitted_at.isoformat() if invoice.einv_submitted_at else None,
+        "einv_message": invoice.einv_message,
+    })
+
+
+# ============ الفاتورة الإلكترونية — دفعات + معلومات الدولة ============
+
+@sales_bp.route("/einvoice/batch-submit", methods=["POST"])
+@require_api("sales", "edit")
+def einvoice_batch_submit():
+    """إرسال دفعة فواتير للمنظومة الضريبية."""
+    from utils.einvoice import get_connector, build_unified, COUNTRIES
+    from utils.settings import get as cfg_get
+    data = request.get_json() or {}
+    invoice_ids = data.get("invoice_ids", [])
+    if not invoice_ids:
+        return jsonify({"message": "sales.invoiceIdsRequired"}), 400
+    if not cfg_get("einv_enabled", False):
+        return jsonify({"message": "الفاتورة الإلكترونية غير مفعلة"}), 400
+
+    connector = get_connector()
+    results = []
+    for iid in invoice_ids[:50]:  # حد أقصى 50 فاتورة
+        inv = Invoice.query.get(iid)
+        if not inv or inv.invoice_type != "sales":
+            results.append({"invoice_id": iid, "status": "skipped", "message": "not found or not sales"})
+            continue
+        if connector is None:
+            country = (cfg_get("einv_country") or "").upper()
+            info = COUNTRIES.get(country)
+            inv.einv_status = "pending"
+            inv.einv_message = f"offline — {info['name'] if info else country}"
+            db.session.commit()
+            results.append({"invoice_id": iid, "status": "pending"})
+            continue
+        unified = build_unified(inv)
+        result = connector.submit(inv, unified)
+        inv.einv_status = result.get("status")
+        inv.einv_reference = result.get("reference")
+        inv.einv_qr = result.get("qr")
+        inv.einv_message = result.get("message")
+        if result.get("status") in ("submitted", "accepted"):
+            from datetime import datetime as _dt
+            inv.einv_submitted_at = _dt.now()
+        db.session.commit()
+        results.append({"invoice_id": iid, "authority": getattr(connector, "authority", "—"), **result})
+
+    return jsonify({"results": results, "total": len(results)})
+
+
+@sales_bp.route("/einvoice/countries", methods=["GET"])
+@require_api("sales", "view")
+def einvoice_countries():
+    """قائمة الدول和支持的المنظومات."""
+    from utils.einvoice import COUNTRIES
+    return jsonify(COUNTRIES)
+
+
+@sales_bp.route("/einvoice/config", methods=["GET"])
+@require_api("sales", "view")
+def einvoice_config_get():
+    """قراءة إعدادات الفاتورة الإلكترونية."""
+    from utils.einvoice import einvoice_config
+    cfg = einvoice_config()
+    # إخفاء كلمات المرور
+    safe = {k: v for k, v in cfg.items()
+            if "secret" not in k and "password" not in k and "cert" not in k}
+    return jsonify(safe)
+
+
 @sales_bp.route("/invoices/<int:invoice_id>/pay", methods=["POST"])
 @require_api("sales", "edit")
 def pay_invoice(invoice_id):
@@ -446,6 +573,15 @@ def create_return():
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
+    # Validate invoice exists if provided
+    invoice_id = data.get("invoice_id")
+    if invoice_id:
+        from models import Invoice
+        inv = db.session.get(Invoice, invoice_id)
+        if not inv:
+            return jsonify({"message": "الفاتورة غير موجودة", "error_key": "invoiceNotFound"}), 400
+        if inv.invoice_type != "sales":
+            return jsonify({"message": "الفاتورة ليست فاتورة مبيعات", "error_key": "notSalesInvoice"}), 400
     ret = SalesReturn(
         return_number=_next_number(SalesReturn, "SR", SalesReturn.return_number),
         invoice_id=data.get("invoice_id") or None,

@@ -235,9 +235,21 @@ def cancel_request(rid):
 
 @esign_bp.route("/webhook/<provider_name>", methods=["POST"])
 def webhook(provider_name):
-    """استقبال callback من DocuSign/Na3am."""
+    """استقبال callback من DocuSign/Na3am مع التحقق من webhook secret."""
     data = request.get_json(silent=True) or {}
-    # التحقق من التوقيع (TODO: التحقق من webhook secret)
+
+    provider = SignatureProvider.query.filter_by(name=provider_name).first()
+    if not provider:
+        return jsonify({"success": False, "message": "provider not found"}), 404
+
+    webhook_secret = provider.webhook_secret_encrypted or ""
+    sig_header = request.headers.get("X-Webhook-Signature") or request.args.get("signature")
+    if not webhook_secret or not sig_header:
+        from flask import current_app
+        fallback = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
+        if not fallback or sig_header != fallback:
+            return jsonify({"success": False, "message": "unauthorized"}), 401
+
     external_id = data.get("envelope_id") or data.get("external_id") or data.get("id")
     if not external_id:
         return jsonify({"success": False, "message": "معرف خارجي مفقود"}), 400

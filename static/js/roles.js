@@ -12,10 +12,15 @@ const MODULE_LABEL_KEYS = {
   projects: "nav.projects",
   sales: "nav.sales",
   procurement: "nav.procurement",
+  inventory: "nav.inventory",
+  manufacturing: "nav.manufacturing",
   finance: "nav.finance",
+  accounting: "nav.accounting",
   hr: "nav.hr",
+  payroll: "nav.payroll",
   realestate: "nav.realestate",
   rentals: "nav.rentals",
+  crm: "nav.crm",
   reports: "nav.reports",
   audit: "nav.audit",
   backup: "nav.backup",
@@ -177,6 +182,7 @@ function closeRoleModal() {
 }
 
 async function saveRole() {
+  collectPerms();
   const id = document.getElementById("role-id").value;
   const body = {
     name: document.getElementById("role-name").value.trim(),

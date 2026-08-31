@@ -1,12 +1,255 @@
 import json
 import os
 import sys
+from datetime import datetime
 from flask import Flask, redirect, url_for, request, session, jsonify, current_app
 from database import db
 import config
 import server_config
 import permissions
 from i18n import TRANSLATIONS, DEFAULT_LANG, LANG_CODES, get_lang, make_t
+
+
+def _run_migrations_and_seeds(app, db):
+    """Run all migrations and seed data. Only for master (non-company) instances."""
+    from models import User, Role
+    from werkzeug.security import generate_password_hash
+    from sqlalchemy import inspect, text
+
+    insp = inspect(db.engine)
+    cols = [c["name"] for c in insp.get_columns("users")]
+    if "must_change_password" not in cols:
+        db.session.execute(text(
+            "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
+        ))
+        db.session.commit()
+
+    for table in ["invoices", "purchase_orders", "rental_contracts", "payment_plans"]:
+        cols = [c["name"] for c in insp.get_columns(table)]
+        if "financial_year_id" not in cols:
+            db.session.execute(text(
+                f"ALTER TABLE {table} ADD COLUMN financial_year_id INTEGER"
+            ))
+    db.session.commit()
+
+    fk_plan = {
+        "invoices": "fk_invoices_financial_year",
+        "purchase_orders": "fk_purchase_orders_financial_year",
+        "rental_contracts": "fk_rental_contracts_financial_year",
+        "payment_plans": "fk_payment_plans_financial_year",
+    }
+    existing_tables = set(insp.get_table_names())
+    if "financial_years" in existing_tables:
+        fkinsp = inspect(db.engine)
+        existing_fk_names = {
+            fk["name"]
+            for table in existing_tables
+            for fk in fkinsp.get_foreign_keys(table)
+            if fk.get("name")
+        }
+        for table, con_name in fk_plan.items():
+            if table not in existing_tables or con_name in existing_fk_names:
+                continue
+            if "financial_year_id" not in [c["name"] for c in fkinsp.get_columns(table)]:
+                continue
+            db.session.execute(text(
+                f"DELETE FROM {table} WHERE financial_year_id IS NOT NULL "
+                f"AND NOT EXISTS (SELECT 1 FROM financial_years "
+                f"WHERE id = {table}.financial_year_id)"
+            ))
+            db.session.execute(text(
+                f"ALTER TABLE {table} ADD CONSTRAINT {con_name} "
+                f"FOREIGN KEY (financial_year_id) REFERENCES financial_years(id) "
+                f"ON DELETE SET NULL"
+            ))
+        db.session.commit()
+
+    if "sales_contracts" in insp.get_table_names():
+        sc_cols = [c["name"] for c in insp.get_columns("sales_contracts")]
+        if "vat_rate" not in sc_cols:
+            db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_rate FLOAT DEFAULT 0"))
+        if "vat_amount" not in sc_cols:
+            db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_amount NUMERIC(15,2) DEFAULT 0"))
+    if "commissions" in insp.get_table_names():
+        cm_cols = [c["name"] for c in insp.get_columns("commissions")]
+        if "broker_id" not in cm_cols:
+            db.session.execute(text("ALTER TABLE commissions ADD COLUMN broker_id INTEGER"))
+    for _tbl in ("sales_orders", "journal_entries"):
+        if _tbl in insp.get_table_names():
+            _cols = [c["name"] for c in insp.get_columns(_tbl)]
+            if "deleted_at" not in _cols:
+                db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+    if "workflow_templates" in insp.get_table_names():
+        wt_cols = [c["name"] for c in insp.get_columns("workflow_templates")]
+        if "min_amount" not in wt_cols:
+            db.session.execute(text("ALTER TABLE workflow_templates ADD COLUMN min_amount NUMERIC(15, 2)"))
+    if "invoices" in insp.get_table_names():
+        inv_cols = [c["name"] for c in insp.get_columns("invoices")]
+        _einv_cols = {
+            "einv_status": "VARCHAR(20)",
+            "einv_reference": "VARCHAR(120)",
+            "einv_qr": "TEXT",
+            "einv_submitted_at": "TIMESTAMP",
+            "einv_message": "TEXT",
+        }
+        for _c, _t in _einv_cols.items():
+            if _c not in inv_cols:
+                db.session.execute(text(f"ALTER TABLE invoices ADD COLUMN {_c} {_t}"))
+    db.session.commit()
+
+    from models import TaxType
+    if TaxType.query.count() == 0:
+        db.session.add(TaxType(name="ضريبة القيمة المضافة", rate=15, is_active=True, is_default=True))
+        db.session.add(TaxType(name="معفاة من الضريبة", rate=0, is_active=True, is_default=False))
+        db.session.commit()
+
+    unit_cols = [c["name"] for c in insp.get_columns("real_estate_units")]
+    for col in ["building_id", "floor_id", "unit_type_id", "owner_id"]:
+        if col not in unit_cols:
+            db.session.execute(text(f"ALTER TABLE real_estate_units ADD COLUMN {col} INTEGER"))
+    db.session.commit()
+
+    from models import UnitType
+    if UnitType.query.count() == 0:
+        for ut in ["شقة", "فيلا", "بنتهاوس", "محل", "مكتب", "أرض", "مستودع"]:
+            db.session.add(UnitType(name=ut, is_active=True))
+        db.session.commit()
+
+    if "employees" in insp.get_table_names():
+        emp_cols = [c["name"] for c in insp.get_columns("employees")]
+        emp_add = {
+            "department_id": "INTEGER",
+            "position_id": "INTEGER",
+            "manager_id": "INTEGER",
+            "gender": "VARCHAR(10)",
+            "birth_date": "DATE",
+            "end_date": "DATE",
+            "employment_type": "VARCHAR(30) DEFAULT 'full_time'",
+        }
+        for col_name, ddl in emp_add.items():
+            if col_name not in emp_cols:
+                db.session.execute(text(f"ALTER TABLE employees ADD COLUMN {col_name} {ddl}"))
+        db.session.commit()
+
+    if "customers" in insp.get_table_names():
+        cust_cols = [c["name"] for c in insp.get_columns("customers")]
+        for col in ["company", "notes"]:
+            if col not in cust_cols:
+                db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {col} VARCHAR(255)"))
+        if "is_active" not in cust_cols:
+            db.session.execute(text("ALTER TABLE customers ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
+        db.session.commit()
+
+    from models import CrmPipelineStage
+    if CrmPipelineStage.query.count() == 0:
+        for i, (name, prob) in enumerate(
+            [("جديد", 10), ("مؤهل", 30), ("عرض", 50), ("تفاوض", 70), ("مقبول", 100)],
+            start=1,
+        ):
+            db.session.add(CrmPipelineStage(name=name, position=i, probability=prob, is_active=True))
+        db.session.commit()
+
+    from models import SystemSetting
+    import utils.settings as settings_module
+    existing = {s.key for s in SystemSetting.query.all()}
+    for key, default in settings_module.DEFAULTS.items():
+        if key not in existing:
+            db.session.add(SystemSetting(key=key, value=default))
+    db.session.commit()
+
+    for table in ["invoices", "purchase_orders", "rental_contracts"]:
+        cols = [c["name"] for c in insp.get_columns(table)]
+        if "approval_status" not in cols:
+            db.session.execute(text(
+                f"ALTER TABLE {table} ADD COLUMN approval_status VARCHAR(20) DEFAULT 'not_required'"
+            ))
+    db.session.commit()
+
+    from models import WorkflowTemplate, WorkflowStep
+    default_templates = {
+        "invoice": "اعتماد الفواتير",
+        "po": "اعتماد أوامر الشراء",
+        "rental_contract": "اعتماد عقود الإيجار",
+    }
+    for dt, tpl_name in default_templates.items():
+        if not WorkflowTemplate.query.filter_by(doc_type=dt).first():
+            tpl = WorkflowTemplate(doc_type=dt, name=tpl_name, is_active=True)
+            tpl.steps.append(WorkflowStep(position=1, role="admin"))
+            db.session.add(tpl)
+    db.session.commit()
+
+    import utils.accounting as accounting
+    accounting.seed_default_coa()
+
+    tables = insp.get_table_names()
+    if "journal_entry_lines" in tables:
+        cols = [c["name"] for c in insp.get_columns("journal_entry_lines")]
+        if "reconciled" not in cols:
+            db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled BOOLEAN DEFAULT FALSE"))
+        if "reconciled_at" not in cols:
+            db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled_at TIMESTAMP"))
+        db.session.commit()
+
+    if "invoice_items" in insp.get_table_names():
+        ii_cols = [c["name"] for c in insp.get_columns("invoice_items")]
+        if "item_id" not in ii_cols:
+            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN item_id INTEGER"))
+        if "warehouse_id" not in ii_cols:
+            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN warehouse_id INTEGER"))
+        if "expiry_date" not in ii_cols:
+            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
+        db.session.commit()
+
+    if "hr_attendance" in insp.get_table_names():
+        att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
+        for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
+            if col not in att_cols:
+                db.session.execute(text(f"ALTER TABLE hr_attendance ADD COLUMN {col} FLOAT"))
+        db.session.commit()
+
+    if "employees" in insp.get_table_names():
+        emp_cols = [c["name"] for c in insp.get_columns("employees")]
+        if "user_id" not in emp_cols:
+            db.session.execute(text("ALTER TABLE employees ADD COLUMN user_id INTEGER"))
+        db.session.commit()
+
+    if Role.query.count() == 0:
+        db.session.add(Role(name="admin", description="مدير النظام", is_system=True, permissions=permissions.all_true()))
+        db.session.add(Role(name="employee", description="موظف", is_system=True, permissions=permissions.view_only()))
+        db.session.commit()
+
+    if not User.query.filter_by(username="admin").first():
+        admin = User(
+            username="admin", email="admin@mokawlat.com", full_name="مدير النظام",
+            role="admin", password_hash=generate_password_hash("admin123"), must_change_password=True,
+        )
+        db.session.add(admin)
+        db.session.commit()
+
+    for _tbl in ["real_estate_units", "unit_reservations", "sales_contracts", "invoices"]:
+        if _tbl in insp.get_table_names():
+            _cols = [c["name"] for c in insp.get_columns(_tbl)]
+            if "deleted_at" not in _cols:
+                db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+                db.session.commit()
+
+    try:
+        db.session.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_reservation_unit "
+            "ON unit_reservations (unit_id) WHERE status = 'active' AND deleted_at IS NULL"
+        ))
+        db.session.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_sales_contract_unit "
+            "ON sales_contracts (unit_id) WHERE status IN ('active','draft') AND deleted_at IS NULL"
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    from db_indexes import ensure_indexes
+    ensure_indexes(db.engine, db.session)
 
 
 def _source_dir():
@@ -143,6 +386,7 @@ def create_app():
     from routes.assets import assets_bp
     from routes.mobile import mobile_bp, mobile_api
     from routes.license import license_bp, validate_license
+    from licensing.routes import admin_lic_bp, company_auth_bp
     from api_spec import doc_bp
 
     app.register_blueprint(auth_bp)
@@ -188,7 +432,12 @@ def create_app():
     app.register_blueprint(mobile_bp)
     app.register_blueprint(mobile_api)
     app.register_blueprint(license_bp)
+    app.register_blueprint(company_auth_bp)
     app.register_blueprint(doc_bp)
+
+    # CRITICAL #3: Admin routes فقط على الوضع الرئيسي (master port)
+    if not config.COMPANY_ID:
+        app.register_blueprint(admin_lic_bp)
 
     def get_lang():
         lang = request.cookies.get("lang", DEFAULT_LANG)
@@ -219,11 +468,14 @@ def create_app():
             "is_server_local": request.remote_addr in ("127.0.0.1", "::1"),
             "system_name": _settings.get("system_name") or "Dynamic Pro ERP",
             "system_logo": _settings.get("system_logo") or "",
+            "owner_name": server_config.load_config().get("owner_name") or "Dynamic Pro",
+            "owner_logo": server_config.load_config().get("owner_logo") or "",
             "default_theme": _settings.get("default_theme") or "light",
             "default_lang": _settings.get("default_lang") or "ar",
             "doc_footer_text": _settings.get("doc_footer_text") or "",
             "number_decimals": settings_module.get_int("number_decimals", 2),
             "app_settings_json": json.dumps(settings_module.get_all(), ensure_ascii=False),
+            "year": datetime.now().year,
         }
 
     @app.route("/api/language/<lang>", methods=["POST"])
@@ -239,301 +491,12 @@ def create_app():
         return redirect(url_for("auth.login"))
 
     # إنشاء الجداول + مستخدم وادوار افتراضية
+    # HIGH #9: company instances لا تُشغّل الترحيلات العامة
+    _is_company = bool(config.COMPANY_ID)
     with app.app_context():
         db.create_all()
-        from models import User, Role
-        from werkzeug.security import generate_password_hash
-        from sqlalchemy import inspect, text
-
-        # هجرة بسيطة: إضافة عمود must_change_password (لا يعدل الجداول الموجودة)
-        insp = inspect(db.engine)
-        cols = [c["name"] for c in insp.get_columns("users")]
-        if "must_change_password" not in cols:
-            db.session.execute(text(
-                "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
-            ))
-            db.session.commit()
-
-        # هجرة: إضافة عمود السنة المالية للمستندات المالية (فواتير/أوامر/عقود/خطط)
-        for table in ["invoices", "purchase_orders", "rental_contracts", "payment_plans"]:
-            cols = [c["name"] for c in insp.get_columns(table)]
-            if "financial_year_id" not in cols:
-                db.session.execute(text(
-                    f"ALTER TABLE {table} ADD COLUMN financial_year_id INTEGER"
-                ))
-        db.session.commit()
-
-        # هجرة: قيد المفتاح الأجنبي لعمود السنة المالية (مع تنظيف القيم اليتيمة)
-        fk_plan = {
-            "invoices": "fk_invoices_financial_year",
-            "purchase_orders": "fk_purchase_orders_financial_year",
-            "rental_contracts": "fk_rental_contracts_financial_year",
-            "payment_plans": "fk_payment_plans_financial_year",
-        }
-        existing_tables = set(insp.get_table_names())
-        if "financial_years" in existing_tables:
-            fkinsp = inspect(db.engine)
-            existing_fk_names = {
-                fk["name"]
-                for table in existing_tables
-                for fk in fkinsp.get_foreign_keys(table)
-                if fk.get("name")
-            }
-            for table, con_name in fk_plan.items():
-                if table not in existing_tables or con_name in existing_fk_names:
-                    continue
-                if "financial_year_id" not in [c["name"] for c in fkinsp.get_columns(table)]:
-                    continue
-                db.session.execute(text(
-                    f"DELETE FROM {table} WHERE financial_year_id IS NOT NULL "
-                    f"AND NOT EXISTS (SELECT 1 FROM financial_years "
-                    f"WHERE id = {table}.financial_year_id)"
-                ))
-                db.session.execute(text(
-                    f"ALTER TABLE {table} ADD CONSTRAINT {con_name} "
-                    f"FOREIGN KEY (financial_year_id) REFERENCES financial_years(id) "
-                    f"ON DELETE SET NULL"
-                ))
-            db.session.commit()
-
-        # هجرة: أعمدة الضريبة لعقود البيع + السماسرة للعمولات (عقاري)
-        if "sales_contracts" in insp.get_table_names():
-            sc_cols = [c["name"] for c in insp.get_columns("sales_contracts")]
-            if "vat_rate" not in sc_cols:
-                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_rate FLOAT DEFAULT 0"))
-            if "vat_amount" not in sc_cols:
-                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_amount NUMERIC(15,2) DEFAULT 0"))
-        if "commissions" in insp.get_table_names():
-            cm_cols = [c["name"] for c in insp.get_columns("commissions")]
-            if "broker_id" not in cm_cols:
-                db.session.execute(text("ALTER TABLE commissions ADD COLUMN broker_id INTEGER"))
-        # هجرة: soft-delete (deleted_at) للسجلات المالية والعقارية الأساسية
-        for _tbl in ("sales_orders", "journal_entries"):
-            if _tbl in insp.get_table_names():
-                _cols = [c["name"] for c in insp.get_columns(_tbl)]
-                if "deleted_at" not in _cols:
-                    db.session.execute(text(
-                        f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"
-                    ))
-                    db.session.execute(text(
-                        f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"
-                    ))
-        # هجرة: سقوف الموافقات المالية
-        if "workflow_templates" in insp.get_table_names():
-            wt_cols = [c["name"] for c in insp.get_columns("workflow_templates")]
-            if "min_amount" not in wt_cols:
-                db.session.execute(text(
-                    "ALTER TABLE workflow_templates ADD COLUMN min_amount NUMERIC(15, 2)"
-                ))
-        db.session.commit()
-
-        # بذرة: أنواع الضرائب الافتراضية
-        from models import TaxType
-        if TaxType.query.count() == 0:
-            db.session.add(TaxType(name="ضريبة القيمة المضافة", rate=15, is_active=True, is_default=True))
-            db.session.add(TaxType(name="معفاة من الضريبة", rate=0, is_active=True, is_default=False))
-            db.session.commit()
-
-        # هجرة: أعمدة الربط لنموذج الوحدة (مبنى/طابق/نوع/مالك) للجداول الموجودة مسبقاً
-        unit_cols = [c["name"] for c in insp.get_columns("real_estate_units")]
-        for col in ["building_id", "floor_id", "unit_type_id", "owner_id"]:
-            if col not in unit_cols:
-                db.session.execute(text(
-                    f"ALTER TABLE real_estate_units ADD COLUMN {col} INTEGER"
-                ))
-        db.session.commit()
-
-        # بذرة: أنواع الوحدات الافتراضية
-        from models import UnitType
-        if UnitType.query.count() == 0:
-            for ut in ["شقة", "فيلا", "بنتهاوس", "محل", "مكتب", "أرض", "مستودع"]:
-                db.session.add(UnitType(name=ut, is_active=True))
-            db.session.commit()
-
-        # هجرة: أعمدة الموارد البشرية الجديدة في جدول الموظفين
-        if "employees" in insp.get_table_names():
-            emp_cols = [c["name"] for c in insp.get_columns("employees")]
-            emp_add = {
-                "department_id": "INTEGER",
-                "position_id": "INTEGER",
-                "manager_id": "INTEGER",
-                "gender": "VARCHAR(10)",
-                "birth_date": "DATE",
-                "end_date": "DATE",
-                "employment_type": "VARCHAR(30) DEFAULT 'full_time'",
-            }
-            for col_name, ddl in emp_add.items():
-                if col_name not in emp_cols:
-                    db.session.execute(text(
-                        f"ALTER TABLE employees ADD COLUMN {col_name} {ddl}"
-                    ))
-            db.session.commit()
-
-        # هجرة: أعمدة إضافية لنموذج العميل (CRM)
-        if "customers" in insp.get_table_names():
-            cust_cols = [c["name"] for c in insp.get_columns("customers")]
-            for col in ["company", "notes"]:
-                if col not in cust_cols:
-                    db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {col} VARCHAR(255)"))
-            if "is_active" not in cust_cols:
-                db.session.execute(text(
-                    "ALTER TABLE customers ADD COLUMN is_active BOOLEAN DEFAULT TRUE"
-                ))
-            db.session.commit()
-
-        # بذرة: مراحل أنبوب البيع الافتراضية
-        from models import CrmPipelineStage
-        if CrmPipelineStage.query.count() == 0:
-            for i, (name, prob) in enumerate(
-                [("جديد", 10), ("مؤهل", 30), ("عرض", 50), ("تفاوض", 70), ("مقبول", 100)],
-                start=1,
-            ):
-                db.session.add(CrmPipelineStage(name=name, position=i, probability=prob, is_active=True))
-            db.session.commit()
-
-        # بذرة: الإعدادات العامة الافتراضية
-        from models import SystemSetting
-        import utils.settings as settings_module
-        existing = {s.key for s in SystemSetting.query.all()}
-        for key, default in settings_module.DEFAULTS.items():
-            if key not in existing:
-                db.session.add(SystemSetting(key=key, value=default))
-        db.session.commit()
-
-        # هجرة: عمود حالة الموافقة للمستندات
-        for table in ["invoices", "purchase_orders", "rental_contracts"]:
-            cols = [c["name"] for c in insp.get_columns(table)]
-            if "approval_status" not in cols:
-                db.session.execute(text(
-                    f"ALTER TABLE {table} ADD COLUMN approval_status VARCHAR(20) DEFAULT 'not_required'"
-                ))
-        db.session.commit()
-
-        # بذرة: قوالب الموافقات الافتراضية (خطوة واحدة للأدمن لكل نوع مستند)
-        from models import WorkflowTemplate, WorkflowStep
-        default_templates = {
-            "invoice": "اعتماد الفواتير",
-            "po": "اعتماد أوامر الشراء",
-            "rental_contract": "اعتماد عقود الإيجار",
-        }
-        for dt, tpl_name in default_templates.items():
-            if not WorkflowTemplate.query.filter_by(doc_type=dt).first():
-                tpl = WorkflowTemplate(doc_type=dt, name=tpl_name, is_active=True)
-                tpl.steps.append(WorkflowStep(position=1, role="admin"))
-                db.session.add(tpl)
-        db.session.commit()
-
-        # بذرة: دليل الحسابات الافتراضي + الحسابات الافتراضية للترحيل
-        import utils.accounting as accounting
-        accounting.seed_default_coa()
-
-        # هجرة: أعمدة تسوية القيود (إن وُجد الجدول مسبقاً)
-        tables = insp.get_table_names()
-        if "journal_entry_lines" in tables:
-            cols = [c["name"] for c in insp.get_columns("journal_entry_lines")]
-            if "reconciled" not in cols:
-                db.session.execute(text(
-                    "ALTER TABLE journal_entry_lines ADD COLUMN reconciled BOOLEAN DEFAULT FALSE"
-                ))
-            if "reconciled_at" not in cols:
-                db.session.execute(text(
-                    "ALTER TABLE journal_entry_lines ADD COLUMN reconciled_at TIMESTAMP"
-                ))
-            db.session.commit()
-
-        # هجرة: أعمدة ربط فواتير الشراء بالمخزون (الصنف/المخزن/تاريخ الصلاحية)
-        if "invoice_items" in insp.get_table_names():
-            ii_cols = [c["name"] for c in insp.get_columns("invoice_items")]
-            if "item_id" not in ii_cols:
-                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN item_id INTEGER"))
-            if "warehouse_id" not in ii_cols:
-                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN warehouse_id INTEGER"))
-            if "expiry_date" not in ii_cols:
-                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
-            db.session.commit()
-
-        # هجرة: أعمدة GPS لسجلات الحضور والانصراف
-        if "hr_attendance" in insp.get_table_names():
-            att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
-            for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
-                if col not in att_cols:
-                    db.session.execute(text(f"ALTER TABLE hr_attendance ADD COLUMN {col} FLOAT"))
-            db.session.commit()
-
-        # هجرة: ربط حساب المستخدم بالموظف (للموبايل)
-        if "employees" in insp.get_table_names():
-            emp_cols = [c["name"] for c in insp.get_columns("employees")]
-            if "user_id" not in emp_cols:
-                db.session.execute(text("ALTER TABLE employees ADD COLUMN user_id INTEGER"))
-            db.session.commit()
-
-        if Role.query.count() == 0:
-            db.session.add(Role(
-                name="admin",
-                description="مدير النظام - صلاحيات كاملة",
-                is_system=True,
-                permissions=permissions.all_true(),
-            ))
-            db.session.add(Role(
-                name="employee",
-                description="موظف - عرض فقط",
-                is_system=True,
-                permissions=permissions.view_only(),
-            ))
-            db.session.commit()
-
-        if not User.query.filter_by(username="admin").first():
-            admin = User(
-                username="admin",
-                email="admin@mokawlat.com",
-                full_name="مدير النظام",
-                role="admin",
-                password_hash=generate_password_hash("admin123"),
-                must_change_password=True,
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("[app] تم إنشاء حساب admin الافتراضي — يجب تغيير كلمة المرور عند أول دخول.")
-
-        # إلزام تغيير كلمة المرور الافتراضية إن كانت لا تزال admin123 ولم يتم تغييرها
-        admin_user = User.query.filter_by(username="admin").first()
-        if admin_user and not admin_user.must_change_password:
-            from werkzeug.security import check_password_hash
-            try:
-                if check_password_hash(admin_user.password_hash, "admin123"):
-                    admin_user.must_change_password = True
-                    db.session.commit()
-                    print("[app] تم تفعيل إلزام تغيير كلمة مرور admin الافتراضية.")
-            except Exception:
-                pass
-
-        # هجرة: Soft Delete — أعمدة الحذف الناعم للجداول الحرجة
-        for _tbl in ["real_estate_units", "unit_reservations", "sales_contracts", "invoices"]:
-            if _tbl in insp.get_table_names():
-                _cols = [c["name"] for c in insp.get_columns(_tbl)]
-                if "deleted_at" not in _cols:
-                    db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
-                    db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
-                    db.session.commit()
-
-        # هجرة: قيد فريد يمنع الحجز/البيع المزدوج على مستوى DB (partial unique index)
-        # يمنع وجود حجزين نشطين لنفس الوحدة، و عقدي بيع نشطين لنفس الوحدة
-        try:
-            db.session.execute(text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_reservation_unit "
-                "ON unit_reservations (unit_id) WHERE status = 'active' AND deleted_at IS NULL"
-            ))
-            db.session.execute(text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_sales_contract_unit "
-                "ON sales_contracts (unit_id) WHERE status IN ('active','draft') AND deleted_at IS NULL"
-            ))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-        # فهارس الأداء (تُنشأ مرة واحدة وتتخطى الموجود؛ تشمل قواعد البيانات القديمة)
-        from db_indexes import ensure_indexes
-        ensure_indexes(db.engine, db.session)
+        if not _is_company:
+            _run_migrations_and_seeds(app, db)
 
     # بدء النسخ الاحتياطي التلقائي (خيط خلفي)
     from routes.backup import schedule_auto_backup
@@ -569,6 +532,35 @@ def create_app():
             )
         return response
 
+    def _is_api_path():
+        p = request.path
+        return p.startswith("/api/") or "/api/" in p
+
+    # معالج أخطاء مركزي — يمنع تسريب تفاصيل الأخطاء للمستخدم
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        import traceback
+        current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
+        if _is_api_path():
+            return jsonify({"success": False, "message": "خطأ داخلي في الخادم"}), 500
+        return "<h1>خطأ داخلي</h1><p>حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.</p>", 500
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if _is_api_path():
+            return jsonify({"success": False, "message": "غير موجود"}), 404
+        return "<h1>غير موجود</h1>", 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        if _is_api_path():
+            return jsonify({"success": False, "message": "الطريقة غير مسموحة"}), 405
+        return "<h1>غير مسموح</h1>", 405
+
+    @app.errorhandler(429)
+    def rate_limit_exceeded(e):
+        return jsonify({"success": False, "message": "تم تجاوز حد الطلبات. يرجى الانتظار."}), 429
+
     # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
     @app.before_request
     def protect_csrf():
@@ -578,9 +570,11 @@ def create_app():
             return
         if request.path.startswith("/static"):
             return
+        if request.path.startswith("/admin/"):
+            return
         if not session.get("user_id"):
             return
-        if request.path in ("/login", "/logout", "/change-password"):
+        if request.path in ("/login", "/logout"):
             return
         if not _csrf_valid():
             return jsonify({"success": False, "message": "invalid-csrf-token"}), 403
@@ -594,31 +588,34 @@ def create_app():
             return
         if request.path.startswith("/license/"):
             return
+        if request.path.startswith("/admin/"):
+            return
+        # HIGH #12: Company instances use LicLicense from licensing engine
+        if config.COMPANY_ID:
+            try:
+                from licensing.engine import can_access
+                access = can_access(int(config.COMPANY_ID))
+                if not access["allowed"]:
+                    if _is_api_path():
+                        return jsonify({"success": False, "message": "Subscription expired"}), 403
+                    return redirect(url_for("auth.login"))
+            except Exception:
+                pass
+            return
         try:
             is_valid, err = validate_license()
             if not is_valid:
-                if request.path.startswith("/api/"):
+                if _is_api_path():
                     return jsonify({"success": False, "message": "License expired"}), 403
                 return redirect(url_for("pages.change_password", error="license_expired"))
         except Exception:
             from utils.errlog import log_exc
             log_exc("app.enforce-license")
 
-    # إلزام تغيير كلمة المرور على أول دخول (حتى تتغير)
+    # (تم تعطيل إجبار تغيير كلمة المرور)
     @app.before_request
     def enforce_password_change():
-        user_id = session.get("user_id")
-        if not user_id:
-            return
-        if request.path.startswith("/static"):
-            return
-        if request.path in ("/login", "/logout", "/change-password"):
-            return
-        if request.path.startswith(("/api/users/profile/password", "/api/me", "/api/language")):
-            return
-        user = db.session.get(User, user_id)
-        if user and user.must_change_password:
-            return redirect(url_for("pages.change_password"))
+        pass
 
     return app
 
@@ -630,10 +627,10 @@ if __name__ == "__main__":
     from werkzeug.serving import make_server
 
     # وضع الإنتاج (يُفعل عند التشغيل عبر desktop.py أو الخدمة):
-    #  - debug معطل تماماً (لا يعرض الكود أو تتبع الأخطاء)
-    #  - reloader معطل (إعادة التشغيل التلقائية للوضع التطويري فقط)
+    #  - debug معطل تماماً في الإنتاج (لا يعرض الكود أو تتبع الأخطاء)
+    #  - في وضع التطوير: debug يُفعَّل فقط عبر DYNAMICPRO_MODE=dev
     production = os.environ.get("DYNAMICPRO_MODE", "dev") == "production"
-    debug = not production
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1" and not production
 
     def _start_https():
         cert, key = server_config.get_cert_paths()
@@ -651,6 +648,25 @@ if __name__ == "__main__":
             and server_config.get_cert_paths()[0]
             and (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or production)):
         threading.Thread(target=_start_https, daemon=True).start()
+
+    import signal, atexit
+    def _shutdown():
+        try:
+            with app.app_context():
+                from database import db as _db
+                _db.session.close()
+        except Exception:
+            pass
+    atexit.register(_shutdown)
+    def _sig_handler(signum, frame):
+        _shutdown()
+        import sys
+        sys.exit(0)
+    try:
+        signal.signal(signal.SIGTERM, _sig_handler)
+        signal.signal(signal.SIGINT, _sig_handler)
+    except (OSError, AttributeError):
+        pass
 
     app.run(host="127.0.0.1", port=server_config.get_port(),
             debug=debug, use_reloader=debug, threaded=True)

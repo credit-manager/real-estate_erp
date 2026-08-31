@@ -552,12 +552,26 @@ def create_leave():
         return jsonify({"message": "اختر الموظف"}), 400
     start = parse_date(data.get("start_date"))
     end = parse_date(data.get("end_date"))
+    if not start or not end:
+        return jsonify({"message": "تاريخ البداية والنهاية مطلوبان"}), 400
+    if start > end:
+        return jsonify({"message": "تاريخ البداية يجب أن يسبق تاريخ النهاية"}), 400
+    # التحقق من عدم التداخل مع إجازات أخرى
+    from datetime import timedelta
+    overlapping = LeaveRequest.query.filter(
+        LeaveRequest.employee_id == data["employee_id"],
+        LeaveRequest.status.notin_(["rejected", "cancelled"]),
+        LeaveRequest.start_date <= end,
+        LeaveRequest.end_date >= start,
+    ).first()
+    if overlapping:
+        return jsonify({"message": "يوجد إجازة متداخلة في نفس الفترة"}), 400
     leave = LeaveRequest(
         employee_id=data["employee_id"],
         leave_type=data.get("leave_type", "annual"),
         start_date=start,
         end_date=end,
-        days=data.get("days") or (0 if not (start and end) else (end - start).days + 1),
+        days=data.get("days") or (end - start).days + 1,
         reason=data.get("reason"),
         status=data.get("status", "pending"),
     )

@@ -19,6 +19,13 @@ class Invoice(db.Model):
     due_date = db.Column(db.Date)
     description = db.Column(db.Text)
     deleted_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    # الفاتورة الإلكترونية — تتبع الإرسال للمنظومة الضريبية
+    einv_status = db.Column(db.String(20))      # pending | submitted | accepted | rejected | error
+    einv_reference = db.Column(db.String(120))  # uuid/hash المرجع في المنظومة
+    einv_qr = db.Column(db.Text)                # QR Base64 (TLV)
+    einv_submitted_at = db.Column(db.DateTime)
+    einv_message = db.Column(db.Text)           # رسالة آخر محاولة
     created_at = db.Column(db.DateTime, server_default=db.func.now(), index=True)
 
     customer = db.relationship("Customer", backref="invoices")
@@ -68,6 +75,8 @@ class Invoice(db.Model):
             "description": self.description,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "items": [i.to_dict() for i in self.items],
+            "einv_status": self.einv_status,
+            "einv_reference": self.einv_reference,
         }
 
 

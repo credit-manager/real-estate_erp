@@ -108,6 +108,25 @@
         </tr>
         {% endfor %}
       </tbody>
+      {% if einv_qr %}
+      <tfoot>
+      <tr>
+        <td colspan="6" style="padding-top:8px;">
+          <div style="display:flex;gap:12px;align-items:center;">
+            {% if einv_qr_is_png %}
+              <img src="{{ einv_qr }}" alt="E-Invoice QR" style="width:90px;height:90px;">
+            {% endif %}
+            <div style="font-size:11px;line-height:1.6;">
+              <div><strong>فاتورة إلكترونية</strong> — الحالة: {{ einv_status or '—' }}</div>
+              {% if einv_reference %}<div>المرجع: {{ einv_reference }}</div>{% endif %}
+              {% if not einv_qr_is_png %}<div style="font-family:monospace;word-break:break-all;">{{ einv_qr[:120] }}</div>{% endif %}
+            </div>
+          </div>
+        </td>
+      </tr>
+      </tfoot>
+      <tbody>
+      {% endif %}
       <tfoot>
         <tr class="total-row">
           <td colspan="4">{{ t('doc.subtotal') }}</td>

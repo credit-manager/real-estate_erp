@@ -24,7 +24,19 @@ DEFAULTS = {
     "https_enabled": False,
     "https_port": 5443,
     "gemini_api_key": "",
-    "gemini_model": "gemini-2.0-flash",
+    "gemini_model": "gemini-3.6-flash",
+    # ── Branding of the software owner (vendor/developer) ──
+    "owner_name": "Dynamic Pro",
+    "owner_logo": "",
+    # ── Multi-provider AI settings ──
+    "ai_providers": {
+        "gemini":     {"enabled": True,  "api_key": "", "model": "gemini-3.6-flash",         "priority": 1},
+        "groq":       {"enabled": False, "api_key": "", "model": "llama-3.3-70b-versatile",   "priority": 2},
+        "openrouter": {"enabled": False, "api_key": "", "model": "nvidia/nemotron-3.5-lightning:free", "priority": 3},
+        "cerebras":   {"enabled": False, "api_key": "", "model": "gpt-oss-120b",              "priority": 4},
+        "mistral":    {"enabled": False, "api_key": "", "model": "mistral-small-latest",      "priority": 5},
+        "qwen":       {"enabled": False, "api_key": "", "model": "qwen-plus",                 "priority": 6},
+    },
 }
 
 
@@ -35,8 +47,24 @@ def load_config():
             saved = json.load(fh) or {}
         for key in DEFAULTS:
             if key in saved:
-                cfg[key] = saved[key]
+                if key == "ai_providers" and isinstance(saved[key], dict):
+                    # Deep merge: saved providers over defaults
+                    merged = dict(DEFAULTS["ai_providers"])
+                    for pname, pcfg in saved[key].items():
+                        if pname in merged and isinstance(pcfg, dict):
+                            merged[pname] = {**merged[pname], **pcfg}
+                        else:
+                            merged[pname] = pcfg
+                    cfg[key] = merged
+                else:
+                    cfg[key] = saved[key]
         cfg["port"] = int(cfg.get("port", 5000)) or 5000
+        # Legacy migration: move gemini_api_key into ai_providers if not already there
+        providers = cfg.get("ai_providers") or {}
+        legacy_key = cfg.get("gemini_api_key", "")
+        if legacy_key and providers.get("gemini", {}).get("api_key") == "":
+            providers["gemini"]["api_key"] = legacy_key
+            cfg["ai_providers"] = providers
     except Exception:
         pass
     return cfg

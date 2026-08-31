@@ -397,6 +397,7 @@ function renderInvoices() {
         <div class="table-actions">
           ${canAction("sales", "view") ? `<button class="btn btn-outline btn-sm" onclick="printInvoice(${i.id})" title="${t("doc.print")}">${t("doc.print")}</button>` : ""}
           ${canAction("sales", "view") ? `<button class="btn btn-outline btn-sm" onclick="downloadInvoicePdf(${i.id})" title="${t("common.download")}">PDF</button>` : ""}
+          ${canAction("sales", "edit") ? `<button class="btn btn-outline btn-sm" onclick="submitEinvoice(${i.id}, this)" title="إرسال للمنظومة الضريبية">🧾${i.einv_status === "accepted" || i.einv_status === "submitted" ? " ✓" : ""}</button>` : ""}
           ${canAction("sales", "edit") && (i.balance || 0) > 0 ? `<button class="btn btn-success btn-sm" onclick="openPayModal(${JSON.stringify(i)})">${t("sales.recordPayment")}</button>` : ""}
           ${canAction("sales", "edit") ? `<button class="btn btn-secondary btn-sm" onclick='editInvoice(${JSON.stringify(i)})'>${t("common.edit")}</button>` : ""}
           ${canAction("sales", "delete") ? `<button class="btn btn-danger btn-sm" onclick="deleteInvoice(${i.id})">${t("common.delete")}</button>` : ""}
@@ -512,6 +513,23 @@ async function savePayment() {
     closeModal("pay-modal");
     await loadAll();
   } catch (err) { showToast(err.message, "error"); }
+}
+
+async function submitEinvoice(id, btn){
+  if(btn) btn.disabled = true;
+  try{
+    const r = await api.post(`/api/invoices/${id}/einvoice/submit`, {});
+    const st = r.status || r.einv_status;
+    showToast(st === "accepted" ? "تمت قبول الفاتورة ضريبياً" :
+              st === "submitted" ? "أُرسلت الفاتورة للمنظومة" :
+              st === "pending" ? (r.message || "بانتظار الإعداد") :
+              (r.message || "رُفضت الفاتورة"), st === "rejected" || st === "error" ? "error" : "success");
+    if(typeof loadInvoices === "function") loadInvoices();
+  }catch(e){
+    showToast(e.message || "فشل الإرسال", "error");
+  }finally{
+    if(btn) btn.disabled = false;
+  }
 }
 
 function printInvoice(id) { window.open(`/documents/invoice/${id}`, "_blank"); }

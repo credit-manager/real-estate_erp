@@ -30,6 +30,10 @@ async function loadAR(tab) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+  const initialTab = params.get("tab") === "ap" ? "ap" : "ar";
   initTabs("ar-tabs", (tab) => loadAR(tab));
-  loadAR("ar");
+  const tabBtns = document.querySelectorAll("#ar-tabs .tab-btn");
+  tabBtns.forEach((b) => { b.classList.toggle("active", b.dataset.tab === initialTab); });
+  loadAR(initialTab);
 });

@@ -1,5 +1,12 @@
 import psycopg2
-conn = psycopg2.connect(user='postgres', password='0100', host='127.0.0.1')
+import os
+
+PG_SUPERUSER_PASSWORD = os.environ.get("PG_SUPERUSER_PASSWORD", "")
+if not PG_SUPERUSER_PASSWORD:
+    print("Error: Set PG_SUPERUSER_PASSWORD environment variable")
+    exit(1)
+
+conn = psycopg2.connect(user='postgres', password=PG_SUPERUSER_PASSWORD, host='127.0.0.1')
 conn.autocommit = True
 cur = conn.cursor()
 # Grant permissions to mokawlat_user on dynamicpro database

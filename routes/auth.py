@@ -52,10 +52,25 @@ def _reset_login_failures(key):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("auth.login"))
-        return f(*args, **kwargs)
-
+        # Check standard employee login
+        if "user_id" in session:
+            return f(*args, **kwargs)
+        # Check company user login (CRITICAL #4)
+        try:
+            from licensing.auth import is_company_user_logged_in, can_access as lic_can_access
+            if is_company_user_logged_in():
+                from licensing.models import LicCompanyUser, LicCompany
+                from database import db as _db
+                company_id = session.get("lic_company_id")
+                if company_id:
+                    from licensing.engine import can_access
+                    access = can_access(company_id)
+                    if not access["allowed"]:
+                        return redirect(url_for("auth.login"))
+                    return f(*args, **kwargs)
+        except (ImportError, Exception):
+            pass
+        return redirect(url_for("auth.login"))
     return decorated
 
 
@@ -90,6 +105,28 @@ def login():
             "code": "bad_access",
             "message": make_t(lang)("login.badAccess"),
         }), 401
+
+    # ── فحص: هل هذا مستخدم شركة (LicCompanyUser)؟ ──
+    email_lower = (username or "").strip().lower()
+    if "@" in email_lower:
+        try:
+            from licensing.models import LicCompanyUser
+            cu = LicCompanyUser.query.filter_by(email=email_lower, is_active=True).first()
+            if cu:
+                from licensing.auth import authenticate_company_user, _check_lock as lic_check_lock
+                lock_key = f"{request.remote_addr}:{email_lower}"
+                if lic_check_lock(lock_key):
+                    return jsonify({
+                        "success": False, "code": "locked",
+                        "message": "تم قفل محاولات الدخول مؤقتاً.",
+                    }), 429
+                result = authenticate_company_user(email_lower, password)
+                if result.get("success"):
+                    return jsonify(result)
+                _register_login_failure(_login_key(username))
+                return jsonify(result), 401
+        except ImportError:
+            pass
 
     # حد محاولات الدخول: قفل مؤقت بعد 5 محاولات خاطئة
     key = _login_key(username)
@@ -150,13 +187,32 @@ def login():
 def logout():
     from auditlog import log_action
     log_action("logout", "user", session.get("user_id"), session.get("username", ""))
+    try:
+        from licensing.auth import is_company_user_logged_in, logout_company_user
+        if is_company_user_logged_in():
+            logout_company_user()
+            try:
+                from licensing.auth import logout_master_user
+                logout_master_user()
+            except ImportError:
+                pass
+            return jsonify({"success": True})
+    except ImportError:
+        pass
     session.clear()
     return jsonify({"success": True})
 
 
 @auth_bp.route("/api/me")
 def me():
+    try:
+        from licensing.auth import is_company_user_logged_in, get_company_session_data
+        if is_company_user_logged_in():
+            data = get_company_session_data()
+            return jsonify({"authenticated": True, "type": "company", **data})
+    except ImportError:
+        pass
     if "user_id" not in session:
         return jsonify({"authenticated": False}), 401
     user = db.session.get(User, session["user_id"])
-    return jsonify({"authenticated": True, "user": user.to_dict()})
+    return jsonify({"authenticated": True, "type": "employee", "user": user.to_dict()})

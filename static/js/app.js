@@ -141,7 +141,7 @@ function formatMoney(num) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return "—";
+  if (!dateStr) return "\u2014";
   let d;
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, day] = dateStr.split("-").map(Number);
@@ -149,12 +149,33 @@ function formatDate(dateStr) {
   } else {
     d = new Date(dateStr);
   }
-  if (isNaN(d.getTime())) return "—";
+  if (isNaN(d.getTime())) return "\u2014";
   const y = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   if (DATE_FORMAT === "yyyy-mm-dd") return `${y}-${mm}-${dd}`;
   return `${dd}/${mm}/${y}`;
+}
+
+const AR_WEEKDAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+const EN_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function formatDateLong(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return "\u2014";
+  if (LANG === "ar") {
+    const wd = AR_WEEKDAYS[date.getDay()];
+    const mn = AR_MONTHS[date.getMonth()];
+    const dd = date.getDate();
+    const y = date.getFullYear();
+    return `${wd}\u060C\u00A0${dd}\u00A0${mn}\u00A0${y}`;
+  }
+  const wd = EN_WEEKDAYS[date.getDay()];
+  const mn = EN_MONTHS[date.getMonth()];
+  const dd = date.getDate();
+  const y = date.getFullYear();
+  return `${wd}, ${mn} ${dd}, ${y}`;
 }
 
 // ===== CSV export =====
@@ -381,10 +402,103 @@ document.addEventListener("DOMContentLoaded", () => {
   // Topbar date
   const dateEl = document.getElementById("topbar-date");
   if (dateEl) {
-    dateEl.textContent = new Date().toLocaleDateString(LOCALE, {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    dateEl.textContent = formatDateLong(new Date());
+  }
+
+  // Convert <input type="date"> → text DD/MM/YYYY with .value override
+  // .value getter returns ISO (YYYY-MM-DD), setter accepts ISO & displays DD/MM/YYYY
+  function _isoToDMY(iso) {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+    var p = iso.split("-");
+    return p[2] + "/" + p[1] + "/" + p[0];
+  }
+  function _dmyToISO(dmy) {
+    if (!dmy || !/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) return "";
+    var p = dmy.split("/");
+    return p[2] + "-" + p[1] + "-" + p[0];
+  }
+
+  function convertDateInput(inp) {
+    if (inp.dataset.dateConverted) return;
+    inp.dataset.dateConverted = "1";
+
+    var isoVal = inp.value || "";
+    inp.type = "text";
+    inp.placeholder = "DD/MM/YYYY";
+    inp.maxLength = 10;
+    inp.autocomplete = "off";
+    inp.value = _isoToDMY(isoVal);
+    var isRTL = document.documentElement.dir === "rtl";
+    inp.style[isRTL ? "paddingLeft" : "paddingRight"] = "34px";
+    inp.style.textAlign = isRTL ? "right" : "left";
+
+    var picker = document.createElement("input");
+    picker.type = "date";
+    picker.value = isoVal;
+    picker.style.cssText = "position:absolute;top:0;" + (isRTL ? "left:0" : "right:0") + ";width:34px;height:100%;opacity:0;cursor:pointer;z-index:2;";
+    var wrap = document.createElement("span");
+    wrap.style.cssText = "position:relative;display:inline-block;width:100%";
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    wrap.appendChild(picker);
+
+    var icon = document.createElement("span");
+    icon.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+    icon.style.cssText = "position:absolute;top:50%;" + (isRTL ? "left:10px" : "right:10px") + ";transform:translateY(-50%);pointer-events:none;color:var(--muted-foreground,#999);display:flex;align-items:center;";
+    wrap.appendChild(icon);
+
+    picker.addEventListener("change", function () {
+      inp.value = _isoToDMY(this.value);
+      inp.dispatchEvent(new Event("change"));
+    });
+
+    inp.addEventListener("focus", function () { this.select(); });
+
+    var nativeSet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    var nativeGet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").get;
+
+    Object.defineProperty(inp, "value", {
+      get: function () {
+        var dmy = nativeGet.call(this);
+        var iso = _dmyToISO(dmy);
+        return iso || dmy;
+      },
+      set: function (v) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+          nativeSet.call(this, _isoToDMY(v));
+          picker.value = v;
+        } else {
+          nativeSet.call(this, v);
+          picker.value = _dmyToISO(v) || "";
+        }
+      },
+      configurable: true,
+      enumerable: true,
+    });
+
+    inp.addEventListener("input", function () {
+      var raw = this.value.replace(/\D/g, "");
+      if (raw.length > 8) raw = raw.slice(0, 8);
+      var fmt = "";
+      if (raw.length >= 1) fmt += raw.slice(0, Math.min(2, raw.length));
+      if (raw.length > 2) fmt += "/" + raw.slice(2, Math.min(4, raw.length));
+      if (raw.length > 4) fmt += "/" + raw.slice(4, Math.min(8, raw.length));
+      nativeSet.call(this, fmt);
+      var iso = _dmyToISO(fmt);
+      if (iso) picker.value = iso;
+    });
+
+    inp.addEventListener("blur", function () {
+      var v = _dmyToISO(nativeGet.call(this));
+      if (this.value && !v) {
+        this.style.borderColor = "var(--danger, red)";
+        setTimeout(() => { this.style.borderColor = ""; }, 2000);
+      }
     });
   }
+
+  document.querySelectorAll('input[type="date"]').forEach(convertDateInput);
+  window._convertDateInput = convertDateInput;
 
   // Logout
   const logoutBtn = document.getElementById("logout-btn");
@@ -394,13 +508,35 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = "/login";
     });
   }
+
+  // Topbar user dropdown
+  const topbarUserBtn = document.getElementById("topbar-user-btn");
+  const topbarUserDd = document.getElementById("topbar-user-dd");
+  if (topbarUserBtn && topbarUserDd) {
+    topbarUserBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      topbarUserDd.hidden = !topbarUserDd.hidden;
+    });
+    document.addEventListener("click", () => { topbarUserDd.hidden = true; });
+    topbarUserDd.addEventListener("click", (e) => { e.stopPropagation(); });
+  }
+
+  // Topbar logout
+  const topbarLogoutBtn = document.getElementById("topbar-logout-btn");
+  if (topbarLogoutBtn) {
+    topbarLogoutBtn.addEventListener("click", async () => {
+      await fetch("/logout", { method: "POST" });
+      window.location.href = "/login";
+    });
+  }
 });
 
-// ===== Global topbar search =====
+// ===== Global topbar search + AI (inside the same dropdown) =====
 (function initGlobalSearch() {
   var input = document.getElementById("global-search");
   if (!input) return;
   var dropdown = document.getElementById("search-dropdown");
+  var searchResults = document.getElementById("search-results");
   var groupLabels = {
     customers: t("common.groupCustomers"),
     suppliers: t("common.groupSuppliers"),
@@ -409,18 +545,72 @@ document.addEventListener("DOMContentLoaded", () => {
     invoices: t("common.groupInvoices"),
     employees: t("common.groupEmployees"),
     rentals: t("common.groupRentals"),
+    sales_orders: t("common.groupSalesOrders"),
+    sales_returns: t("common.groupSalesReturns"),
+    purchase_orders: t("common.groupPurchaseOrders"),
+    items: t("common.groupItems"),
+    warehouses: t("common.groupWarehouses"),
+    accounts: t("common.groupAccounts"),
+    journal_entries: t("common.groupJournalEntries"),
+    cost_centers: t("common.groupCostCenters"),
+    fixed_assets: t("common.groupFixedAssets"),
+    departments: t("common.groupDepartments"),
+    positions: t("common.groupPositions"),
   };
   var groupIcons = {
     customers: "\u{1F464}", suppliers: "\u{1F3ED}", projects: "\u{1F5C2}\u{FE0F}", units: "\u{1F3E0}",
     invoices: "\u{1F9FE}", employees: "\u{1F465}", rentals: "\u{1F511}",
+    sales_orders: "\u{1F4C3}", sales_returns: "\u{1F504}", purchase_orders: "\u{1F4B0}",
+    items: "\u{1F4E6}", warehouses: "\u{1F3DB}", accounts: "\u{1F4B9}",
+    journal_entries: "\u{1F4CB}", cost_centers: "\u{1F4C1}", fixed_assets: "\u{1F48E}",
+    departments: "\u{1F3E2}", positions: "\u{1F4BC}",
   };
+  var defaultGroupLabel = t("common.search");
+  var defaultGroupIcon = "\u{1F50D}";
   var results = [];
   var timer = null;
 
+  // ── AI references (lives inside the same dropdown) ──────────
+  var aiToggle = document.getElementById("search-ai-toggle");
+  var aiInline = document.getElementById("ai-inline");
+  var aiInput = document.getElementById("ai-search-input");
+  var aiSend = document.getElementById("ai-search-send");
+  var aiChatLog = document.getElementById("ai-chat-log");
+  var aiEmptyHint = document.getElementById("ai-empty-hint");
+  var aiClearBtn = document.getElementById("ai-clear-btn");
+  var aiChips = document.getElementById("ai-chips");
+  var voiceBtn = document.getElementById("search-voice-btn");
+  var aiHistory = [];
+  var aiBusy = false;
+
+  function showSearchMode() {
+    if (aiInline) aiInline.hidden = true;
+    if (searchResults) searchResults.hidden = false;
+    if (aiToggle) aiToggle.classList.remove("active");
+  }
+
+  function showAiMode() {
+    if (searchResults) searchResults.hidden = true;
+    if (aiInline) aiInline.hidden = false;
+    if (aiToggle) aiToggle.classList.add("active");
+  }
+
+  function closeSd() {
+    dropdown.hidden = true;
+    showSearchMode();
+  }
+
   function render() {
-    if (!input.value.trim()) { dropdown.hidden = true; return; }
+    if (!input.value.trim()) {
+      if (aiToggle && aiToggle.classList.contains("active")) { dropdown.hidden = false; return; }
+      dropdown.hidden = true;
+      return;
+    }
+    showSearchMode();
+    dropdown.hidden = false;
+    if (!searchResults) return;
     if (results.length === 0) {
-      dropdown.innerHTML = '<div class="search-result-empty">' + t("common.noResults") + '</div>';
+      searchResults.innerHTML = '<div class="search-result-empty">' + t("common.noResults") + '</div>';
     } else {
       var seen = {};
       var html = "";
@@ -428,15 +618,14 @@ document.addEventListener("DOMContentLoaded", () => {
         var r = results[i];
         if (!seen[r.group]) {
           seen[r.group] = true;
-          html += '<div class="search-result-group">' + (groupIcons[r.group] || "") + " " + (groupLabels[r.group] || r.group) + '</div>';
+          html += '<div class="search-result-group">' + (groupIcons[r.group] || defaultGroupIcon) + " " + (groupLabels[r.group] || defaultGroupLabel) + '</div>';
         }
         html += '<a class="search-result-item" href="' + r.href + '" data-query="' + escapeHtml(input.value) + '">' +
           '<div class="search-result-text">' + escapeHtml(r.text) + '</div>' +
           '<div class="search-result-sub">' + escapeHtml(r.subtext || "") + '</div></a>';
       }
-      dropdown.innerHTML = html;
+      searchResults.innerHTML = html;
     }
-    dropdown.hidden = false;
   }
 
   function doSearch(query) {
@@ -449,18 +638,18 @@ document.addEventListener("DOMContentLoaded", () => {
   input.addEventListener("input", function () {
     clearTimeout(timer);
     var q = input.value.trim();
+    showSearchMode();
     if (!q) { dropdown.hidden = true; return; }
-    dropdown.innerHTML = '<div class="search-result-empty">' + t("common.searching") + '</div>';
+    if (searchResults) searchResults.innerHTML = '<div class="search-result-empty">' + t("common.searching") + '</div>';
     dropdown.hidden = false;
     timer = setTimeout(function () { doSearch(q); }, 250);
   });
 
   input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && results.length) {
+    if (e.key === "Enter" && results.length && !(aiToggle && aiToggle.classList.contains("active"))) {
       window.location.href = results[0].href;
     } else if (e.key === "Escape") {
-      dropdown.hidden = true;
-      closeAiPanel();
+      closeSd();
       input.blur();
     }
   });
@@ -469,57 +658,51 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", function (e) {
     var topbarSearch = document.getElementById("topbar-search");
     if (topbarSearch && !topbarSearch.contains(e.target)) {
-      dropdown.hidden = true;
-      closeAiPanel();
+      closeSd();
     }
   });
 
-  // ── AI Panel ─────────────────────────────────────────────────
-  var aiToggle = document.getElementById("search-ai-toggle");
-  var aiPanel = document.getElementById("ai-search-panel");
-  var aiInput = document.getElementById("ai-search-input");
-  var aiSend = document.getElementById("ai-search-send");
-  var aiResult = document.getElementById("ai-search-result");
-  var voiceBtn = document.getElementById("search-voice-btn");
-
-  function closeAiPanel() {
-    if (aiPanel) aiPanel.hidden = true;
-    if (aiToggle) aiToggle.classList.remove("active");
-  }
-
-  if (aiToggle && aiPanel) {
+  // ── AI toggle: opens the AI pane inside the search dropdown ──
+  if (aiToggle) {
     aiToggle.addEventListener("click", function (e) {
       e.stopPropagation();
-      var isOpen = !aiPanel.hidden;
-      if (isOpen) { closeAiPanel(); return; }
-      dropdown.hidden = true;
-      aiPanel.hidden = false;
-      aiToggle.classList.add("active");
+      if (aiToggle.classList.contains("active")) {
+        closeSd();
+        if (aiInput) aiInput.blur();
+        return;
+      }
+      dropdown.hidden = false;
+      showAiMode();
+      aiScroll();
       if (aiInput) aiInput.focus();
     });
   }
 
-  function renderAiResult(data) {
-    if (!aiResult) return;
-    if (!data || !data.success) {
-      aiResult.innerHTML = '<div class="ai-result-card">' + escapeHtml(data && data.answer || t("common.noResults")) + '</div>';
-      return;
-    }
+  function aiScroll() {
+    if (aiChatLog) aiChatLog.scrollTop = aiChatLog.scrollHeight;
+  }
+
+  function aiSourceTag(data) {
+    if (!data || !data.source || data.source === "dashboard") return "";
+    return '<div class="ai-source">' + t("common.aiSource") + ": <b>" + escapeHtml(data.source) + "</b></div>";
+  }
+
+  function aiAnswerHtml(data) {
     var html = "";
     var ans = data.answer || "";
     var type = data.type || "";
 
     if (type === "count") {
-      html = '<div class="ai-result-card"><h4>' + escapeHtml(ans) + '</h4><div style="font-size:28px;font-weight:700;color:var(--primary);">' + (data.count || 0) + '</div></div>';
+      html = '<h4>' + escapeHtml(ans) + '</h4><div class="ai-stat-num">' + escapeHtml(String(data.count || 0)) + '</div>';
     } else if (type === "sum") {
-      html = '<div class="ai-result-card"><h4>' + escapeHtml(ans) + '</h4><div style="font-size:28px;font-weight:700;color:var(--primary);">' + formatCompact(data.total || 0) + '</div></div>';
+      html = '<h4>' + escapeHtml(ans) + '</h4><div class="ai-stat-num">' + formatCompact(data.total || 0) + '</div>';
     } else if (type === "search" || type === "sql") {
       var rows = data.data || [];
       var cols = data.columns || (rows.length ? Object.keys(rows[0]) : []);
       if (rows.length === 0) {
-        html = '<div class="ai-result-card">' + escapeHtml(ans || t("common.noResults")) + '</div>';
+        html = '<div class="ai-answer-text">' + escapeHtml(ans || t("common.noResults")) + '</div>';
       } else {
-        html = '<div class="ai-result-card"><h4>' + escapeHtml(ans) + ' (' + rows.length + ')</h4><table><thead><tr>';
+        html = '<h4>' + escapeHtml(ans) + ' (' + rows.length + ')</h4><table><thead><tr>';
         for (var ci = 0; ci < cols.length; ci++) {
           html += '<th>' + escapeHtml(cols[ci]) + '</th>';
         }
@@ -531,11 +714,11 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           html += '</tr>';
         }
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
       }
     } else if (type === "dashboard") {
       var d = data.data || {};
-      html = '<div class="ai-result-card"><h4>' + escapeHtml(ans || "Dashboard") + '</h4>' +
+      html = '<h4>' + escapeHtml(ans || "Dashboard") + '</h4>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">' +
         '<div><div style="font-size:11px;color:var(--muted-foreground);">الموظفون النشطون</div><div style="font-size:20px;font-weight:700;">' + (d.employees_active || 0) + '</div></div>' +
         '<div><div style="font-size:11px;color:var(--muted-foreground);">العملاء</div><div style="font-size:20px;font-weight:700;">' + (d.customers_count || 0) + '</div></div>' +
@@ -543,31 +726,150 @@ document.addEventListener("DOMContentLoaded", () => {
         '<div><div style="font-size:11px;color:var(--muted-foreground);">أقساط متأخرة</div><div style="font-size:20px;font-weight:700;color:#ef4444;">' + (d.overdue_installments || 0) + '</div></div>' +
         '<div><div style="font-size:11px;color:var(--muted-foreground);">الإيرادات</div><div style="font-size:20px;font-weight:700;color:#22c55e;">' + formatCompact(d.total_revenue || 0) + '</div></div>' +
         '<div><div style="font-size:11px;color:var(--muted-foreground);">المستحقات</div><div style="font-size:20px;font-weight:700;color:#f59e0b;">' + formatCompact(d.total_receivable || 0) + '</div></div>' +
-        '</div></div>';
+        '</div>';
+    } else if (type === "report") {
+      html = '<div class="ai-answer-text">' + escapeHtml(ans) + '</div>';
+      var its = data.items || [];
+      if (its.length) {
+        html += '<div class="ai-report-grid">';
+        for (var ii = 0; ii < its.length; ii++) {
+          html += '<div class="ai-report-item"><div class="ai-report-label">' + escapeHtml(String(its[ii].label)) + '</div><div class="ai-report-value">' + escapeHtml(String(its[ii].value)) + '</div></div>';
+        }
+        html += '</div>';
+      }
+      var rows = data.rows || [];
+      var c2 = data.columns || (rows.length ? Object.keys(rows[0]) : []);
+      if (rows.length) {
+        html += '<table><thead><tr>';
+        for (var ci = 0; ci < c2.length; ci++) html += '<th>' + escapeHtml(c2[ci]) + '</th>';
+        html += '</tr></thead><tbody>';
+        for (var ri = 0; ri < rows.length && ri < 50; ri++) {
+          html += '<tr>';
+          for (var cj = 0; cj < c2.length; cj++) {
+            html += '<td>' + escapeHtml(String(rows[ri][c2[cj]] != null ? rows[ri][c2[cj]] : "")) + '</td>';
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+      }
     } else {
-      html = '<div class="ai-result-card">' + escapeHtml(ans || "OK") + '</div>';
+      html = '<div class="ai-answer-text">' + escapeHtml(ans || "OK") + '</div>';
     }
-    aiResult.innerHTML = html;
+    return html + aiSourceTag(data);
+  }
+
+  function appendAiUser(text) {
+    if (!aiChatLog) return;
+    var wrap = document.createElement("div");
+    wrap.className = "ai-msg-user";
+    var b = document.createElement("div");
+    b.textContent = text;
+    wrap.appendChild(b);
+    aiChatLog.appendChild(wrap);
+    aiScroll();
+  }
+
+  function appendAiMessage(html) {
+    if (!aiChatLog) return;
+    var wrap = document.createElement("div");
+    wrap.className = "ai-msg-bot";
+    var card = document.createElement("div");
+    card.className = "ai-result-card";
+    card.innerHTML = html;
+    wrap.appendChild(card);
+    aiChatLog.appendChild(wrap);
+    aiScroll();
+  }
+
+  function appendAiLoading() {
+    if (!aiChatLog) return null;
+    var wrap = document.createElement("div");
+    wrap.className = "ai-msg-bot";
+    wrap.innerHTML = '<div class="ai-result-loading">' + t("common.aiThinking") + '</div>';
+    aiChatLog.appendChild(wrap);
+    aiScroll();
+    return wrap;
+  }
+
+  function appendAiAnswer(question, data) {
+    if (data && data.success) {
+      appendAiMessage(aiAnswerHtml(data));
+      aiHistory.push({ q: question, a: data.answer || "" });
+      if (aiHistory.length > 6) aiHistory.shift();
+    } else {
+      var msg = (data && data.answer) || t("common.aiError");
+      if (data && data.error_key && t(data.error_key) !== data.error_key) msg = t(data.error_key);
+      appendAiMessage('<div class="ai-error">' + escapeHtml(msg) + '</div>');
+    }
   }
 
   function askAI(question) {
-    if (!question.trim()) return;
-    aiResult.innerHTML = '<div class="ai-result-loading">' + t("common.aiThinking") + '</div>';
+    if (!question.trim() || aiBusy) return;
+    aiBusy = true;
+    question = question.trim();
+    dropdown.hidden = false;
+    showAiMode();
+    if (aiInput) aiInput.value = "";
+    if (aiEmptyHint) aiEmptyHint.hidden = true;
+    appendAiUser(question);
+    var loading = appendAiLoading();
     fetch("/api/ai/query", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question }),
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": window.CSRF_TOKEN || "",
+      },
+      body: JSON.stringify({ question: question, history: aiHistory.slice(-6) }),
     })
-      .then(function (res) { return res.json(); })
-      .then(function (data) { renderAiResult(data); })
-      .catch(function () { renderAiResult({ success: false, answer: "خطأ في الاتصال بالذكاء الصناعي" }); });
+      .then(function (res) {
+        return res.json().catch(function () { return null; })
+          .then(function (data) { return { data: data }; });
+      })
+      .then(function (box) {
+        aiBusy = false;
+        if (loading && loading.parentNode) loading.remove();
+        appendAiAnswer(question, box.data);
+      })
+      .catch(function () {
+        aiBusy = false;
+        if (loading && loading.parentNode) loading.remove();
+        appendAiAnswer(question, null);
+      });
   }
 
   if (aiSend && aiInput) {
     aiSend.addEventListener("click", function () { askAI(aiInput.value); });
     aiInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askAI(aiInput.value); }
+      else if (e.key === "Escape") { closeSd(); }
     });
+  }
+
+  if (aiClearBtn) {
+    aiClearBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      aiHistory = [];
+      if (aiChatLog) aiChatLog.innerHTML = "";
+      if (aiEmptyHint) {
+        aiEmptyHint.hidden = false;
+        if (aiChatLog) aiChatLog.appendChild(aiEmptyHint);
+      }
+      if (aiChips) aiChips.hidden = false;
+      aiScroll();
+    });
+  }
+
+  if (aiChips) {
+    var aiChipBtns = aiChips.querySelectorAll(".ai-chip");
+    for (var ci = 0; ci < aiChipBtns.length; ci++) {
+      (function (chip) {
+        chip.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var q = chip.getAttribute("data-q") || "";
+          if (q) askAI(q);
+        });
+      })(aiChipBtns[ci]);
+    }
   }
 
   // ── Voice Recognition ────────────────────────────────────────
@@ -599,15 +901,16 @@ document.addEventListener("DOMContentLoaded", () => {
   if (voiceBtn) {
     voiceBtn.addEventListener("click", function (e) {
       e.stopPropagation();
-      startVoice(voiceBtn, function (text) { input.value = text; input.dispatchEvent(new Event("input")); });
-    });
-  }
-
-  var aiVoiceBtn = document.getElementById("ai-voice-btn");
-  if (aiVoiceBtn) {
-    aiVoiceBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      startVoice(aiVoiceBtn, function (text) { if (aiInput) aiInput.value = text; askAI(text); });
+      var inAi = aiToggle && aiToggle.classList.contains("active");
+      startVoice(voiceBtn, function (text) {
+        if (inAi) {
+          if (aiInput) aiInput.value = text;
+          askAI(text);
+        } else {
+          input.value = text;
+          input.dispatchEvent(new Event("input"));
+        }
+      });
     });
   }
 
@@ -799,9 +1102,7 @@ window.prefillDocNumber = prefillDocNumber;
 
     const sRect = scrollEl.getBoundingClientRect();
     const tRect = target.getBoundingClientRect();
-    const isRtl = document.documentElement.dir === 'rtl';
-    let left = isRtl ? (sRect.right - tRect.right) : (tRect.left - sRect.left);
-    left += scrollEl.scrollLeft;
+    let left = tRect.left - sRect.left + scrollEl.scrollLeft;
 
     indicator.style.left = left + 'px';
     indicator.style.width = tRect.width + 'px';
@@ -835,3 +1136,42 @@ window.prefillDocNumber = prefillDocNumber;
     });
   });
 })();
+
+// ===== Global functions for page scripts =====
+window.api = api;
+window.escapeHtml = escapeHtml;
+window.formatMoney = formatMoney;
+window.formatDate = formatDate;
+window.formatDateLong = formatDateLong;
+window.formatNumber = formatNumber;
+window.showToast = showToast;
+window.t = t;
+window.tv = tv;
+window.statusBadge = statusBadge;
+window.approvalBadge = approvalBadge;
+window.canAction = canAction;
+window.exportCSV = exportCSV;
+window.prefillDocNumber = prefillDocNumber;
+
+function toastError(err) {
+  var msg = err && err.message ? err.message : String(err || "Error");
+  showToast(msg, "error");
+}
+window.toastError = toastError;
+
+function closeModal(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove("active");
+}
+window.closeModal = closeModal;
+
+function openModal(id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.add("active");
+    if (window._convertDateInput) {
+      el.querySelectorAll('input[type="date"]').forEach(window._convertDateInput);
+    }
+  }
+}
+window.openModal = openModal;

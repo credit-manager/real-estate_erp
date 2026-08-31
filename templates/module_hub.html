@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hub_title }} | Dynamic Pro ERP{% endblock %}
+
+{% block page %}{{ hub_id }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ hub_title }}</h1>
+    <p>{{ hub_sub }}</p>
+  </div>
+</div>
+
+<div class="module-grid">
+  {% for card in cards %}
+  <a href="{{ card.url }}" class="module-card">
+    <div class="module-icon">{{ card.icon }}</div>
+    <div class="module-title">{{ card.title }}</div>
+    <div class="module-sub">{{ card.sub }}</div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

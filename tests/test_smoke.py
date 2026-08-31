@@ -418,3 +418,128 @@ def test_project_schedule_endpoint(auth_client):
     data = resp.get_json()
     for key in ('phases', 'overall_completion', 'on_track', 'late_phases'):
         assert key in data
+
+
+# ==================== الفاتورة الإلكترونية ====================
+
+def test_einvoice_unified_builder(app):
+    """بناء الفاتورة الموحدة (UBL-oriented) من فاتورة داخلية."""
+    from utils.einvoice import build_unified
+    with app.app_context():
+        from models import Invoice, InvoiceItem
+        inv = Invoice(invoice_number="EINV-T1", invoice_type="sales",
+                      amount=1150, issue_date=date.today())
+        inv.items = [InvoiceItem(description="وحدة سكنية", quantity=1,
+                                 unit_price=1000, tax_rate=15)]
+        u = build_unified(inv)
+        assert u["totals"]["net_amount"] == 1000.0
+        assert u["totals"]["vat_amount"] == 150.0
+        assert u["totals"]["total_amount"] == 1150.0
+        assert u["items"][0]["description"] == "وحدة سكنية"
+
+
+def test_einvoice_qr_tlv():
+    """QR بصيغة TLV/Base64 يحوي البائع والرقم الضريبي والإجمالي."""
+    from utils.einvoice import build_qr_payload
+    import base64
+    unified = {
+        "seller": {"name": "شركة تجربة", "tax_number": "300012345600003"},
+        "totals": {"total_amount": 1150.0, "vat_amount": 150.0},
+    }
+    b64 = build_qr_payload(unified)
+    raw = base64.b64decode(b64)
+    assert "شركة تجربة".encode() in raw          # tag 1
+    assert b"300012345600003" in raw             # tag 2
+    assert b"1150.00" in raw                     # tag 4
+
+
+def test_einvoice_endpoints_offline(auth_client):
+    """نقاط الإرسال/الحالة تعمل حتى بلا منظومة (دولة offline)."""
+    pid = _mk_project(auth_client, 'مشروع فاتورة إلكترونية')
+    r = auth_client.post('/api/invoices', json={
+        'invoice_type': 'sales', 'amount': 100,
+    })
+    assert r.status_code in (200, 201), r.get_json()
+    iid = r.get_json()['id']
+    st = auth_client.get(f'/api/sales/invoices/{iid}/einvoice/status')
+    assert st.status_code == 200 and 'einv_status' in st.get_json()
+
+
+def test_einvoice_submit_offline_flow(auth_client):
+    """دورة كاملة: تفعيل التكامل → إنشاء فاتورة → إرسال (دولة offline) → حفظ الحالة."""
+    # فعّل التكامل على دولة قيد التجهيز (offline) — لا شبكة مطلوبة
+    resp_cfg = auth_client.post('/general-settings/api', json={
+        'einv_enabled': 'true', 'einv_country': 'KW', 'einv_mode': 'offline',
+    })
+    assert resp_cfg.status_code in (200, 201), resp_cfg.get_json()
+    r = auth_client.post('/api/sales/invoices', json={
+        'amount': 230,
+        'customer_id': _mk_customer(auth_client, 'عميل فاتورة إلكترونية'),
+    })
+    assert r.status_code in (200, 201), r.get_json()
+    iid = r.get_json()['id']
+    sub = auth_client.post(f'/api/sales/invoices/{iid}/einvoice/submit', json={})
+    assert sub.status_code in (200, 201), sub.get_json()
+    body = sub.get_json()
+    assert body.get('status') == 'pending'  # KW offline → pending بأمانة
+    st = auth_client.get(f'/api/sales/invoices/{iid}/einvoice/status').get_json()
+    assert st['einv_status'] == 'pending'
+
+
+def test_einvoice_countries_22():
+    """جميع الدول العربية الـ22 موجودة."""
+    from utils.einvoice import COUNTRIES
+    assert len(COUNTRIES) == 22
+    # دول نشطة
+    for code in ("EG", "SA", "TN", "MA", "AE", "JO", "OM"):
+        assert code in COUNTRIES, f"{code} missing"
+        assert COUNTRIES[code]["vat_rates"], f"{code} no VAT rates"
+    # دول قيد الإعداد
+    for code in ("BH", "DZ", "QA"):
+        assert code in COUNTRIES, f"{code} missing"
+    # دول offline
+    for code in ("KW", "IQ", "LB", "LY", "SD", "YE", "PS", "SY", "DJ", "SO", "KM", "MR"):
+        assert code in COUNTRIES, f"{code} missing"
+        assert COUNTRIES[code]["default_mode"] == "offline", f"{code} not offline"
+
+
+def test_einvoice_ubl_xml_generation(app):
+    """توليد UBL XML من فاتورة داخلية."""
+    from utils.einvoice import build_unified, build_ubl_xml, compute_ubl_hash
+    with app.app_context():
+        from models import Invoice, InvoiceItem
+        inv = Invoice(invoice_number="UBL-TEST-001", invoice_type="sales",
+                      amount=1150, issue_date=date.today())
+        inv.items = [InvoiceItem(description="Widget", quantity=2,
+                                 unit_price=500, tax_rate=15)]
+        u = build_unified(inv)
+        xml = build_ubl_xml(u, "SA")
+        assert "<?xml" in xml
+        assert "UBL-TEST-001" in xml
+        h = compute_ubl_hash(xml)
+        assert len(h) > 20  # base64 hash
+
+
+def test_einvoice_connector_factory():
+    """مصنع الموصلات يختار الموصل الصحيح لكل دولة."""
+    from utils.einvoice import get_connector, EgyptETAConnector, ZatcaConnector
+    from utils.einvoice import TunisiaTTNConnector, MoroccoDGIConnector
+    from utils.einvoice import OfflineUBLConnector
+
+    c_eg = get_connector({"country": "EG"})
+    assert isinstance(c_eg, EgyptETAConnector)
+
+    c_sa = get_connector({"country": "SA"})
+    assert isinstance(c_sa, ZatcaConnector)
+
+    c_tn = get_connector({"country": "TN"})
+    assert isinstance(c_tn, TunisiaTTNConnector)
+
+    c_ma = get_connector({"country": "MA"})
+    assert isinstance(c_ma, MoroccoDGIConnector)
+
+    c_kw = get_connector({"country": "KW"})
+    assert isinstance(c_kw, OfflineUBLConnector)
+
+    c_iq = get_connector({"country": "IQ"})
+    assert isinstance(c_iq, OfflineUBLConnector)
