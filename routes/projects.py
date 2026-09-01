@@ -162,7 +162,11 @@ def create_project():
     db.session.commit()
 
     # Auto-create cost items + journal entries for initial project costs
-    _create_initial_cost_entries(project, data)
+    try:
+        _create_initial_cost_entries(project, data)
+    except Exception as e:
+        log.warning("Cost entries for project %d failed (project was created): %s", project.id, e)
+        db.session.rollback()
 
     log_action("create", "project", project.id, project.name)
     return jsonify(project.to_dict()), 201
