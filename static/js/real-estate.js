@@ -2171,30 +2171,33 @@ function populatePwManagerSelect() {
 
 function pwShowStep(n) {
   pwState.step = n;
-  document.querySelectorAll('.pw-panel').forEach(p => p.style.display = 'none');
-  const panel = document.getElementById(n === 5 ? 'pw-panel-summary' : `pw-panel${n}`);
+  document.querySelectorAll('.pw-panel').forEach(p => { p.style.display = 'none'; });
+  var target = n === 5 ? 'pw-panel-summary' : 'pw-panel' + n;
+  var panel = document.getElementById(target);
   if (panel) panel.style.display = 'block';
-  document.getElementById('pw-prev').style.display = n === 1 ? 'none' : 'inline-flex';
-  const nextBtn = document.getElementById('pw-next');
+  var prevBtn = document.getElementById('pw-prev');
+  if (prevBtn) prevBtn.style.display = n === 1 ? 'none' : 'inline-flex';
+  var nextBtn = document.getElementById('pw-next');
+  if (!nextBtn) return;
   if (n === 4) {
     nextBtn.textContent = t('pw.createProject');
     nextBtn.className = 'btn btn-success';
   } else if (n === 5) {
-    nextBtn.textContent = '✓ ' + t('pw.finish');
+    nextBtn.textContent = '\u2713 ' + t('pw.finish');
     nextBtn.className = 'btn btn-primary';
-    document.getElementById('pw-prev').style.display = 'none';
+    if (prevBtn) prevBtn.style.display = 'none';
   } else {
     nextBtn.textContent = t('pw.next');
     nextBtn.className = 'btn btn-primary';
   }
-  for (let i = 1; i <= 4; i++) {
-    const stepEl = document.getElementById(`pw-step${i}`);
+  for (var i = 1; i <= 4; i++) {
+    var stepEl = document.getElementById('pw-step' + i);
     if (!stepEl) continue;
     stepEl.classList.remove('active', 'done');
     if (i < n || n === 5) stepEl.classList.add('done');
     else if (i === n) stepEl.classList.add('active');
   }
-  document.querySelectorAll('.pw-step-line').forEach((line, idx) => {
+  document.querySelectorAll('.pw-step-line').forEach(function(line, idx) {
     line.classList.toggle('done', idx < n - 1 || n === 5);
   });
 }
