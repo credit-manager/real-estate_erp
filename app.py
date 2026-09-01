@@ -310,43 +310,14 @@ def _csrf_valid():
     return hmac.compare_digest(str(expected), str(supplied))
 
 
-_pool_event_registered = False
-
 def _register_pool_event(app):
-    """Auto-rollback failed psycopg2 connections on pool checkout."""
-    global _pool_event_registered
-
+    """Reset poisoned session before every request."""
     @app.before_request
-    def _force_rollback():
-        global _pool_event_registered
-        # Register checkout event once (on first request when engine is available)
-        if not _pool_event_registered:
-            try:
-                from sqlalchemy import event as sa_event
-                eng = db.engine
-                @sa_event.listens_for(eng, "checkout")
-                def _reset_bad_conn(dbapi_conn, connection_rec, connection_proxy):
-                    try:
-                        if hasattr(dbapi_conn, 'status') and dbapi_conn.status == 2:
-                            dbapi_conn.rollback()
-                    except Exception:
-                        pass
-                _pool_event_registered = True
-            except Exception:
-                pass
-        # Force rollback + reconnect if session connection is poisoned
+    def _reset_session():
         try:
-            db.session.rollback()
+            db.session.remove()
         except Exception:
             pass
-        try:
-            # Test connection — if poisoned, this triggers pool_pre_ping to discard it
-            db.session.execute(db.text("SELECT 1"))
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
 
 
 def create_app():
