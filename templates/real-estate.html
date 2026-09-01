@@ -11,8 +11,8 @@
     <p>{{ t('realestate.subtitle') }}</p>
   </div>
   <div>
-    <button class="btn btn-primary" onclick="openProjectWizard()" style="display:inline-flex;align-items:center;gap:6px">
-      <span>🏗️</span> {{ t('pw.newProject') }}
+    <button class="btn btn-primary" onclick="openProjectWizard()" style="display:inline-flex;align-items:center;gap:8px;font-weight:600">
+      🏗️ {{ t('pw.newProject') }}
     </button>
   </div>
 </div>
@@ -893,143 +893,96 @@
   </div>
 </div>
 
-<!-- مساعد إنشاء المشروع الجديد -->
+<!-- Project Wizard -->
 <div class="modal-overlay" id="mProjectWizard" style="display:none">
-  <div class="modal" style="max-width:700px">
-    <div class="modal-head">
-      <h2>🏗️ {{ t('pw.title') }}</h2>
-      <button class="close-btn" onclick="closeModal('mProjectWizard')">✕</button>
+  <div class="modal modal-lg" style="max-width:760px">
+    <div class="modal-header">
+      <h3>🏗️ {{ t('pw.title') }}</h3>
+      <button class="modal-close" onclick="closeModal('mProjectWizard')">&times;</button>
     </div>
-    <div class="modal-body" style="padding:0">
-      <!-- Progress Steps -->
-      <div style="display:flex;align-items:center;gap:0;padding:16px 20px;background:var(--surface-dim);border-bottom:1px solid var(--border)">
-        <div class="pw-step active" id="pw-step1" style="flex:1;text-align:center;position:relative">
-          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--ac);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">1</div>
-          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.projectInfo') }}</div>
-        </div>
-        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
-        <div class="pw-step" id="pw-step2" style="flex:1;text-align:center;position:relative">
-          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">2</div>
-          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.buildingsTitle') }}</div>
-        </div>
-        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
-        <div class="pw-step" id="pw-step3" style="flex:1;text-align:center;position:relative">
-          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">3</div>
-          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.floorsTitle') }}</div>
-        </div>
-        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
-        <div class="pw-step" id="pw-step4" style="flex:1;text-align:center;position:relative">
-          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">4</div>
-          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.unitsTitle') }}</div>
-        </div>
+    <div class="pw-progress-bar">
+      <div class="pw-progress-track"><div class="pw-progress-fill" id="pw-progress-fill"></div></div>
+      <div class="pw-steps-row">
+        <div class="pw-step-dot active" id="pw-step1"><span class="pw-dot-num">1</span><span class="pw-dot-label">{{ t('pw.projectInfo') }}</span></div>
+        <div class="pw-step-dot" id="pw-step2"><span class="pw-dot-num">2</span><span class="pw-dot-label">{{ t('pw.buildingsTitle') }}</span></div>
+        <div class="pw-step-dot" id="pw-step3"><span class="pw-dot-num">3</span><span class="pw-dot-label">{{ t('pw.floorsTitle') }}</span></div>
+        <div class="pw-step-dot" id="pw-step4"><span class="pw-dot-num">4</span><span class="pw-dot-label">{{ t('pw.unitsTitle') }}</span></div>
       </div>
+    </div>
+
+    <div class="modal-body pw-panels" style="min-height:320px">
 
       <!-- Step 1: Project Info + Costs -->
-      <div class="pw-panel" id="pw-panel1" style="padding:20px">
-        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:16px;color:var(--tx)">{{ t('pw.projectInfo') }}</h3>
-        <div class="row2" style="margin-bottom:12px">
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.projectNameReq') }}</label>
-            <input class="input" id="pw-name" placeholder="{{ t('pw.namePlaceholder') }}">
-          </div>
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.location') }}</label>
-            <input class="input" id="pw-location" placeholder="{{ t('pw.locationPlaceholder') }}">
-          </div>
+      <div class="pw-panel" id="pw-panel1">
+        <div class="pw-section-title">{{ t('pw.projectInfo') }}</div>
+        <div class="pw-form-grid-2">
+          <div class="pw-field"><label>{{ t('pw.projectNameReq') }} *</label><input class="input" id="pw-name" placeholder="{{ t('pw.namePlaceholder') }}"></div>
+          <div class="pw-field"><label>{{ t('pw.location') }}</label><input class="input" id="pw-location" placeholder="{{ t('pw.locationPlaceholder') }}"></div>
         </div>
-        <div class="row2" style="margin-bottom:12px">
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.budget') }}</label>
-            <input class="input" id="pw-budget" type="number" placeholder="0">
-          </div>
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.manager') }}</label>
-            <select class="input" id="pw-manager"><option value="">{{ t('pw.noManager') }}</option></select>
-          </div>
+        <div class="pw-form-grid-2">
+          <div class="pw-field"><label>{{ t('pw.budget') }}</label><input class="input" id="pw-budget" type="number" placeholder="0"></div>
+          <div class="pw-field"><label>{{ t('pw.manager') }}</label><select class="input" id="pw-manager"><option value="">{{ t('pw.noManager') }}</option></select></div>
         </div>
-        <div class="row2" style="margin-bottom:16px">
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.startDate') }}</label>
-            <input class="input" id="pw-start" type="date">
-          </div>
-          <div>
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.endDate') }}</label>
-            <input class="input" id="pw-deadline" type="date">
-          </div>
+        <div class="pw-form-grid-2">
+          <div class="pw-field"><label>{{ t('pw.startDate') }}</label><input class="input" id="pw-start" type="date"></div>
+          <div class="pw-field"><label>{{ t('pw.endDate') }}</label><input class="input" id="pw-deadline" type="date"></div>
         </div>
-        <!-- تكاليف المشروع -->
-        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
-          <h4 style="font-size:.82rem;font-weight:600;margin-bottom:12px;color:var(--ac)">💰 {{ t('pw.costs') }}</h4>
-          <div class="row3" style="margin-bottom:10px">
-            <div>
-              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.landCost') }}</label>
-              <input class="input" id="pw-land-cost" type="number" placeholder="0" style="font-size:.78rem">
-            </div>
-            <div>
-              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.papersCost') }}</label>
-              <input class="input" id="pw-papers-cost" type="number" placeholder="0" style="font-size:.78rem">
-            </div>
-            <div>
-              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.constructionCost') }}</label>
-              <input class="input" id="pw-construction-cost" type="number" placeholder="0" style="font-size:.78rem">
-            </div>
+        <div class="pw-divider"></div>
+        <div class="pw-section-title" style="color:var(--ac)">💰 {{ t('pw.costs') }}</div>
+        <div class="pw-form-grid-3">
+          <div class="pw-field"><label>{{ t('pw.landCost') }}</label><input class="input" id="pw-land-cost" type="number" placeholder="0"></div>
+          <div class="pw-field"><label>{{ t('pw.papersCost') }}</label><input class="input" id="pw-papers-cost" type="number" placeholder="0"></div>
+          <div class="pw-field"><label>{{ t('pw.constructionCost') }}</label><input class="input" id="pw-construction-cost" type="number" placeholder="0"></div>
+        </div>
+        <div class="pw-form-grid-2">
+          <div class="pw-field"><label>{{ t('exp.paymentMethod') }}</label>
+            <select class="input" id="pw-payment-method">
+              <option value="cash">{{ t('exp.cash') }}</option>
+              <option value="bank">{{ t('exp.bank') }}</option>
+              <option value="credit">{{ t('exp.credit') }}</option>
+            </select>
           </div>
-          <div class="row2">
-            <div>
-              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('exp.paymentMethod') }}</label>
-              <select class="input" id="pw-payment-method" style="font-size:.78rem">
-                <option value="cash">{{ t('exp.cash') }}</option>
-                <option value="bank">{{ t('exp.bank') }}</option>
-                <option value="credit">{{ t('exp.credit') }}</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">&nbsp;</label>
-              <div style="padding:8px 12px;border-radius:var(--r-sm);background:var(--surface);font-size:.75rem;color:var(--tx-muted)">
-                {{ t('pw.costNote') }}
-              </div>
-            </div>
+          <div class="pw-field"><label>&nbsp;</label>
+            <div class="pw-hint-box">{{ t('pw.costNote') }}</div>
           </div>
         </div>
       </div>
 
       <!-- Step 2: Buildings -->
-      <div class="pw-panel" id="pw-panel2" style="display:none;padding:20px">
-        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.buildingsTitle') }}</h3>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-          <div style="flex:1">
-            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.buildingCount') }}</label>
-            <input class="input" id="pw-building-count" type="number" min="1" max="50" value="1" onchange="pwGenerateBuildings()">
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="pwGenerateBuildings()" style="margin-top:16px">{{ t('pw.createList') }}</button>
+      <div class="pw-panel" id="pw-panel2" style="display:none">
+        <div class="pw-section-title">🏢 {{ t('pw.buildingsTitle') }}</div>
+        <div class="pw-form-grid-2" style="align-items:end;margin-bottom:16px">
+          <div class="pw-field"><label>{{ t('pw.buildingCount') }}</label><input class="input" id="pw-building-count" type="number" min="1" max="50" value="1" onchange="pwGenerateBuildings()"></div>
+          <button class="btn btn-outline btn-sm" onclick="pwGenerateBuildings()">{{ t('pw.createList') }}</button>
         </div>
         <div id="pw-buildings-list"></div>
       </div>
 
       <!-- Step 3: Floors -->
-      <div class="pw-panel" id="pw-panel3" style="display:none;padding:20px">
-        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.floorsTitle') }}</h3>
-        <p style="font-size:.75rem;color:var(--tx-muted);margin-bottom:12px">{{ t('pw.floorsNote') }}</p>
+      <div class="pw-panel" id="pw-panel3" style="display:none">
+        <div class="pw-section-title">🏗️ {{ t('pw.floorsTitle') }}</div>
+        <p class="pw-hint">{{ t('pw.floorsNote') }}</p>
         <div id="pw-floors-list"></div>
       </div>
 
       <!-- Step 4: Units -->
-      <div class="pw-panel" id="pw-panel4" style="display:none;padding:20px">
-        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.unitsTitle') }}</h3>
-        <p style="font-size:.75rem;color:var(--tx-muted);margin-bottom:12px">{{ t('pw.unitsDescription') }}</p>
+      <div class="pw-panel" id="pw-panel4" style="display:none">
+        <div class="pw-section-title">🏠 {{ t('pw.unitsTitle') }}</div>
+        <p class="pw-hint">{{ t('pw.unitsDescription') }}</p>
         <div id="pw-units-config"></div>
       </div>
 
-      <!-- Summary Panel -->
-      <div class="pw-panel" id="pw-panel-summary" style="display:none;padding:20px">
-        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:16px;color:var(--tx)">{{ t('pw.projectSummary') }}</h3>
+      <!-- Summary -->
+      <div class="pw-panel" id="pw-panel-summary" style="display:none">
         <div id="pw-summary-content"></div>
       </div>
+
     </div>
-    <div class="modal-foot" style="justify-content:space-between">
-      <button class="btn btn-ghost" id="pw-prev" onclick="pwPrev()" style="display:none">{{ t('pw.prev') }}</button>
+
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-outline" id="pw-prev" onclick="pwPrev()" style="display:none">← {{ t('pw.prev') }}</button>
       <div style="flex:1"></div>
-      <button class="btn btn-ghost" onclick="closeModal('mProjectWizard')">{{ t('pw.cancel') }}</button>
+      <button class="btn btn-outline" onclick="closeModal('mProjectWizard')">{{ t('pw.cancel') }}</button>
       <button class="btn btn-primary" id="pw-next" onclick="pwNext()">{{ t('pw.next') }}</button>
     </div>
   </div>

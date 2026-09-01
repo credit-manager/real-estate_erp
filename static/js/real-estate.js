@@ -2186,25 +2186,14 @@ function pwShowStep(n) {
     nextBtn.textContent = t('pw.next');
     nextBtn.className = 'btn btn-primary';
   }
+  const fill = document.getElementById('pw-progress-fill');
+  if (fill) fill.style.width = (n >= 5 ? 100 : (n - 1) / 3 * 100) + '%';
   for (let i = 1; i <= 4; i++) {
     const stepEl = document.getElementById(`pw-step${i}`);
-    const numEl = stepEl.querySelector('.pw-num');
-    if (i < n || n === 5) {
-      numEl.style.background = 'var(--ok)';
-      numEl.style.color = '#fff';
-      numEl.style.border = 'none';
-      numEl.innerHTML = '✓';
-    } else if (i === n) {
-      numEl.style.background = 'var(--ac)';
-      numEl.style.color = '#fff';
-      numEl.style.border = 'none';
-      numEl.textContent = i;
-    } else {
-      numEl.style.background = 'var(--surface)';
-      numEl.style.color = 'var(--tx-muted)';
-      numEl.style.border = '2px solid var(--border)';
-      numEl.textContent = i;
-    }
+    if (!stepEl) continue;
+    stepEl.classList.remove('active', 'done');
+    if (i < n || n === 5) stepEl.classList.add('done');
+    else if (i === n) stepEl.classList.add('active');
   }
 }
 
@@ -2259,18 +2248,12 @@ function pwGenerateBuildings() {
   let html = '';
   for (let i = 1; i <= count; i++) {
     html += `
-      <div style="display:grid;grid-template-columns:80px 1fr 80px;gap:8px;margin-bottom:8px;align-items:end">
-        <div>
-          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.buildingCode')}</label>
-          <input class="input" id="pw-bcode${i}" value="B${i}" style="font-size:.78rem">
-        </div>
-        <div>
-          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.buildingName')}</label>
-          <input class="input" id="pw-bname${i}" value="${t('pw.building')} ${i}" style="font-size:.78rem">
-        </div>
-        <div>
-          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.description')}</label>
-          <input class="input" id="pw-bdesc${i}" placeholder="${t('pw.optional')}" style="font-size:.78rem">
+      <div class="pw-card">
+        <div class="pw-card-header"><span class="pw-card-title">🏢 ${t('pw.building')} ${i}</span></div>
+        <div class="pw-card-grid">
+          <div><label>${t('pw.buildingCode')}</label><input class="input" id="pw-bcode${i}" value="B${i}"></div>
+          <div><label>${t('pw.buildingName')}</label><input class="input" id="pw-bname${i}" value="${t('pw.building')} ${i}"></div>
+          <div><label>${t('pw.description')}</label><input class="input" id="pw-bdesc${i}" placeholder="${t('pw.optional')}"></div>
         </div>
       </div>`;
   }
@@ -2308,11 +2291,11 @@ function pwGenerateFloors() {
   let html = '';
   pwState.buildings.forEach(b => {
     html += `
-      <div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:var(--r-sm)">
-        <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;color:var(--tx)">🏢 ${b.name} (${b.code})</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <label style="font-size:.72rem;color:var(--tx-muted)">${t('pw.floorsCount')}</label>
-          <input class="input" id="pw-floors-${b.id}" type="number" min="1" max="100" value="5" style="width:80px;font-size:.78rem">
+      <div class="pw-card">
+        <div class="pw-card-header"><span class="pw-card-title">🏢 ${b.name} <span style="font-weight:400;color:var(--tx-muted)">(${b.code})</span></span></div>
+        <div class="pw-card-grid-2">
+          <div><label>${t('pw.floorsCount')}</label><input class="input" id="pw-floors-${b.id}" type="number" min="1" max="100" value="5"></div>
+          <div></div>
         </div>
       </div>`;
   });
@@ -2345,35 +2328,24 @@ function pwGenerateUnitsConfig() {
   pwState.buildings.forEach(b => {
     const floors = pwState.floorsPerBuilding[b.id] || 5;
     html += `
-      <div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:var(--r-sm)">
-        <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;color:var(--tx)">🏢 ${b.name} — ${floors} ${t('pw.floors')}</div>
-        <div class="row2" style="margin-bottom:8px">
-          <div>
-            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.unitsPerFloor')}</label>
-            <input class="input" id="pw-upf-${b.id}" type="number" min="1" max="20" value="4" style="font-size:.78rem">
-          </div>
-          <div>
-            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.unitType')}</label>
-            <select class="input" id="pw-utype-${b.id}" style="font-size:.78rem">
+      <div class="pw-card">
+        <div class="pw-card-header">
+          <span class="pw-card-title">🏢 ${b.name} <span style="font-weight:400;color:var(--tx-muted)">— ${floors} ${t('pw.floors')}</span></span>
+        </div>
+        <div class="pw-card-grid-2">
+          <div><label>${t('pw.unitsPerFloor')}</label><input class="input" id="pw-upf-${b.id}" type="number" min="1" max="20" value="4"></div>
+          <div><label>${t('pw.unitType')}</label>
+            <select class="input" id="pw-utype-${b.id}">
               <option value="">${t('pw.choose')}</option>
               ${(allUnitTypes || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
             </select>
           </div>
         </div>
-        <div class="row2">
-          <div>
-            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.area')}</label>
-            <input class="input" id="pw-area-${b.id}" type="number" value="150" style="font-size:.78rem">
-          </div>
-          <div>
-            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.price')}</label>
-            <input class="input" id="pw-price-${b.id}" type="number" value="500000" style="font-size:.78rem">
-          </div>
+        <div class="pw-card-grid-2">
+          <div><label>${t('pw.area')}</label><input class="input" id="pw-area-${b.id}" type="number" value="150"></div>
+          <div><label>${t('pw.price')}</label><input class="input" id="pw-price-${b.id}" type="number" value="500000"></div>
         </div>
-        <div style="margin-top:8px">
-          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.codePrefix')}</label>
-          <input class="input" id="pw-prefix-${b.id}" placeholder="${t('pw.prefixPlaceholder')} A-${b.code}-" style="font-size:.78rem">
-        </div>
+        <div style="margin-top:4px"><label style="display:block;font-size:.68rem;font-weight:600;color:var(--tx-muted);margin-bottom:4px">${t('pw.codePrefix')}</label><input class="input" id="pw-prefix-${b.id}" placeholder="${t('pw.prefixPlaceholder')} A-${b.code}-"></div>
       </div>`;
   });
   list.innerHTML = html;
@@ -2415,23 +2387,14 @@ async function pwCreateProject() {
     document.getElementById('pw-panel-summary').style.display = 'block';
     document.getElementById('pw-panel4').style.display = 'none';
     document.getElementById('pw-summary-content').innerHTML = `
-      <div style="text-align:center;padding:20px">
-        <div style="font-size:2rem;margin-bottom:12px">✅</div>
-        <h3 style="font-size:1rem;font-weight:700;color:var(--tx);margin-bottom:8px">${t('pw.projectCreatedSuccess')}</h3>
-        <p style="font-size:.82rem;color:var(--tx-muted);margin-bottom:20px">${summary.project.name}</p>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:400px;margin:0 auto">
-          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
-            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_buildings}</div>
-            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.buildings')}</div>
-          </div>
-          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
-            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_floors}</div>
-            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.floors')}</div>
-          </div>
-          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
-            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_units}</div>
-            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.units')}</div>
-          </div>
+      <div class="pw-summary-wrap">
+        <div class="pw-summary-icon">✅</div>
+        <div class="pw-summary-title">${t('pw.projectCreatedSuccess')}</div>
+        <div class="pw-summary-sub">${summary.project.name}</div>
+        <div class="pw-summary-grid">
+          <div class="pw-summary-stat"><div class="num">${summary.total_buildings}</div><div class="lbl">${t('pw.buildings')}</div></div>
+          <div class="pw-summary-stat"><div class="num">${summary.total_floors}</div><div class="lbl">${t('pw.floors')}</div></div>
+          <div class="pw-summary-stat"><div class="num">${summary.total_units}</div><div class="lbl">${t('pw.units')}</div></div>
         </div>
       </div>`;
 
