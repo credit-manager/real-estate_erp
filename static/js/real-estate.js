@@ -2172,7 +2172,8 @@ function populatePwManagerSelect() {
 function pwShowStep(n) {
   pwState.step = n;
   document.querySelectorAll('.pw-panel').forEach(p => p.style.display = 'none');
-  document.getElementById(`pw-panel${n}`).style.display = 'block';
+  const panel = document.getElementById(n === 5 ? 'pw-panel-summary' : `pw-panel${n}`);
+  if (panel) panel.style.display = 'block';
   document.getElementById('pw-prev').style.display = n === 1 ? 'none' : 'inline-flex';
   const nextBtn = document.getElementById('pw-next');
   if (n === 4) {
@@ -2385,8 +2386,6 @@ async function pwCreateProject() {
     const summaryResp = await fetch(`/api/projects/${pwState.projectId}/wizard/complete`);
     const summary = await summaryResp.json();
 
-    document.getElementById('pw-panel-summary').style.display = 'block';
-    document.getElementById('pw-panel4').style.display = 'none';
     document.getElementById('pw-summary-content').innerHTML = `
       <div class="pw-summary-wrap">
         <div class="pw-summary-icon">✅</div>
