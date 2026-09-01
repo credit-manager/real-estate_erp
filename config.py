@@ -67,6 +67,10 @@ if COMPANY_ID:
 
 SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+SQLALCHEMY_ENGINE_OPTIONS = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
 
 # ── Per-company SECRET_KEY (CRITICAL #1) ──
 # كل شركة لها مفتاح جلسات مستقل لمنع اختراق عناصر الجلسة بين الشركات
