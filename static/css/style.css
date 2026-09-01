@@ -9,7 +9,7 @@
   color-scheme: light;
 
   /* ===== Design Tokens ===== */
-  --font-sans: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: 'Almarai', 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', 'Segoe UI', Tahoma, 'Helvetica Neue', Arial, sans-serif;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --speed-fast: 150ms;
@@ -3233,7 +3233,7 @@ body.layout-horizontal .main-area { margin-inline-start: 0 !important; }
 /* ============================================================
    LOGIN PREMIUM — أنيقة واحترافية
    ============================================================ */
-.login-body { font-family: 'Plus Jakarta Sans', 'Almarai', 'Segoe UI', Tahoma, Arial, sans-serif; }
+.login-body { font-family: 'Almarai', 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Arial, sans-serif; }
 
 .login-shell {
   max-width: 1180px;
