@@ -311,17 +311,11 @@ def _csrf_valid():
 
 
 def _register_pool_event(app):
-    """Register a pool checkout event to auto-rollback failed psycopg2 connections."""
+    """Rollback poisoned psycopg2 sessions before every request."""
     @app.before_request
-    def _check_failed_txn():
+    def _force_rollback():
         try:
-            engine = db.engine
-            pool = engine.pool
-            # Check the current connection's DBAPI status
-            conn = db.session.connection()
-            dbapi_conn = conn.connection.dbapi_connection
-            if hasattr(dbapi_conn, 'status') and dbapi_conn.status == 2:
-                dbapi_conn.rollback()
+            db.session.remove()
         except Exception:
             try:
                 db.session.rollback()

@@ -207,49 +207,66 @@ PRESERVE_TABLES = {
 }
 
 
-def _table_exists(conn, table_name):
-    """Check if a table exists in the database."""
+def _get_raw_conn():
+    """Get a raw psycopg2 connection, bypassing SQLAlchemy's Connection wrapper."""
+    raw = db.engine.raw_connection()
+    raw.autocommit = False
+    return raw
+
+
+def _safe_table_exists(raw_conn, table_name):
+    """Check if a table exists using raw psycopg2."""
     try:
-        result = conn.execute(text(
+        cur = raw_conn.cursor()
+        cur.execute(
             "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_name = :t)"
-        ), {"t": table_name})
-        return result.scalar()
+            "WHERE table_schema = 'public' AND table_name = %s)",
+            (table_name,)
+        )
+        result = cur.fetchone()[0]
+        cur.close()
+        return result
     except Exception:
         try:
-            conn.execute(text("ROLLBACK"))
+            raw_conn.rollback()
         except Exception:
             pass
         return False
 
 
-def _count_table(conn, table_name):
-    """Count rows in a table."""
-    if not _table_exists(conn, table_name):
+def _safe_count_table(raw_conn, table_name):
+    """Count rows using raw psycopg2."""
+    if not _safe_table_exists(raw_conn, table_name):
         return 0
     try:
-        result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
-        return result.scalar() or 0
+        cur = raw_conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+        result = cur.fetchone()[0]
+        cur.close()
+        return result or 0
     except Exception as e:
         log.warning("Failed to count %s: %s", table_name, e)
         try:
-            conn.execute(text("ROLLBACK"))
+            raw_conn.rollback()
         except Exception:
             pass
         return 0
 
 
-def _delete_table(conn, table_name):
-    """Delete all rows from a table."""
-    if not _table_exists(conn, table_name):
+def _safe_delete_table(raw_conn, table_name):
+    """Delete all rows using raw psycopg2."""
+    if not _safe_table_exists(raw_conn, table_name):
         return 0
     try:
-        result = conn.execute(text(f"DELETE FROM {table_name}"))
-        return result.rowcount
+        cur = raw_conn.cursor()
+        cur.execute(f"DELETE FROM {table_name}")
+        count = cur.rowcount
+        cur.close()
+        return count
     except Exception as e:
         log.warning("Failed to delete %s: %s", table_name, e)
         try:
-            conn.execute(text("ROLLBACK"))
+            raw_conn.rollback()
         except Exception:
             pass
         return 0
@@ -263,41 +280,61 @@ def get_reset_preview():
         pass
     preview = []
     total = 0
-    with db.engine.connect() as conn:
+    raw_conn = _get_raw_conn()
+    try:
         for table_name, desc in DELETE_ORDER:
             if table_name in PRESERVE_TABLES:
                 continue
-            count = _count_table(conn, table_name)
+            count = _safe_count_table(raw_conn, table_name)
             if count > 0:
                 preview.append({"table": table_name, "description": desc, "count": count})
                 total += count
+        raw_conn.commit()
+    finally:
+        try:
+            raw_conn.close()
+        except Exception:
+            pass
     return {"items": preview, "total_rows": total}
 
 
 def _seed_demo_data(conn, company_id, fy_id):
-    """Seed demo data after reset."""
+    """Seed demo data after reset. Uses raw psycopg2 connection."""
+    cur = conn.cursor()
     today = date.today()
 
-    # ── Company (if not exists) ──
-    conn.execute(text(
+    def _exec(sql, params=None):
+        try:
+            cur.execute(sql, params or ())
+        except Exception as e:
+            log.warning("Seed exec failed: %s", e)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+    # ── Company ──
+    _exec(
         "INSERT INTO companies (id, name, legal_name, tax_number, is_active) "
-        "VALUES (1, 'شركة بورسعيد للمقاولات', 'شركة بورسعيد للمقاولات المحدودة', '123456789', true) "
-        "ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name"
-    ))
+        "VALUES (1, %s, %s, '123456789', true) "
+        "ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name",
+        ('شركة بورسعيد للمقاولات', 'شركة بورسعيد للمقاولات المحدودة')
+    )
 
     # ── Financial Year 2026 ──
-    conn.execute(text(
+    _exec(
         "INSERT INTO financial_years (id, company_id, name, start_date, end_date, is_active, is_closed) "
         "VALUES (1, 1, '2026', '2026-01-01', '2026-12-31', true, false) "
         "ON CONFLICT (id) DO UPDATE SET is_active=true, is_closed=false"
-    ))
+    )
 
     # ── Currency ──
-    conn.execute(text(
+    _exec(
         "INSERT INTO currencies (id, company_id, code, name, symbol, rate, is_base, is_active) "
-        "VALUES (1, 1, 'EGP', 'جنيه مصري', 'ج.م', 1.0, true, true) "
-        "ON CONFLICT (id) DO NOTHING"
-    ))
+        "VALUES (1, 1, 'EGP', %s, 'ج.م', 1.0, true, true) "
+        "ON CONFLICT (id) DO NOTHING",
+        ('جنيه مصري',)
+    )
 
     # ── Customers ──
     customers = [
@@ -313,11 +350,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("مجموعة الفجر الاستثمارية", "company", "01088889900", "info@fajr.com", "المنيا"),
     ]
     for i, (name, ctype, phone, email, addr) in enumerate(customers, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO customers (id, full_name, type, phone, email, address, is_active) "
-            "VALUES (:id, :name, :type, :phone, :email, :addr, true) "
-            "ON CONFLICT (id) DO UPDATE SET full_name=EXCLUDED.full_name"
-        ), {"id": i, "name": name, "type": ctype, "phone": phone, "email": email, "addr": addr})
+            "VALUES (%s, %s, %s, %s, %s, %s, true) "
+            "ON CONFLICT (id) DO UPDATE SET full_name=EXCLUDED.full_name",
+            (i, name, ctype, phone, email, addr)
+        )
 
     # ── Suppliers ──
     suppliers = [
@@ -328,11 +366,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("شركة الرمال للنقل", "عمر الشهري", "01099990000", "نقل"),
     ]
     for i, (name, contact, phone, cat) in enumerate(suppliers, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO suppliers (id, company_name, contact_name, phone, category) "
-            "VALUES (:id, :name, :contact, :phone, :cat) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "name": name, "contact": contact, "phone": phone, "cat": cat})
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, name, contact, phone, cat)
+        )
 
     # ── Employees ──
     employees = [
@@ -343,11 +382,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("عمر خالد الشهري", "المخازن", "أمين مخزن", 9000),
     ]
     for i, (name, dept, pos, salary) in enumerate(employees, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO employees (id, full_name, department, position, phone, salary, status) "
-            "VALUES (:id, :name, :dept, :pos, :phone, :salary, 'active') "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "name": name, "dept": dept, "pos": pos, "phone": f"055{i:07d}", "salary": salary})
+            "VALUES (%s, %s, %s, %s, %s, %s, 'active') "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, name, dept, pos, f"055{i:07d}", salary)
+        )
 
     # ── Projects ──
     projects = [
@@ -357,12 +397,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("مدينة الرياض", "الرياض - حي الملقا", "active", "low", 12500000, 3700000, 25, "2028-01-01"),
     ]
     for i, (name, loc, status, prio, budget, spent, comp, deadline) in enumerate(projects, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO projects (id, name, location, status, priority, budget, spent, completion, deadline) "
-            "VALUES (:id, :name, :loc, :status, :prio, :budget, :spent, :comp, CAST(:deadline AS date)) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "name": name, "loc": loc, "status": status, "prio": prio,
-            "budget": budget, "spent": spent, "comp": comp, "deadline": deadline})
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::date) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, name, loc, status, prio, budget, spent, comp, deadline)
+        )
 
     # ── Real Estate Units ──
     units = [
@@ -388,12 +428,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("K-101", 3, "شقة", 110, 1, 1300000, "available"),
     ]
     for i, (code, proj, utype, area, floor, price, status) in enumerate(units, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO real_estate_units (id, unit_code, project_id, unit_type, area, floor, price, status) "
-            "VALUES (:id, :code, :proj, :utype, :area, :floor, :price, :status) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "code": code, "proj": proj, "utype": utype, "area": area,
-            "floor": floor, "price": price, "status": status})
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, code, proj, utype, area, floor, price, status)
+        )
 
     # ── Invoices ──
     invoices = [
@@ -409,13 +449,14 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("INV-2026-010", "sales", 10, 9000000, 0, "pending", "بيع بنتهاوس J-102"),
     ]
     for i, (num, itype, cust, amount, paid, status, desc) in enumerate(invoices, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO invoices (id, invoice_number, invoice_type, customer_id, amount, paid_amount, "
             "status, issue_date, description, financial_year_id) "
-            "VALUES (:id, :num, :itype, :cust, :amount, :paid, :status, :date, :desc, 1) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "num": num, "itype": itype, "cust": cust, "amount": amount,
-            "paid": paid, "status": status, "date": today - timedelta(days=30-i*3), "desc": desc})
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, num, itype, cust, amount, paid, status,
+             (today - timedelta(days=30-i*3)).isoformat(), desc)
+        )
 
     # ── Purchase Orders ──
     pos = [
@@ -426,12 +467,12 @@ def _seed_demo_data(conn, company_id, fy_id):
         ("PO-2026-005", 5, "نقل مواد", 180000, "approved"),
     ]
     for i, (num, sup, desc, total, status) in enumerate(pos, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO purchase_orders (id, po_number, supplier_id, items_description, total, status, order_date, financial_year_id) "
-            "VALUES (:id, :num, :sup, :desc, :total, :status, :date, 1) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "num": num, "sup": sup, "desc": desc, "total": total,
-            "status": status, "date": today - timedelta(days=i*5)})
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, 1) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, num, sup, desc, total, status, (today - timedelta(days=i*5)).isoformat())
+        )
 
     # ── Rental Contracts ──
     rentals = [
@@ -441,13 +482,14 @@ def _seed_demo_data(conn, company_id, fy_id):
         (15, 4, 18000, "active", "2026-01-01", "2026-12-31"),
     ]
     for i, (unit, cust, rent, status, start, end) in enumerate(rentals, 1):
-        conn.execute(text(
+        _exec(
             "INSERT INTO rental_contracts (id, contract_number, unit_id, customer_id, monthly_rent, status, start_date, end_date, financial_year_id) "
-            "VALUES (:id, :num, :unit, :cust, :rent, :status, CAST(:start AS date), CAST(:end AS date), 1) "
-            "ON CONFLICT (id) DO NOTHING"
-        ), {"id": i, "num": f"RC-2026-{i:03d}", "unit": unit, "cust": cust,
-            "rent": rent, "status": status, "start": start, "end": end})
+            "VALUES (%s, %s, %s, %s, %s, %s, %s::date, %s::date, 1) "
+            "ON CONFLICT (id) DO NOTHING",
+            (i, f"RC-2026-{i:03d}", unit, cust, rent, status, start, end)
+        )
 
+    cur.close()
     conn.commit()
     log.info("Demo data seeded successfully")
 
@@ -472,12 +514,13 @@ def factory_reset(seed_demo=True, keep_users=True):
         except Exception:
             pass
 
-        with db.engine.connect() as conn:
+        raw_conn = _get_raw_conn()
+        try:
             # Phase 1: Delete all data in FK-safe order
             for table_name, desc in DELETE_ORDER:
                 if table_name in PRESERVE_TABLES:
                     continue
-                count = _delete_table(conn, table_name)
+                count = _safe_delete_table(raw_conn, table_name)
                 if count > 0:
                     deleted.append({"table": table_name, "description": desc, "count": count})
                     total_deleted += count
@@ -486,20 +529,30 @@ def factory_reset(seed_demo=True, keep_users=True):
             # Phase 2: Delete users except admin
             if keep_users:
                 try:
-                    result = conn.execute(text(
-                        "DELETE FROM users WHERE username != 'admin'"
-                    ))
-                    if result.rowcount > 0:
-                        deleted.append({"table": "users", "description": "المستخدمون (ماعدا admin)", "count": result.rowcount})
-                        total_deleted += result.rowcount
+                    cur = raw_conn.cursor()
+                    cur.execute("DELETE FROM users WHERE username != 'admin'")
+                    if cur.rowcount > 0:
+                        deleted.append({"table": "users", "description": "المستخدمون (ماعدا admin)", "count": cur.rowcount})
+                        total_deleted += cur.rowcount
+                    cur.close()
                 except Exception as e:
                     log.warning("Failed to clean users: %s", e)
+                    try:
+                        raw_conn.rollback()
+                    except Exception:
+                        pass
 
-            conn.commit()
+            raw_conn.commit()
 
             # Phase 3: Seed demo data if requested
             if seed_demo:
-                _seed_demo_data(conn, company_id=1, fy_id=1)
+                _seed_demo_data(raw_conn, company_id=1, fy_id=1)
+
+        finally:
+            try:
+                raw_conn.close()
+            except Exception:
+                pass
 
         return {
             "success": True,
