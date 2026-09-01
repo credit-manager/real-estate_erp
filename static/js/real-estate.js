@@ -2186,8 +2186,6 @@ function pwShowStep(n) {
     nextBtn.textContent = t('pw.next');
     nextBtn.className = 'btn btn-primary';
   }
-  const fill = document.getElementById('pw-progress-fill');
-  if (fill) fill.style.width = (n >= 5 ? 100 : (n - 1) / 3 * 100) + '%';
   for (let i = 1; i <= 4; i++) {
     const stepEl = document.getElementById(`pw-step${i}`);
     if (!stepEl) continue;
@@ -2195,6 +2193,9 @@ function pwShowStep(n) {
     if (i < n || n === 5) stepEl.classList.add('done');
     else if (i === n) stepEl.classList.add('active');
   }
+  document.querySelectorAll('.pw-step-line').forEach((line, idx) => {
+    line.classList.toggle('done', idx < n - 1 || n === 5);
+  });
 }
 
 function pwNext() {

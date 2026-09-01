@@ -895,17 +895,19 @@
 
 <!-- Project Wizard -->
 <div class="modal-overlay" id="mProjectWizard" style="display:none">
-  <div class="modal modal-lg" style="max-width:760px">
+  <div class="modal modal-lg" style="max-width:780px">
     <div class="modal-header">
       <h3>🏗️ {{ t('pw.title') }}</h3>
       <button class="modal-close" onclick="closeModal('mProjectWizard')">&times;</button>
     </div>
     <div class="pw-progress-bar">
-      <div class="pw-progress-track"><div class="pw-progress-fill" id="pw-progress-fill"></div></div>
       <div class="pw-steps-row">
         <div class="pw-step-dot active" id="pw-step1"><span class="pw-dot-num">1</span><span class="pw-dot-label">{{ t('pw.projectInfo') }}</span></div>
+        <div class="pw-step-line"></div>
         <div class="pw-step-dot" id="pw-step2"><span class="pw-dot-num">2</span><span class="pw-dot-label">{{ t('pw.buildingsTitle') }}</span></div>
+        <div class="pw-step-line"></div>
         <div class="pw-step-dot" id="pw-step3"><span class="pw-dot-num">3</span><span class="pw-dot-label">{{ t('pw.floorsTitle') }}</span></div>
+        <div class="pw-step-line"></div>
         <div class="pw-step-dot" id="pw-step4"><span class="pw-dot-num">4</span><span class="pw-dot-label">{{ t('pw.unitsTitle') }}</span></div>
       </div>
     </div>

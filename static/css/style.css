@@ -4345,89 +4345,82 @@ html[dir="ltr"] .ai-msg-bot .ai-result-card { border-radius: 12px 12px 2px 12px;
 
 /* ==================== Project Wizard ==================== */
 .pw-progress-bar {
-  padding: 20px 28px 0;
-}
-.pw-progress-track {
-  height: 3px;
-  background: var(--border);
-  border-radius: 4px;
-  margin-bottom: 20px;
-  overflow: visible;
-  position: relative;
-}
-.pw-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--ok), var(--ac));
-  border-radius: 4px;
-  width: 0%;
-  transition: width 0.4s var(--ease);
-  position: absolute;
-  top: 0;
-  right: 0;
+  padding: 24px 32px 20px;
+  border-bottom: 1px solid var(--border);
 }
 .pw-steps-row {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  position: relative;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
 }
 .pw-step-dot {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  flex: 1;
-  position: relative;
-  z-index: 1;
+  min-width: 70px;
 }
 .pw-dot-num {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
   background: var(--card);
   color: var(--tx-muted);
-  border: 2px solid var(--border);
+  border: 2.5px solid var(--border);
   transition: all 0.3s var(--ease);
-  position: relative;
-  z-index: 2;
 }
 .pw-step-dot.active .pw-dot-num {
   background: var(--ac);
   color: #fff;
   border-color: var(--ac);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--ac) 18%, transparent);
-  transform: scale(1.08);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--ac) 16%, transparent);
+  transform: scale(1.1);
 }
 .pw-step-dot.done .pw-dot-num {
   background: var(--ok);
   color: #fff;
   border-color: var(--ok);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 12%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 10%, transparent);
 }
-.pw-step-dot.done .pw-dot-num::after { content: '✓'; }
+.pw-step-dot.done .pw-dot-num::after { content: '\2713'; font-size: 1rem; }
 .pw-step-dot.done .pw-dot-num span { display: none; }
 .pw-dot-label {
   font-size: 0.7rem;
   color: var(--tx-muted);
   text-align: center;
-  white-space: nowrap;
   font-weight: 500;
+  max-width: 80px;
 }
 .pw-step-dot.active .pw-dot-label { color: var(--ac); font-weight: 700; }
 .pw-step-dot.done .pw-dot-label { color: var(--ok); font-weight: 600; }
+.pw-step-line {
+  flex: 1;
+  height: 2.5px;
+  background: var(--border);
+  margin: 0 -4px;
+  margin-bottom: 22px;
+  min-width: 30px;
+  max-width: 60px;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+.pw-step-line.done {
+  background: var(--ok);
+}
 
 .pw-panels { padding: 0 !important; }
-.pw-panel { padding: 24px !important; animation: fadeIn 0.25s var(--ease); }
+.pw-panel { padding: 24px 28px !important; animation: fadeIn 0.25s var(--ease); }
 .pw-section-title {
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--tx);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4435,42 +4428,45 @@ html[dir="ltr"] .ai-msg-bot .ai-result-card { border-radius: 12px 12px 2px 12px;
 .pw-form-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 .pw-form-grid-3 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 .pw-field label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--tx-muted);
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
-.pw-field .input { width: 100%; }
+.pw-field .input { width: 100%; height: 38px; }
+.pw-field select.input { height: 38px; }
 .pw-divider {
-  border-top: 1px solid var(--border);
-  margin: 16px 0;
+  border: none;
+  border-top: 1px dashed var(--border);
+  margin: 20px 0;
 }
 .pw-hint {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: var(--tx-muted);
   margin-bottom: 14px;
-  padding: 8px 12px;
-  background: var(--surface);
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--ac) 6%, var(--card));
   border-radius: var(--r-sm);
   border-left: 3px solid var(--ac);
 }
 .pw-hint-box {
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--r-sm);
-  background: var(--surface);
-  font-size: 0.75rem;
+  background: color-mix(in srgb, var(--ac) 6%, var(--card));
+  font-size: 0.76rem;
   color: var(--tx-muted);
+  border: 1px dashed color-mix(in srgb, var(--ac) 20%, var(--border));
 }
 
 /* Wizard: Building / Floor / Unit cards */
