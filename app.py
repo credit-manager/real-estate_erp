@@ -344,6 +344,16 @@ def create_app():
 
     db.init_app(app)
 
+    # Auto-rollback failed psycopg2 connections when returned to pool
+    from sqlalchemy import event
+    @event.listens_for(db.engine, "checkout")
+    def _auto_rollback_bad_conn(dbapi_conn, connection_rec, connection_proxy):
+        try:
+            if dbapi_conn.status == 2:  # psycopg2.pq.constants.status.IN_FAILED_TRANSACTION
+                dbapi_conn.rollback()
+        except Exception:
+            pass
+
     # CORS — allow Control Center frontend on localhost:3000
     CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"],
          supports_credentials=True, expose_headers=["Content-Type"])
@@ -604,18 +614,6 @@ def create_app():
     @app.errorhandler(429)
     def rate_limit_exceeded(e):
         return jsonify({"success": False, "message": make_t()("common.rateLimitExceeded")}), 429
-
-    # إعادة تعيين المعاملة الفاشلة تلقائياً لمنع InFailedSqlTransaction
-    @app.before_request
-    def reset_failed_transaction():
-        try:
-            if db.session.is_active:
-                db.session.execute(db.text("SELECT 1"))
-        except Exception:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
 
     # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
     @app.before_request
