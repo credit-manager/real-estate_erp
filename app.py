@@ -486,7 +486,7 @@ def create_app():
             "full_name": session.get("full_name", ""),
             "role": session.get("role", ""),
             "csrf_token": _get_csrf_token(),
-            "translations_json": json.dumps(TRANSLATIONS[lang], ensure_ascii=False),
+            "translations_json": json.dumps(TRANSLATIONS[lang]),
             "permissions_json": json.dumps(permissions.current_perms(), ensure_ascii=False),
             "can": permissions.can,
             "perms": permissions.current_perms,
@@ -500,7 +500,7 @@ def create_app():
             "default_lang": _settings.get("default_lang") or "ar",
             "doc_footer_text": _settings.get("doc_footer_text") or "",
             "number_decimals": settings_module.get_int("number_decimals", 2),
-            "app_settings_json": json.dumps(settings_module.get_all(), ensure_ascii=False),
+            "app_settings_json": json.dumps(settings_module.get_all()),
             "year": datetime.now().year,
         }
 
@@ -557,6 +557,10 @@ def create_app():
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        # Ensure UTF-8 charset for HTML responses
+        ct = response.content_type or ""
+        if "text/html" in ct and "charset" not in ct:
+            response.content_type = ct.rstrip(";") + "; charset=utf-8"
         # CSP أساسي: اسمح بـ self + CDN المحددة فقط (Chart.js + Google Fonts)
         response.headers.setdefault(
             "Content-Security-Policy",
