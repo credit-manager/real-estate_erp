@@ -511,3 +511,107 @@ class LaborAssignment(db.Model):
             "daily_rate": float(self.daily_rate or 0),
             "status": self.status,
         }
+
+
+class EmployeeAllocation(db.Model):
+    """توزيع تكاليف الموظفين على المشاريع"""
+    __tablename__ = "employee_allocations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
+    allocation_percent = db.Column(db.Numeric(5, 2), default=100)  # 0-100%
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    is_active = db.Column(db.Boolean, default=True)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    employee = relationship("Employee", backref="allocations")
+    project = relationship("Project", backref="employee_allocations")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "employee_id": self.employee_id,
+            "employee_name": self.employee.full_name if self.employee else None,
+            "project_id": self.project_id,
+            "project_name": self.project.name if self.project else None,
+            "allocation_percent": float(self.allocation_percent or 0),
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "is_active": bool(self.is_active),
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ProjectBudget(db.Model):
+    """ميزانية تفصيلية للمشروع"""
+    __tablename__ = "project_budgets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # land | papers | construction | marketing | admin | other
+    description = db.Column(db.String(200))
+    budgeted_amount = db.Column(db.Numeric(15, 2), default=0)
+    actual_amount = db.Column(db.Numeric(15, 2), default=0)
+    forecast_amount = db.Column(db.Numeric(15, 2), default=0)
+    variance = db.Column(db.Numeric(15, 2), default=0)  # budgeted - actual
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    project = relationship("Project", backref="budgets")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "category": self.category,
+            "description": self.description,
+            "budgeted_amount": float(self.budgeted_amount or 0),
+            "actual_amount": float(self.actual_amount or 0),
+            "forecast_amount": float(self.forecast_amount or 0),
+            "variance": float(self.variance or 0),
+            "variance_percent": round(
+                float(self.variance or 0) / float(self.budgeted_amount or 1) * 100, 2
+            ) if self.budgeted_amount else 0,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ProjectMilestone(db.Model):
+    """المراحل الرئيسية للمشروع"""
+    __tablename__ = "project_milestones"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    target_date = db.Column(db.Date)
+    actual_date = db.Column(db.Date)
+    status = db.Column(db.String(30), default="pending")  # pending | in_progress | completed | delayed
+    completion_percent = db.Column(db.Integer, default=0)
+    budgeted_amount = db.Column(db.Numeric(15, 2), default=0)
+    actual_amount = db.Column(db.Numeric(15, 2), default=0)
+    order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    project = relationship("Project", backref="project_milestones")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "name": self.name,
+            "description": self.description,
+            "target_date": self.target_date.isoformat() if self.target_date else None,
+            "actual_date": self.actual_date.isoformat() if self.actual_date else None,
+            "status": self.status,
+            "completion_percent": self.completion_percent,
+            "budgeted_amount": float(self.budgeted_amount or 0),
+            "actual_amount": float(self.actual_amount or 0),
+            "order": self.order,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

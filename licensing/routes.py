@@ -587,6 +587,44 @@ def list_plans():
     return jsonify({"success": True, "plans": [p.to_dict() for p in LicPlan.query.order_by(LicPlan.sort_order).all()]})
 
 
+@admin_lic_bp.route("/plans/<int:plan_id>", methods=["PUT"])
+def update_plan(plan_id):
+    user, err = _admin_or_abort()
+    if err:
+        return err
+    plan = db.session.get(LicPlan, plan_id)
+    if not plan:
+        return jsonify({"success": False, "message": "Plan not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    # Simple numeric fields
+    for field, cast in (("price_monthly", float), ("price_yearly", float),
+                        ("max_users", int), ("max_projects", int),
+                        ("max_storage_mb", int), ("sort_order", int)):
+        if field in data and data[field] is not None:
+            try:
+                setattr(plan, field, cast(data[field]))
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": f"Invalid value for {field}"}), 400
+    # String fields
+    for field in ("name", "name_ar", "description", "description_ar", "badge", "icon", "gradient", "badge_color", "badge_bg"):
+        if field in data:
+            setattr(plan, field, data[field])
+    # Boolean
+    if "is_active" in data:
+        plan.is_active = bool(data["is_active"])
+    # Modules dict
+    if "modules" in data and isinstance(data["modules"], dict):
+        existing = dict(plan.modules or {})
+        for k, v in data["modules"].items():
+            existing[k] = bool(v)
+        plan.modules = existing
+
+    db.session.commit()
+    log.info("Plan updated: %s by %s", plan.code, user.email if user else "?")
+    return jsonify({"success": True, "plan": plan.to_dict()})
+
+
 # ── Company Edit ─────────────────────────────────────────────
 
 @admin_lic_bp.route("/companies/<int:company_id>", methods=["PUT"])

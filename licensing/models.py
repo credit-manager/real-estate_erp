@@ -14,6 +14,8 @@ class LicPlan(db.Model):
     code = db.Column(db.String(30), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     name_ar = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500))
+    description_ar = db.Column(db.String(500))
 
     max_users = db.Column(db.Integer, nullable=False, default=5)
     max_projects = db.Column(db.Integer, nullable=False, default=10)
@@ -24,6 +26,12 @@ class LicPlan(db.Model):
     price_monthly = db.Column(db.Numeric(12, 2))
     price_yearly = db.Column(db.Numeric(12, 2))
 
+    badge = db.Column(db.String(50))
+    badge_color = db.Column(db.String(20))
+    badge_bg = db.Column(db.String(20))
+    icon = db.Column(db.String(10))
+    gradient = db.Column(db.String(200))
+
     is_active = db.Column(db.Boolean, default=True)
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
@@ -31,12 +39,21 @@ class LicPlan(db.Model):
     def to_dict(self):
         return {
             "id": self.id, "code": self.code, "name": self.name,
-            "name_ar": self.name_ar, "max_users": self.max_users,
+            "name_ar": self.name_ar,
+            "description": self.description,
+            "description_ar": self.description_ar,
+            "max_users": self.max_users,
             "max_projects": self.max_projects, "max_storage_mb": self.max_storage_mb,
             "modules": self.modules or {},
             "price_monthly": float(self.price_monthly) if self.price_monthly else None,
             "price_yearly": float(self.price_yearly) if self.price_yearly else None,
+            "badge": self.badge,
+            "badge_color": self.badge_color,
+            "badge_bg": self.badge_bg,
+            "icon": self.icon,
+            "gradient": self.gradient,
             "is_active": self.is_active,
+            "sort_order": self.sort_order,
         }
 
 

@@ -18,6 +18,7 @@ from models import (
     Invoice, PurchaseOrder, RentalContract, RentalRenewal, RentalPayment,
 )
 from permissions import require_page, require_api, require_any_view
+from routes.auth import login_required
 from auditlog import log_action
 import utils.settings as settings
 
@@ -49,7 +50,10 @@ def _options():
                 "id": c.id, "company_id": c.company_id,
                 "company_name": c.company.name if c.company else None,
                 "name": c.name, "code": c.code, "symbol": c.symbol,
+                "rate": round(c.rate, 6) if c.rate is not None else None,
                 "is_base": bool(c.is_base), "is_active": bool(c.is_active),
+                "exchange_rate_source": c.exchange_rate_source or "",
+                "exchange_rate_updated_at": c.exchange_rate_updated_at.isoformat() if c.exchange_rate_updated_at else None,
             }
             for c in Currency.query.order_by(Currency.code).all()
         ],
@@ -257,6 +261,42 @@ def save_layout():
     settings.set("grouped_modules", "1" if data.get("grouped_modules") else "0")
     db.session.commit()
     return jsonify({"success": True, "message": "settings.saved"})
+
+
+# ── POST update exchange rates ────────────────────────────────
+@settings_bp.route("/api/exchange-rates/update", methods=["POST"])
+@login_required
+def update_exchange_rates():
+    """Update all currency exchange rates based on base currency."""
+    from datetime import datetime, timezone
+    data = request.get_json() or {}
+    company_id = data.get("company_id")
+    base_code = data.get("base_currency", "EGP")
+    rates = data.get("rates", {})  # {currency_code: rate_vs_base}
+
+    if not company_id:
+        return jsonify({"success": False, "message": "missing-company-id"}), 400
+
+    try:
+        company = db.session.get(Company, int(company_id))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "invalid-company-id"}), 400
+    if not company:
+        return jsonify({"success": False, "message": "company-not-found"}), 404
+
+    currencies = Currency.query.filter_by(company_id=company.id, is_active=True).all()
+    now = datetime.now(timezone.utc)
+    updated = 0
+
+    for cur in currencies:
+        if cur.code in rates:
+            cur.rate = float(rates[cur.code])
+            cur.exchange_rate_source = "manual"
+            cur.exchange_rate_updated_at = now
+            updated += 1
+
+    db.session.commit()
+    return jsonify({"success": True, "updated": updated, "message": "exchange-rates.updated"})
 
 
 # ── GET next document number ──────────────────────────────────

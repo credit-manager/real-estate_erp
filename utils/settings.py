@@ -46,6 +46,12 @@ DEFAULTS = {
     "mobile_attendance_radius_meters": "200",
     "mobile_work_lat": "",
     "mobile_work_lng": "",
+    # ---- Country / Currency ----
+    "country": "EG",
+    "country_name": "مصر",
+    "base_currency": "EGP",
+    "exchange_rate_source": "central_bank",
+    "exchange_rate_api_url": "",
     # ---- E-Invoicing ----
     "einv_enabled": "0",
     "einv_country": "EG",
@@ -105,6 +111,10 @@ SECTION_KEYS = {
     },
     "rentals": {"rental_escalation_enabled", "rental_escalation_percent"},
     "sales": {"sales_commission_rate"},
+    "country_currency": {
+        "country", "country_name", "base_currency",
+        "exchange_rate_source", "exchange_rate_api_url",
+    },
     "einvoice": {
         "einv_enabled", "einv_country", "einv_mode", "einv_environment",
         "einv_client_id", "einv_client_secret", "einv_api_key",

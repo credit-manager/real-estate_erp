@@ -8,6 +8,7 @@ from models.project_management import (
     Subcontractor, ProjectContract, ProgressStatement, ChangeOrder,
     ProjectProgress, ExecutionLog, ProjectCost, ProjectRisk,
     ProjectQuality, SiteLog, Equipment, LaborAssignment,
+    EmployeeAllocation, ProjectBudget, ProjectMilestone,
 )
 from models.unit import RealEstateUnit
 from models.real_estate_invest import (
@@ -39,7 +40,7 @@ from models.payment import PaymentPlan, Installment
 from models.audit import AuditLog
 from models.company import Company, Branch
 from models.financial_year import FinancialYear
-from models.currency import Currency
+from models.currency import Currency, ExchangeRateHistory
 from models.tax import TaxType
 from models.setting import SystemSetting
 from models.workflow import WorkflowTemplate, WorkflowStep, ApprovalRequest, ApprovalStepRecord
@@ -47,6 +48,7 @@ from models.accounting import (
     Account, CostCenter, JournalEntry, JournalEntryLine,
     FixedAsset, DepreciationRecord, BudgetLine,
 )
+from models.project_costs import ProjectCostItem, CompanyExpense
 from models.inventory import (
     Warehouse, ItemCategory, UnitOfMeasure, Item, ItemStock,
     StockBatch, StockSerial, StockTransfer, StockTransferItem,
@@ -258,4 +260,6 @@ __all__ = [
     "PaymentRefund",
     "PaymentMethodToken",
     "PaymentPlanInstallment",
+    "ProjectCostItem",
+    "CompanyExpense",
 ]

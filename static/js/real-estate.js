@@ -30,19 +30,25 @@ let _unitPrevPrice = null;
 
 // ============ SCROLL LINKS ============
 // عند الضغط على رابط تبويب يتم التمرير الناعم إلى القسم المقابل
-document.addEventListener("DOMContentLoaded", async () => {
+function reSwitchTab(targetId) {
+  document.querySelectorAll("#re-tabs a.tab-btn").forEach((l) => l.classList.toggle("on", l.getAttribute("href") === targetId));
+  document.querySelectorAll("#re-tabs ~ .tab-content").forEach((sec) => sec.classList.toggle("active", ("#" + sec.id) === targetId));
+  history.replaceState(null, "", targetId);
+}
+function reSetupTabs() {
   document.querySelectorAll("#re-tabs a.tab-btn").forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
       const targetId = link.getAttribute("href");
-      const target = document.querySelector(targetId);
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        // تحديث الـ hash بدون قفزة فورية
-        history.replaceState(null, "", targetId);
-      }
+      if (document.querySelector(targetId)) reSwitchTab(targetId);
     });
   });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  reSetupTabs();
+  const first = document.querySelector(".tab-content.active");
+  reSwitchTab("#" + (first ? first.id : "re-units"));
 
   try {
     [allUnits, allProjects, allCustomers, allEmployees, allPlans] = await Promise.all([
@@ -2007,3 +2013,582 @@ window.openShareModal = openShareModal;
 window.editShare = editShare;
 window.saveShare = saveShare;
 window.deleteShare = deleteShare;
+
+// ==================== المصروفات ====================
+
+const EXPENSE_CATEGORIES = {
+  utilities: 'كهرباء / مياه / غاز', salary: 'رواتب', maintenance: 'صيانة',
+  marketing: 'تسويق', travel: 'سفر وتنقلات', office: 'مكتبية',
+  insurance: 'تأمينات', tax: 'ضرائب', rent: 'إيجار', other: 'أخرى'
+};
+
+function openExpenseModal() {
+  document.getElementById('mExpenseErr').style.display = 'none';
+  document.getElementById('exp-desc').value = '';
+  document.getElementById('exp-amount').value = '';
+  document.getElementById('exp-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('exp-notes').value = '';
+  document.getElementById('exp-recurring').checked = false;
+  document.getElementById('exp-recurring-period-group').style.display = 'none';
+  // Populate project select
+  const sel = document.getElementById('exp-project');
+  sel.innerHTML = '<option value="">' + t('pw.noProject') + '</option>' +
+    (allProjects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  document.getElementById('exp-recurring').onchange = function() {
+    document.getElementById('exp-recurring-period-group').style.display = this.checked ? '' : 'none';
+  };
+  openModal('mExpense');
+}
+window.openExpenseModal = openExpenseModal;
+
+async function saveExpense() {
+  const errEl = document.getElementById('mExpenseErr');
+  const desc = document.getElementById('exp-desc').value.trim();
+  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+  if (!desc || amount <= 0) {
+    errEl.textContent = t('exp.descAndAmountRequired');
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const body = {
+      project_id: document.getElementById('exp-project').value || null,
+      category: document.getElementById('exp-category').value,
+      description: desc,
+      amount,
+      expense_date: document.getElementById('exp-date').value || null,
+      payment_method: document.getElementById('exp-payment').value,
+      payee_type: document.getElementById('exp-payee-type').value || null,
+      notes: document.getElementById('exp-notes').value,
+      is_recurring: document.getElementById('exp-recurring').checked,
+      recurring_period: document.getElementById('exp-recurring-period').value,
+    };
+    const resp = await fetch('/api/project-finance/expenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      errEl.textContent = err.message || t('exp.saveError');
+      errEl.style.display = 'block';
+      return;
+    }
+    closeModal('mExpense');
+    showToast(t('exp.saveSuccess'));
+    loadExpenses();
+  } catch (e) {
+    errEl.textContent = t('exp.connectionError') + e.message;
+    errEl.style.display = 'block';
+  }
+}
+window.saveExpense = saveExpense;
+
+async function loadExpenses() {
+  const projectId = document.getElementById('exp-project-filter')?.value || '';
+  const category = document.getElementById('exp-category-filter')?.value || '';
+  let url = '/api/project-finance/expenses?';
+  if (projectId) url += `project_id=${projectId}&`;
+  if (category) url += `category=${category}&`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    // KPIs
+    const totalAmount = data.reduce((s, e) => s + (e.amount || 0), 0);
+    const recurringAmount = data.filter(e => e.is_recurring).reduce((s, e) => s + (e.amount || 0), 0);
+    const kpiEl = document.getElementById('expense-kpis');
+    if (kpiEl) {
+      kpiEl.innerHTML = `
+        <div class="kpi kpi-red"><div class="kpi-icon">💸</div><div class="kpi-label">${t('exp.totalExpenses')}</div><div class="kpi-value">${fmtNum(totalAmount)}</div></div>
+        <div class="kpi kpi-yellow"><div class="kpi-icon">🔄</div><div class="kpi-label">${t('exp.recurringExpenses')}</div><div class="kpi-value">${fmtNum(recurringAmount)}</div></div>
+        <div class="kpi kpi-blue"><div class="kpi-icon">📋</div><div class="kpi-label">${t('exp.expenseCount')}</div><div class="kpi-value">${data.length}</div></div>
+      `;
+    }
+    // Populate project filter
+    const pf = document.getElementById('exp-project-filter');
+    if (pf && pf.options.length <= 1) {
+      pf.innerHTML = '<option value="">' + t('exp.allProjects') + '</option>' +
+        (allProjects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    }
+    // Table
+    const tbody = document.querySelector('#expenses-table');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--tx-muted);padding:20px">' + t('exp.noExpenses') + '</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(e => `
+      <tr>
+        <td>${e.expense_date || ''}</td>
+        <td><span class="badge badge-info">${EXPENSE_CATEGORIES[e.category] || e.category}</span></td>
+        <td>${escapeHtml(e.description)}</td>
+        <td>${e.project_name || '—'}</td>
+        <td style="font-weight:600;color:var(--err)">${fmtNum(e.amount)}</td>
+        <td>${e.payment_method === 'cash' ? t('exp.cash') : e.payment_method === 'bank' ? t('exp.bank') : t('exp.credit')}</td>
+        <td>${e.payee_name || '—'}</td>
+        <td>${e.is_recurring ? '<span class="badge badge-warning">🔄 ' + (e.recurring_period === 'monthly' ? t('exp.monthly') : e.recurring_period === 'quarterly' ? t('exp.quarterly') : t('exp.yearly')) + '</span>' : '—'}</td>
+        <td>${e.journal_entry_id ? '<span class="badge badge-success">✅</span>' : '<span class="badge badge-danger">❌</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="deleteExpense(${e.id})">🗑</button></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Load expenses error:', e);
+  }
+}
+window.loadExpenses = loadExpenses;
+
+async function deleteExpense(id) {
+  if (!confirm(t('exp.confirmDelete'))) return;
+  try {
+    await fetch(`/api/project-finance/expenses/${id}`, { method: 'DELETE' });
+    showToast(t('exp.deleteSuccess'));
+    loadExpenses();
+  } catch (e) {
+    alert(t('exp.deleteError'));
+  }
+}
+window.deleteExpense = deleteExpense;
+
+// ==================== مساعد إنشاء المشروع (Wizard) ====================
+
+let pwState = { step: 1, projectId: null, buildings: [], floorsPerBuilding: {}, unitsConfig: {}, unitTypes: [] };
+
+function openProjectWizard() {
+  pwState = { step: 1, projectId: null, buildings: [], floorsPerBuilding: {}, unitsConfig: {} };
+  pwShowStep(1);
+  populatePwManagerSelect();
+  openModal('mProjectWizard');
+}
+
+function populatePwManagerSelect() {
+  const sel = document.getElementById('pw-manager');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">' + t('pw.noManager') + '</option>';
+  (allEmployees || []).forEach(e => {
+    sel.innerHTML += `<option value="${e.id}">${e.full_name || e.name || ''}</option>`;
+  });
+}
+
+function pwShowStep(n) {
+  pwState.step = n;
+  document.querySelectorAll('.pw-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(`pw-panel${n}`).style.display = 'block';
+  document.getElementById('pw-prev').style.display = n === 1 ? 'none' : 'inline-flex';
+  const nextBtn = document.getElementById('pw-next');
+  if (n === 4) {
+    nextBtn.textContent = t('pw.createProject');
+    nextBtn.className = 'btn btn-success';
+  } else if (n === 5) {
+    nextBtn.textContent = '✓ ' + t('pw.finish');
+    nextBtn.className = 'btn btn-primary';
+    document.getElementById('pw-prev').style.display = 'none';
+  } else {
+    nextBtn.textContent = t('pw.next');
+    nextBtn.className = 'btn btn-primary';
+  }
+  for (let i = 1; i <= 4; i++) {
+    const stepEl = document.getElementById(`pw-step${i}`);
+    const numEl = stepEl.querySelector('.pw-num');
+    if (i < n || n === 5) {
+      numEl.style.background = 'var(--ok)';
+      numEl.style.color = '#fff';
+      numEl.style.border = 'none';
+      numEl.innerHTML = '✓';
+    } else if (i === n) {
+      numEl.style.background = 'var(--ac)';
+      numEl.style.color = '#fff';
+      numEl.style.border = 'none';
+      numEl.textContent = i;
+    } else {
+      numEl.style.background = 'var(--surface)';
+      numEl.style.color = 'var(--tx-muted)';
+      numEl.style.border = '2px solid var(--border)';
+      numEl.textContent = i;
+    }
+  }
+}
+
+function pwNext() {
+  const s = pwState.step;
+  if (s === 1) pwSaveStep1();
+  else if (s === 2) pwSaveStep2AndGo();
+  else if (s === 3) pwSaveStep3AndGo();
+  else if (s === 4) pwCreateProject();
+  else if (s === 5) { closeModal('mProjectWizard'); loadBuildings(); loadFloors(); loadUnits(); reLoadAnalytics(); }
+}
+
+function pwPrev() {
+  if (pwState.step > 1) pwShowStep(pwState.step - 1);
+}
+
+async function pwSaveStep1() {
+  const name = document.getElementById('pw-name').value.trim();
+  if (!name) { alert(t('pw.projectNameRequired')); return; }
+  try {
+    const resp = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        location: document.getElementById('pw-location').value,
+        budget: parseFloat(document.getElementById('pw-budget').value) || 0,
+        manager_id: document.getElementById('pw-manager').value || null,
+        start_date: document.getElementById('pw-start').value || null,
+        deadline: document.getElementById('pw-deadline').value || null,
+        status: 'active',
+        land_cost: parseFloat(document.getElementById('pw-land-cost').value) || 0,
+        papers_cost: parseFloat(document.getElementById('pw-papers-cost').value) || 0,
+        construction_cost: parseFloat(document.getElementById('pw-construction-cost').value) || 0,
+        payment_method: document.getElementById('pw-payment-method').value || 'cash'
+      })
+    });
+    if (!resp.ok) throw new Error('Failed');
+    const data = await resp.json();
+    pwState.projectId = data.id;
+    allProjects.push(data);
+    pwShowStep(2);
+    pwGenerateBuildings();
+  } catch (e) {
+    alert(t('pw.projectCreateError') + e.message);
+  }
+}
+
+function pwGenerateBuildings() {
+  const count = parseInt(document.getElementById('pw-building-count').value) || 1;
+  const list = document.getElementById('pw-buildings-list');
+  let html = '';
+  for (let i = 1; i <= count; i++) {
+    html += `
+      <div style="display:grid;grid-template-columns:80px 1fr 80px;gap:8px;margin-bottom:8px;align-items:end">
+        <div>
+          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.buildingCode')}</label>
+          <input class="input" id="pw-bcode${i}" value="B${i}" style="font-size:.78rem">
+        </div>
+        <div>
+          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.buildingName')}</label>
+          <input class="input" id="pw-bname${i}" value="${t('pw.building')} ${i}" style="font-size:.78rem">
+        </div>
+        <div>
+          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.description')}</label>
+          <input class="input" id="pw-bdesc${i}" placeholder="${t('pw.optional')}" style="font-size:.78rem">
+        </div>
+      </div>`;
+  }
+  list.innerHTML = html;
+}
+
+async function pwSaveStep2AndGo() {
+  const count = parseInt(document.getElementById('pw-building-count').value) || 1;
+  const buildings = [];
+  for (let i = 1; i <= count; i++) {
+    buildings.push({
+      code: document.getElementById(`pw-bcode${i}`).value,
+      name: document.getElementById(`pw-bname${i}`).value,
+      description: document.getElementById(`pw-bdesc${i}`).value,
+    });
+  }
+  try {
+    const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/buildings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ buildings })
+    });
+    if (!resp.ok) throw new Error('Failed');
+    const data = await resp.json();
+    pwState.buildings = data.buildings;
+    pwShowStep(3);
+    pwGenerateFloors();
+  } catch (e) {
+    alert(t('pw.buildingCreateError') + e.message);
+  }
+}
+
+function pwGenerateFloors() {
+  const list = document.getElementById('pw-floors-list');
+  let html = '';
+  pwState.buildings.forEach(b => {
+    html += `
+      <div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:var(--r-sm)">
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;color:var(--tx)">🏢 ${b.name} (${b.code})</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:.72rem;color:var(--tx-muted)">${t('pw.floorsCount')}</label>
+          <input class="input" id="pw-floors-${b.id}" type="number" min="1" max="100" value="5" style="width:80px;font-size:.78rem">
+        </div>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+async function pwSaveStep3AndGo() {
+  const floorsPerBuilding = {};
+  pwState.buildings.forEach(b => {
+    floorsPerBuilding[b.id] = parseInt(document.getElementById(`pw-floors-${b.id}`).value) || 5;
+  });
+  try {
+    const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/floors-bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ floors_per_building: floorsPerBuilding })
+    });
+    if (!resp.ok) throw new Error('Failed');
+    pwState.floorsPerBuilding = floorsPerBuilding;
+    pwShowStep(4);
+    pwGenerateUnitsConfig();
+  } catch (e) {
+    alert(t('pw.floorCreateError') + e.message);
+  }
+}
+
+function pwGenerateUnitsConfig() {
+  const list = document.getElementById('pw-units-config');
+  let html = '';
+  pwState.buildings.forEach(b => {
+    const floors = pwState.floorsPerBuilding[b.id] || 5;
+    html += `
+      <div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:var(--r-sm)">
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:8px;color:var(--tx)">🏢 ${b.name} — ${floors} ${t('pw.floors')}</div>
+        <div class="row2" style="margin-bottom:8px">
+          <div>
+            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.unitsPerFloor')}</label>
+            <input class="input" id="pw-upf-${b.id}" type="number" min="1" max="20" value="4" style="font-size:.78rem">
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.unitType')}</label>
+            <select class="input" id="pw-utype-${b.id}" style="font-size:.78rem">
+              <option value="">${t('pw.choose')}</option>
+              ${(allUnitTypes || []).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.area')}</label>
+            <input class="input" id="pw-area-${b.id}" type="number" value="150" style="font-size:.78rem">
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.price')}</label>
+            <input class="input" id="pw-price-${b.id}" type="number" value="500000" style="font-size:.78rem">
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">${t('pw.codePrefix')}</label>
+          <input class="input" id="pw-prefix-${b.id}" placeholder="${t('pw.prefixPlaceholder')} A-${b.code}-" style="font-size:.78rem">
+        </div>
+      </div>`;
+  });
+  list.innerHTML = html;
+}
+
+async function pwCreateProject() {
+  const btn = document.getElementById('pw-next');
+  btn.disabled = true;
+  btn.textContent = t('pw.creating');
+
+  let totalUnits = 0;
+  const config = {};
+
+  for (const b of pwState.buildings) {
+    const upf = parseInt(document.getElementById(`pw-upf-${b.id}`).value) || 4;
+    const utype = document.getElementById(`pw-utype-${b.id}`).value;
+    const area = parseFloat(document.getElementById(`pw-area-${b.id}`).value) || 0;
+    const price = parseFloat(document.getElementById(`pw-price-${b.id}`).value) || 0;
+    const prefix = document.getElementById(`pw-prefix-${b.id}`).value;
+
+    config[b.id] = { units_per_floor: upf, unit_type_id: utype || null, area, price, prefix: prefix || `B${b.id}-` };
+
+    const floors = pwState.floorsPerBuilding[b.id] || 5;
+    totalUnits += upf * floors;
+  }
+
+  try {
+    const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/units-all`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config })
+    });
+    if (!resp.ok) throw new Error('Failed');
+
+    pwShowStep(5);
+    const summaryResp = await fetch(`/api/projects/${pwState.projectId}/wizard/complete`);
+    const summary = await summaryResp.json();
+
+    document.getElementById('pw-panel-summary').style.display = 'block';
+    document.getElementById('pw-panel4').style.display = 'none';
+    document.getElementById('pw-summary-content').innerHTML = `
+      <div style="text-align:center;padding:20px">
+        <div style="font-size:2rem;margin-bottom:12px">✅</div>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--tx);margin-bottom:8px">${t('pw.projectCreatedSuccess')}</h3>
+        <p style="font-size:.82rem;color:var(--tx-muted);margin-bottom:20px">${summary.project.name}</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:400px;margin:0 auto">
+          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_buildings}</div>
+            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.buildings')}</div>
+          </div>
+          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_floors}</div>
+            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.floors')}</div>
+          </div>
+          <div style="padding:12px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+            <div style="font-size:1.3rem;font-weight:700;color:var(--ac)">${summary.total_units}</div>
+            <div style="font-size:.7rem;color:var(--tx-muted)">${t('pw.units')}</div>
+          </div>
+        </div>
+      </div>`;
+
+    btn.textContent = '✓ ' + t('pw.finish');
+    btn.disabled = false;
+    btn.className = 'btn btn-primary';
+  } catch (e) {
+    alert(t('pw.unitCreateError') + e.message);
+    btn.disabled = false;
+    btn.textContent = t('pw.createProject');
+  }
+}
+
+// ==================== تحليلات المشاريع المالية ====================
+
+async function reLoadAnalytics() {
+  try {
+    const resp = await fetch('/api/project-finance/all-projects-summary');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    renderAllProjectsSummary(data);
+    populateAnalyticsProjectSelect(data);
+  } catch (e) {
+    console.error('Analytics error:', e);
+  }
+}
+
+function renderAllProjectsSummary(projects) {
+  const kpiEl = document.getElementById('re-all-projects-kpis');
+  if (!kpiEl) return;
+  const totalProjects = projects.length;
+  const totalUnits = projects.reduce((s, p) => s + p.total_units, 0);
+  const totalRevenue = projects.reduce((s, p) => s + p.total_revenue, 0);
+  const totalCosts = projects.reduce((s, p) => s + p.total_costs, 0);
+  const totalProfit = projects.reduce((s, p) => s + p.net_profit, 0);
+  const avgOccupancy = projects.length ? Math.round(projects.reduce((s, p) => s + p.occupancy_rate, 0) / projects.length) : 0;
+
+  kpiEl.innerHTML = `
+    <div class="kpi kpi-blue"><div class="kpi-icon">🏢</div><div class="kpi-label">${t('fin.projects')}</div><div class="kpi-value">${totalProjects}</div></div>
+    <div class="kpi kpi-green"><div class="kpi-icon">🏠</div><div class="kpi-label">${t('fin.totalUnits')}</div><div class="kpi-value">${totalUnits}</div></div>
+    <div class="kpi kpi-purple"><div class="kpi-icon">💰</div><div class="kpi-label">${t('fin.revenue')}</div><div class="kpi-value">${fmtNum(totalRevenue)}</div></div>
+    <div class="kpi kpi-red"><div class="kpi-icon">📉</div><div class="kpi-label">${t('fin.costs')}</div><div class="kpi-value">${fmtNum(totalCosts)}</div></div>
+    <div class="kpi" style="border-left:3px solid ${totalProfit >= 0 ? 'var(--ok)' : 'var(--err)'}"><div class="kpi-icon">${totalProfit >= 0 ? '📈' : '⚠️'}</div><div class="kpi-label">${t('fin.netProfit')}</div><div class="kpi-value" style="color:${totalProfit >= 0 ? 'var(--ok)' : 'var(--err)'}">${fmtNum(totalProfit)}</div></div>
+    <div class="kpi kpi-yellow"><div class="kpi-icon">📊</div><div class="kpi-label">${t('fin.avgOccupancy')}</div><div class="kpi-value">${avgOccupancy}%</div></div>
+  `;
+
+  const tbody = document.querySelector('#re-all-projects-tbl tbody');
+  if (!tbody) return;
+  if (!projects.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--tx-muted);padding:20px">' + t('fin.noProjects') + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = projects.map(p => `
+    <tr style="cursor:pointer" onclick="reLoadProjectAnalytics(${p.id})">
+      <td style="font-weight:600">${p.name}</td>
+      <td>${reStatusBadge(p.status)}</td>
+      <td>${p.total_units}</td>
+      <td>${p.sold_units}</td>
+      <td>${p.rented_units}</td>
+      <td>${p.available_units}</td>
+      <td><span style="color:${p.occupancy_rate > 70 ? 'var(--ok)' : p.occupancy_rate > 30 ? 'var(--warn)' : 'var(--err)'}">${p.occupancy_rate}%</span></td>
+      <td style="color:var(--err)">${fmtNum(p.total_costs)}</td>
+      <td style="color:var(--ok)">${fmtNum(p.total_revenue)}</td>
+      <td style="font-weight:700;color:${p.net_profit >= 0 ? 'var(--ok)' : 'var(--err)'}">${fmtNum(p.net_profit)}</td>
+    </tr>
+  `).join('');
+}
+
+function populateAnalyticsProjectSelect(projects) {
+  const sel = document.getElementById('re-analytics-project');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">' + t('exp.allProjects') + '</option>';
+  projects.forEach(p => {
+    sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+  });
+  if (current) sel.value = current;
+}
+
+async function reLoadProjectAnalytics(projectId) {
+  if (!projectId) {
+    document.getElementById('re-project-detail').style.display = 'none';
+    document.getElementById('re-all-projects-kpis').style.display = '';
+    document.querySelector('#re-all-projects-tbl').closest('.card').style.display = '';
+    reLoadAnalytics();
+    return;
+  }
+  document.getElementById('re-all-projects-kpis').style.display = 'none';
+  document.querySelector('#re-all-projects-tbl').closest('.card').style.display = 'none';
+  document.getElementById('re-project-detail').style.display = 'block';
+  document.getElementById('re-analytics-project').value = projectId;
+
+  try {
+    const [sumResp, forecastResp] = await Promise.all([
+      fetch(`/api/project-finance/summary?project_id=${projectId}`),
+      fetch(`/api/project-finance/forecast?project_id=${projectId}`)
+    ]);
+    const sum = await sumResp.json();
+    const forecast = await forecastResp.json();
+    renderProjectDetail(sum, forecast);
+  } catch (e) {
+    console.error('Project analytics error:', e);
+  }
+}
+
+function renderProjectDetail(sum, forecast) {
+  const kpiEl = document.getElementById('re-project-kpis');
+  kpiEl.innerHTML = `
+    <div class="kpi kpi-blue"><div class="kpi-icon">🏢</div><div class="kpi-label">${t('fin.buildings')}</div><div class="kpi-value">${sum.buildings_count}</div></div>
+    <div class="kpi kpi-green"><div class="kpi-icon">🏠</div><div class="kpi-label">${t('fin.units')}</div><div class="kpi-value">${sum.total_units}</div><div class="kpi-sub">${sum.sold_units} ${t('fin.sold')} · ${sum.rented_units} ${t('fin.rented')} · ${sum.available_units} ${t('fin.available')}</div></div>
+    <div class="kpi kpi-yellow"><div class="kpi-icon">📊</div><div class="kpi-label">${t('fin.occupancy')}</div><div class="kpi-value">${sum.occupancy_rate}%</div></div>
+    <div class="kpi kpi-red"><div class="kpi-icon">💸</div><div class="kpi-label">${t('fin.costs')}</div><div class="kpi-value">${fmtNum(sum.total_costs)}</div></div>
+    <div class="kpi kpi-purple"><div class="kpi-icon">💰</div><div class="kpi-label">${t('fin.revenue')}</div><div class="kpi-value">${fmtNum(sum.total_revenue)}</div></div>
+    <div class="kpi" style="border-left:3px solid ${sum.net_profit >= 0 ? 'var(--ok)' : 'var(--err)'}"><div class="kpi-icon">${sum.net_profit >= 0 ? '📈' : '⚠️'}</div><div class="kpi-label">${t('fin.netProfit')}</div><div class="kpi-value" style="color:${sum.net_profit >= 0 ? 'var(--ok)' : 'var(--err)'}">${fmtNum(sum.net_profit)}</div></div>
+  `;
+
+  const costEl = document.getElementById('re-cost-breakdown');
+  const catLabels = { land: t('fin.catLand'), papers: t('fin.catPapers'), construction: t('fin.catConstruction'), equipment: t('fin.catEquipment'), labor: t('fin.catLabor'), engineering: t('fin.catEngineering'), operating: t('fin.catOperating'), marketing: t('fin.catMarketing'), other: t('fin.catOther') };
+  const cats = sum.costs_by_category || {};
+  const catEntries = Object.entries(cats);
+  if (catEntries.length) {
+    costEl.innerHTML = `
+      <table class="tbl">
+        <thead><tr><th>${t('fin.category')}</th><th>${t('fin.amount')}</th><th>${t('fin.percentage')}</th></tr></thead>
+        <tbody>
+          ${catEntries.map(([cat, amt]) => {
+            const pct = sum.total_costs > 0 ? Math.round(amt / sum.total_costs * 100) : 0;
+            return `<tr><td>${catLabels[cat] || cat}</td><td>${fmtNum(amt)}</td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:80px;height:6px;border-radius:3px;background:var(--surface);overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--ac);border-radius:3px"></div></div>${pct}%</div></td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  } else {
+    costEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--tx-muted);font-size:.82rem">' + t('fin.noCosts') + '</div>';
+  }
+
+  const fcEl = document.getElementById('re-forecast-content');
+  fcEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+      <div style="padding:14px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+        <div style="font-size:.7rem;color:var(--tx-muted);margin-bottom:4px">${t('fin.dueInstallments')}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--ac)">${fmtNum(forecast.expected_from_installments)}</div>
+      </div>
+      <div style="padding:14px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+        <div style="font-size:.7rem;color:var(--tx-muted);margin-bottom:4px">${t('fin.rentalRevenue')}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--ok)">${fmtNum(forecast.expected_rental_annual)}</div>
+      </div>
+      <div style="padding:14px;border-radius:var(--r-sm);background:var(--surface);text-align:center">
+        <div style="font-size:.7rem;color:var(--tx-muted);margin-bottom:4px">${t('fin.recurringExpenses')}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--err)">${fmtNum(forecast.expected_recurring_expenses)}</div>
+      </div>
+      <div style="padding:14px;border-radius:var(--r-sm);background:${forecast.projected_profit >= 0 ? 'var(--ok-light)' : 'var(--err-light)'};text-align:center">
+        <div style="font-size:.7rem;color:var(--tx-muted);margin-bottom:4px">${t('fin.projectedProfit')}</div>
+        <div style="font-size:1.2rem;font-weight:700;color:${forecast.projected_profit >= 0 ? 'var(--ok)' : 'var(--err)'}">${fmtNum(forecast.projected_profit)}</div>
+      </div>
+    </div>`;
+}
+
+function fmtNum(n) {
+  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(n || 0);
+}

@@ -2625,10 +2625,24 @@ a.link:hover { text-decoration: underline; }
 }
 
 /* ============================================================
-   Real Estate Scroll Sections
+   Real Estate / CRM — Sticky Tabs + Section Switching
    ============================================================ */
-/* الأقسام تظهر دائماً (سلوك سكرول) — لا إخفاء/إظهار */
-.tab-content { display: block; margin-bottom: 24px; padding-top: 8px; }
+/* شريط التبويبات ثابت في الأعلى ليظل مرئياً دائماً */
+#re-tabs, #crm-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--content-bg, var(--bg, #ffffff));
+  padding: 10px 2px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ترحيل القسم: يُعرض القسم المحدد فقط ويختفي الباقي (لا تمرير للصفحة) */
+.tab-content { display: none; padding-top: 8px; }
+.tab-content.active { display: block; }
 
 /* روابط التبويبات */
 #re-tabs a.tab-btn, #crm-tabs a.tab-btn {
@@ -2656,11 +2670,12 @@ a.link:hover { text-decoration: underline; }
   outline: none;
   box-shadow: 0 0 0 2px var(--primary-lighter);
 }
-/* تمييز القسم النشط عند التمرير إليه */
-.tab-content:target {
-  scroll-margin-top: 80px;
+/* تمييز التبويب النشط */
+#re-tabs a.tab-btn.on, #crm-tabs a.tab-btn.on {
+  color: var(--primary);
+  background: var(--primary-light);
+  border-color: var(--primary);
 }
-html { scroll-behavior: smooth; }
 
 /* ============================================================
    CRM — Pipeline (Kanban) و جدول بنود العروض

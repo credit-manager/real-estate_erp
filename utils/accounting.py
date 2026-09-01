@@ -51,6 +51,18 @@ DEFAULT_COA = [
     {"code": "510400", "name": "مصروفات عامة وإدارية", "type": "expense", "parent": "500000"},
     {"code": "510500", "name": "مصروفات إهلاك", "type": "expense", "parent": "500000"},
     {"code": "510600", "name": "مصروفات ضريبية", "type": "expense", "parent": "500000"},
+    # --- حسابات المشاريع العقارية ---
+    {"code": "130300", "name": "أراضٍ قيد الاستخدام", "type": "asset", "parent": "130000"},
+    {"code": "130400", "name": "مباني تحت الإنشاء", "type": "asset", "parent": "130000"},
+    {"code": "130500", "name": "تراخيص وتصاريح عقارية", "type": "asset", "parent": "130000"},
+    {"code": "520100", "name": "تكاليف أراضٍ", "type": "expense", "parent": "500000"},
+    {"code": "520200", "name": "تكاليف بناء وإنشاء", "type": "expense", "parent": "500000"},
+    {"code": "520300", "name": "تراخيص وتصاريح مشاريع", "type": "expense", "parent": "500000"},
+    {"code": "520400", "name": "تكاليف تشغيل مشاريع", "type": "expense", "parent": "500000"},
+    {"code": "520500", "name": "عمالة مشاريع", "type": "expense", "parent": "500000"},
+    {"code": "520600", "name": "هندسة وإشراف مشاريع", "type": "expense", "parent": "500000"},
+    {"code": "420100", "name": "إيرادات مبيعات عقارية", "type": "revenue", "parent": "400000"},
+    {"code": "420200", "name": "إيرادات إيجارات عقارية", "type": "revenue", "parent": "400000"},
 ]
 
 DEFAULT_ACCOUNT_MAP = {
@@ -66,6 +78,17 @@ DEFAULT_ACCOUNT_MAP = {
     "acc_default_depreciation": "510500", # مصروفات الإهلاك
     "acc_default_tax_in": "120200",       # ضريبة المدينة
     "acc_default_tax_out": "220100",      # ضريبة الدائنة
+    "acc_re_project_land": "130300",
+    "acc_re_project_building": "130400",
+    "acc_re_project_license": "130500",
+    "acc_re_cost_land": "520100",
+    "acc_re_cost_construction": "520200",
+    "acc_re_cost_licensing": "520300",
+    "acc_re_cost_operating": "520400",
+    "acc_re_cost_labor": "520500",
+    "acc_re_cost_engineering": "520600",
+    "acc_re_revenue_sales": "420100",
+    "acc_re_revenue_rent": "420200",
 }
 
 

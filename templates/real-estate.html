@@ -10,6 +10,11 @@
     <h1>{{ t('realestate.title') }}</h1>
     <p>{{ t('realestate.subtitle') }}</p>
   </div>
+  <div>
+    <button class="btn btn-primary" onclick="openProjectWizard()" style="display:inline-flex;align-items:center;gap:6px">
+      <span>🏗️</span> {{ t('pw.newProject') }}
+    </button>
+  </div>
 </div>
 
 <!-- Scroll Links -->
@@ -28,14 +33,16 @@
   <a href="#re-owners" class="tab-btn">{{ t('re.tabOwners') }}</a>
   <a href="#re-deliveries" class="tab-btn">{{ t('re.tabDeliveries') }}</a>
   <a href="#re-maintenance" class="tab-btn">{{ t('re.tabMaintenance') }}</a>
+  <a href="#re-expenses" class="tab-btn" onclick="reSwitchTab('re-expenses');return false">💸 {{ t('exp.title') }}</a>
   <a href="#re-shares" class="tab-btn">{{ t('re.tabShares') }}</a>
   <a href="#re-analytics" class="tab-btn">{{ t('re.tabAnalytics') }}</a>
   <a href="#re-screenings" class="tab-btn">{{ t('re.tabScreenings') }}</a>
   <a href="#re-mortgages" class="tab-btn">{{ t('re.tabMortgages') }}</a>
+  <a href="#re-project-analytics" class="tab-btn" onclick="reSwitchTab('re-project-analytics');return false">📊 {{ t('fin.title') }}</a>
 </div>
 
 <!-- ==================== UNITS SECTION ==================== -->
-<div class="tab-content" id="re-units">
+<div class="tab-content active" id="re-units">
   <div class="page-header">
     <div>
       <h2>{{ t('realestate.title') }}</h2>
@@ -231,6 +238,133 @@
   </div></div>
 </div>
 
+<!-- ==================== EXPENSES SECTION ==================== -->
+<div class="tab-content" id="re-expenses">
+  <div class="page-header">
+    <div><h2>💸 {{ t('exp.title') }}</h2><p>{{ t('exp.subtitle') }}</p></div>
+    <div class="page-actions">
+      <button class="btn btn-primary" onclick="openExpenseModal()">+ {{ t('exp.newExpense') }}</button>
+    </div>
+  </div>
+  <!-- KPIs -->
+  <div class="kpi-grid" id="expense-kpis" style="margin-bottom:16px"></div>
+  <!-- Filters -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <select class="input" id="exp-project-filter" style="max-width:200px" onchange="loadExpenses()">
+      <option value="">{{ t('exp.allProjects') }}</option>
+    </select>
+    <select class="input" id="exp-category-filter" style="max-width:160px" onchange="loadExpenses()">
+      <option value="">{{ t('exp.allCategories') }}</option>
+      <option value="utilities">{{ t('exp.catUtilities') }}</option>
+      <option value="salary">{{ t('exp.catSalary') }}</option>
+      <option value="maintenance">{{ t('exp.catMaintenance') }}</option>
+      <option value="marketing">{{ t('exp.catMarketing') }}</option>
+      <option value="travel">{{ t('exp.catTravel') }}</option>
+      <option value="office">{{ t('exp.catOffice') }}</option>
+      <option value="insurance">{{ t('exp.catInsurance') }}</option>
+      <option value="tax">{{ t('exp.catTax') }}</option>
+      <option value="rent">{{ t('exp.catRent') }}</option>
+      <option value="other">{{ t('exp.catOther') }}</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="loadExpenses()">🔄 {{ t('exp.refresh') }}</button>
+  </div>
+  <div class="card"><div class="table-wrapper">
+    <table class="tbl"><thead><tr>
+      <th>{{ t('exp.date') }}</th><th>{{ t('exp.category') }}</th><th>{{ t('exp.description') }}</th><th>{{ t('exp.project') }}</th><th>{{ t('exp.amount') }}</th><th>{{ t('exp.paymentMethod') }}</th><th>{{ t('exp.payee') }}</th><th>{{ t('exp.recurring') }}</th><th>{{ t('exp.journalEntry') }}</th><th>{{ t('common.actions') }}</th>
+    </tr></thead>
+    <tbody id="expenses-table"><tr><td colspan="10"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
+  </div></div>
+</div>
+
+<!-- ==================== EXPENSE MODAL ==================== -->
+<div class="modal-overlay" id="mExpense" style="display:none">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h2>💸 {{ t('exp.newExpenseTitle') }}</h2><button class="close-btn" onclick="closeModal('mExpense')">✕</button></div>
+    <div class="modal-body">
+      <div id="mExpenseErr" style="display:none;padding:8px 12px;border-radius:8px;background:var(--err-light);color:var(--err);font-size:.8rem;margin-bottom:12px"></div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>{{ t('exp.project') }}</label>
+          <select class="input" id="exp-project"></select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('exp.categoryReq') }}</label>
+          <select class="input" id="exp-category">
+            <option value="utilities">{{ t('exp.catUtilities') }}</option>
+            <option value="salary">{{ t('exp.catSalary') }}</option>
+            <option value="maintenance">{{ t('exp.catMaintenance') }}</option>
+            <option value="marketing">{{ t('exp.catMarketing') }}</option>
+            <option value="travel">{{ t('exp.catTravel') }}</option>
+            <option value="office">{{ t('exp.catOffice') }}</option>
+            <option value="insurance">{{ t('exp.catInsurance') }}</option>
+            <option value="tax">{{ t('exp.catTax') }}</option>
+            <option value="rent">{{ t('exp.catRent') }}</option>
+            <option value="other">{{ t('exp.catOther') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>{{ t('exp.descriptionReq') }}</label>
+        <input class="input" id="exp-desc" placeholder="{{ t('exp.descPlaceholder') }}">
+      </div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>{{ t('exp.amountReq') }}</label>
+          <input class="input" id="exp-amount" type="number" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>{{ t('exp.date') }}</label>
+          <input class="input" id="exp-date" type="date">
+        </div>
+      </div>
+      <div class="form-row" style="margin-bottom:10px">
+        <div class="form-group">
+          <label>{{ t('exp.paymentMethod') }}</label>
+          <select class="input" id="exp-payment">
+            <option value="cash">{{ t('exp.cash') }}</option>
+            <option value="bank">{{ t('exp.bank') }}</option>
+            <option value="credit">{{ t('exp.credit') }}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>{{ t('exp.payeeOptional') }}</label>
+          <select class="input" id="exp-payee-type">
+            <option value="">{{ t('pw.noManager') }}</option>
+            <option value="employee">{{ t('exp.employee') }}</option>
+            <option value="supplier">{{ t('exp.supplier') }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>{{ t('exp.notes') }}</label>
+        <input class="input" id="exp-notes" placeholder="{{ t('exp.notesPlaceholder') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="exp-recurring"> {{ t('exp.recurringExpense') }}
+          </label>
+        </div>
+        <div class="form-group" id="exp-recurring-period-group" style="display:none">
+          <label>{{ t('exp.recurringPeriod') }}</label>
+          <select class="input" id="exp-recurring-period">
+            <option value="monthly">{{ t('exp.monthly') }}</option>
+            <option value="quarterly">{{ t('exp.quarterly') }}</option>
+            <option value="yearly">{{ t('exp.yearly') }}</option>
+          </select>
+        </div>
+      </div>
+      <div style="padding:8px 12px;border-radius:8px;background:var(--surface);font-size:.72rem;color:var(--tx-muted);margin-top:8px">
+        💡 {{ t('exp.journalNote') }}
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('mExpense')">{{ t('pw.cancel') }}</button>
+      <button class="btn btn-primary" onclick="saveExpense()">💾 {{ t('exp.save') }}</button>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== SHARES SECTION ==================== -->
 <div class="tab-content" id="re-shares">
   <div class="page-header">
@@ -265,6 +399,60 @@
     <table><thead><tr><th>{{ t('common.project') }}</th><th>{{ t('re.totalUnits') }}</th><th>{{ t('re.occupiedUnits') }}</th><th>{{ t('re.occupancyRate') }}</th></tr></thead>
     <tbody id="analytics-table"><tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr></tbody></table>
   </div></div>
+</div>
+
+<!-- ==================== PROJECT ANALYTICS SECTION ==================== -->
+<div class="tab-content" id="re-project-analytics">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+    <h2 style="font-size:1rem;font-weight:700;color:var(--tx);flex:1">📊 {{ t('fin.title') }}</h2>
+    <select class="input" id="re-analytics-project" style="max-width:250px" onchange="reLoadProjectAnalytics()">
+      <option value="">{{ t('exp.allProjects') }}</option>
+    </select>
+  </div>
+  
+  <!-- All Projects Summary KPIs -->
+  <div id="re-all-projects-kpis" class="kpi-grid" style="margin-bottom:20px"></div>
+  
+  <!-- All Projects Table -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-head"><h2>{{ t('fin.allProjectsSummary') }}</h2></div>
+    <div class="card-body">
+      <table class="tbl" id="re-all-projects-tbl">
+        <thead>
+          <tr>
+            <th>{{ t('fin.project') }}</th>
+            <th>{{ t('common.status') }}</th>
+            <th>{{ t('fin.units') }}</th>
+            <th>{{ t('fin.sold') }}</th>
+            <th>{{ t('fin.rented') }}</th>
+            <th>{{ t('fin.available') }}</th>
+            <th>{{ t('fin.occupancy') }}</th>
+            <th>{{ t('fin.costs') }}</th>
+            <th>{{ t('fin.revenue') }}</th>
+            <th>{{ t('fin.netProfit') }}</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Single Project Detail -->
+  <div id="re-project-detail" style="display:none">
+    <div class="kpi-grid" id="re-project-kpis" style="margin-bottom:20px"></div>
+    
+    <!-- Cost Breakdown -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-head"><h2>{{ t('fin.costBreakdown') }}</h2></div>
+      <div class="card-body" id="re-cost-breakdown"></div>
+    </div>
+    
+    <!-- Forecast -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-head"><h2>{{ t('fin.futureForecasts') }}</h2></div>
+      <div class="card-body" id="re-forecast-content"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ==================== SCREENINGS SECTION ==================== -->
@@ -702,6 +890,148 @@
       <div class="form-hint" id="payment-summary"></div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="savePayment()">{{ t('common.save') }}</button><button class="btn btn-outline" onclick="closeModal('payment-modal')">{{ t('common.cancel') }}</button></div>
+  </div>
+</div>
+
+<!-- مساعد إنشاء المشروع الجديد -->
+<div class="modal-overlay" id="mProjectWizard" style="display:none">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-head">
+      <h2>🏗️ {{ t('pw.title') }}</h2>
+      <button class="close-btn" onclick="closeModal('mProjectWizard')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <!-- Progress Steps -->
+      <div style="display:flex;align-items:center;gap:0;padding:16px 20px;background:var(--surface-dim);border-bottom:1px solid var(--border)">
+        <div class="pw-step active" id="pw-step1" style="flex:1;text-align:center;position:relative">
+          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--ac);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700">1</div>
+          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.projectInfo') }}</div>
+        </div>
+        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
+        <div class="pw-step" id="pw-step2" style="flex:1;text-align:center;position:relative">
+          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">2</div>
+          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.buildingsTitle') }}</div>
+        </div>
+        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
+        <div class="pw-step" id="pw-step3" style="flex:1;text-align:center;position:relative">
+          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">3</div>
+          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.floorsTitle') }}</div>
+        </div>
+        <div style="flex:0 0 40px;height:2px;background:var(--border);margin:0 -4px;margin-top:-16px"></div>
+        <div class="pw-step" id="pw-step4" style="flex:1;text-align:center;position:relative">
+          <div class="pw-num" style="width:32px;height:32px;border-radius:50%;background:var(--surface);color:var(--tx-muted);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid var(--border)">4</div>
+          <div style="font-size:.7rem;margin-top:4px;color:var(--tx-muted)">{{ t('pw.unitsTitle') }}</div>
+        </div>
+      </div>
+
+      <!-- Step 1: Project Info + Costs -->
+      <div class="pw-panel" id="pw-panel1" style="padding:20px">
+        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:16px;color:var(--tx)">{{ t('pw.projectInfo') }}</h3>
+        <div class="row2" style="margin-bottom:12px">
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.projectNameReq') }}</label>
+            <input class="input" id="pw-name" placeholder="{{ t('pw.namePlaceholder') }}">
+          </div>
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.location') }}</label>
+            <input class="input" id="pw-location" placeholder="{{ t('pw.locationPlaceholder') }}">
+          </div>
+        </div>
+        <div class="row2" style="margin-bottom:12px">
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.budget') }}</label>
+            <input class="input" id="pw-budget" type="number" placeholder="0">
+          </div>
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.manager') }}</label>
+            <select class="input" id="pw-manager"><option value="">{{ t('pw.noManager') }}</option></select>
+          </div>
+        </div>
+        <div class="row2" style="margin-bottom:16px">
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.startDate') }}</label>
+            <input class="input" id="pw-start" type="date">
+          </div>
+          <div>
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.endDate') }}</label>
+            <input class="input" id="pw-deadline" type="date">
+          </div>
+        </div>
+        <!-- تكاليف المشروع -->
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+          <h4 style="font-size:.82rem;font-weight:600;margin-bottom:12px;color:var(--ac)">💰 {{ t('pw.costs') }}</h4>
+          <div class="row3" style="margin-bottom:10px">
+            <div>
+              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.landCost') }}</label>
+              <input class="input" id="pw-land-cost" type="number" placeholder="0" style="font-size:.78rem">
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.papersCost') }}</label>
+              <input class="input" id="pw-papers-cost" type="number" placeholder="0" style="font-size:.78rem">
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('pw.constructionCost') }}</label>
+              <input class="input" id="pw-construction-cost" type="number" placeholder="0" style="font-size:.78rem">
+            </div>
+          </div>
+          <div class="row2">
+            <div>
+              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">{{ t('exp.paymentMethod') }}</label>
+              <select class="input" id="pw-payment-method" style="font-size:.78rem">
+                <option value="cash">{{ t('exp.cash') }}</option>
+                <option value="bank">{{ t('exp.bank') }}</option>
+                <option value="credit">{{ t('exp.credit') }}</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:var(--tx-muted);display:block;margin-bottom:3px">&nbsp;</label>
+              <div style="padding:8px 12px;border-radius:var(--r-sm);background:var(--surface);font-size:.75rem;color:var(--tx-muted)">
+                {{ t('pw.costNote') }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Buildings -->
+      <div class="pw-panel" id="pw-panel2" style="display:none;padding:20px">
+        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.buildingsTitle') }}</h3>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="flex:1">
+            <label style="font-size:.72rem;color:var(--tx-muted);display:block;margin-bottom:4px">{{ t('pw.buildingCount') }}</label>
+            <input class="input" id="pw-building-count" type="number" min="1" max="50" value="1" onchange="pwGenerateBuildings()">
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="pwGenerateBuildings()" style="margin-top:16px">{{ t('pw.createList') }}</button>
+        </div>
+        <div id="pw-buildings-list"></div>
+      </div>
+
+      <!-- Step 3: Floors -->
+      <div class="pw-panel" id="pw-panel3" style="display:none;padding:20px">
+        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.floorsTitle') }}</h3>
+        <p style="font-size:.75rem;color:var(--tx-muted);margin-bottom:12px">{{ t('pw.floorsNote') }}</p>
+        <div id="pw-floors-list"></div>
+      </div>
+
+      <!-- Step 4: Units -->
+      <div class="pw-panel" id="pw-panel4" style="display:none;padding:20px">
+        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:12px;color:var(--tx)">{{ t('pw.unitsTitle') }}</h3>
+        <p style="font-size:.75rem;color:var(--tx-muted);margin-bottom:12px">{{ t('pw.unitsDescription') }}</p>
+        <div id="pw-units-config"></div>
+      </div>
+
+      <!-- Summary Panel -->
+      <div class="pw-panel" id="pw-panel-summary" style="display:none;padding:20px">
+        <h3 style="font-size:.9rem;font-weight:600;margin-bottom:16px;color:var(--tx)">{{ t('pw.projectSummary') }}</h3>
+        <div id="pw-summary-content"></div>
+      </div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <button class="btn btn-ghost" id="pw-prev" onclick="pwPrev()" style="display:none">{{ t('pw.prev') }}</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" onclick="closeModal('mProjectWizard')">{{ t('pw.cancel') }}</button>
+      <button class="btn btn-primary" id="pw-next" onclick="pwNext()">{{ t('pw.next') }}</button>
+    </div>
   </div>
 </div>
 {% endblock %}

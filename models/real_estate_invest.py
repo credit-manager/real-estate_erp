@@ -11,9 +11,13 @@ class Building(db.Model):
     name = db.Column(db.String(150), nullable=False)
     floors_count = db.Column(db.Integer, default=0)
     description = db.Column(db.Text)
+    status = db.Column(db.String(30), default="planning")  # planning | under_construction | completed | operational
+    cost = db.Column(db.Numeric(15, 2), default=0)
+    cost_center_id = db.Column(db.Integer, db.ForeignKey("cost_centers.id"), nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     project = db.relationship("Project", backref="buildings")
+    cost_center = db.relationship("CostCenter", backref="buildings")
     floors = db.relationship(
         "Floor", backref="building", cascade="all, delete-orphan",
         order_by="Floor.number")
@@ -27,6 +31,9 @@ class Building(db.Model):
             "name": self.name,
             "floors_count": self.floors_count,
             "description": self.description,
+            "status": self.status,
+            "cost": float(self.cost or 0),
+            "cost_center_id": self.cost_center_id,
             "units_count": len(self.units),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -41,7 +48,11 @@ class Floor(db.Model):
     number = db.Column(db.Integer, default=1)
     name = db.Column(db.String(100))
     description = db.Column(db.String(200))
+    cost = db.Column(db.Numeric(15, 2), default=0)
+    cost_center_id = db.Column(db.Integer, db.ForeignKey("cost_centers.id"), nullable=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    cost_center = db.relationship("CostCenter", backref="floors")
 
     def to_dict(self):
         return {
@@ -51,6 +62,8 @@ class Floor(db.Model):
             "number": self.number,
             "name": self.name,
             "description": self.description,
+            "cost": float(self.cost or 0),
+            "cost_center_id": self.cost_center_id,
             "units_count": len(self.units),
         }
 
@@ -61,16 +74,22 @@ class UnitType(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), nullable=False)
+    name_ar = db.Column(db.String(80))
     code = db.Column(db.String(30))
     is_active = db.Column(db.Boolean, default=True)
+    default_price_per_sqm = db.Column(db.Numeric(15, 2), default=0)
+    default_rent_per_sqm = db.Column(db.Numeric(15, 2), default=0)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     def to_dict(self):
         return {
             "id": self.id,
             "name": self.name,
+            "name_ar": self.name_ar,
             "code": self.code,
             "is_active": bool(self.is_active),
+            "default_price_per_sqm": float(self.default_price_per_sqm or 0),
+            "default_rent_per_sqm": float(self.default_rent_per_sqm or 0),
             "units_count": len(self.units),
         }
 
@@ -86,6 +105,8 @@ class Owner(db.Model):
     email = db.Column(db.String(120))
     address = db.Column(db.String(200))
     type = db.Column(db.String(30), default="individual")  # individual | company
+    nationality = db.Column(db.String(60))
+    notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
     def to_dict(self):
@@ -97,6 +118,8 @@ class Owner(db.Model):
             "email": self.email,
             "address": self.address,
             "type": self.type,
+            "nationality": self.nationality,
+            "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

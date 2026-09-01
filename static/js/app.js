@@ -413,9 +413,30 @@ document.addEventListener("DOMContentLoaded", () => {
     return p[2] + "/" + p[1] + "/" + p[0];
   }
   function _dmyToISO(dmy) {
-    if (!dmy || !/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) return "";
-    var p = dmy.split("/");
-    return p[2] + "-" + p[1] + "-" + p[0];
+    if (!dmy) return "";
+    // Support DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dmy)) {
+      var p = dmy.split("/");
+      return p[2] + "-" + p[1] + "-" + p[0];
+    }
+    // Support DDMMYY (6 digits)
+    if (/^\d{6}$/.test(dmy)) {
+      var dd = dmy.slice(0, 2);
+      var mm = dmy.slice(2, 4);
+      var yy = dmy.slice(4, 6);
+      var yyyy = parseInt(yy) > 50 ? "19" + yy : "20" + yy;
+      var d = new Date(yyyy + "-" + mm + "-" + dd);
+      if (!isNaN(d.getTime())) return yyyy + "-" + mm + "-" + dd;
+    }
+    // Support DDMMYYYY (8 digits without slashes)
+    if (/^\d{8}$/.test(dmy)) {
+      var dd2 = dmy.slice(0, 2);
+      var mm2 = dmy.slice(2, 4);
+      var yyyy2 = dmy.slice(4, 8);
+      var d2 = new Date(yyyy2 + "-" + mm2 + "-" + dd2);
+      if (!isNaN(d2.getTime())) return yyyy2 + "-" + mm2 + "-" + dd2;
+    }
+    return "";
   }
 
   function convertDateInput(inp) {
@@ -448,6 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wrap.appendChild(icon);
 
     picker.addEventListener("change", function () {
+      inp.dataset.pickerOpen = "";
       inp.value = _isoToDMY(this.value);
       inp.dispatchEvent(new Event("change"));
     });
@@ -489,11 +511,35 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     inp.addEventListener("blur", function () {
+      var raw = nativeGet.call(this).replace(/\D/g, "");
+      // Auto-convert DDMMYY to DD/MM/YYYY on blur
+      if (/^\d{6}$/.test(raw)) {
+        var iso = _dmyToISO(raw);
+        if (iso) {
+          nativeSet.call(this, _isoToDMY(iso));
+          picker.value = iso;
+        }
+      }
+      this.dataset.pickerOpen = "";
       var v = _dmyToISO(nativeGet.call(this));
       if (this.value && !v) {
         this.style.borderColor = "var(--danger, red)";
         setTimeout(() => { this.style.borderColor = ""; }, 2000);
       }
+    });
+
+    // Calendar icon click: open native picker directly
+    icon.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      // Sync picker with current input value
+      var currentISO = _dmyToISO(nativeGet.call(inp));
+      if (currentISO) picker.value = currentISO;
+      picker.showPicker ? picker.showPicker() : picker.click();
+    });
+
+    picker.addEventListener("blur", function () {
+      setTimeout(function () { inp.dataset.pickerOpen = ""; }, 200);
     });
   }
 
@@ -720,12 +766,12 @@ document.addEventListener("DOMContentLoaded", () => {
       var d = data.data || {};
       html = '<h4>' + escapeHtml(ans || "Dashboard") + '</h4>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">الموظفون النشطون</div><div style="font-size:20px;font-weight:700;">' + (d.employees_active || 0) + '</div></div>' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">العملاء</div><div style="font-size:20px;font-weight:700;">' + (d.customers_count || 0) + '</div></div>' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">الفواتير</div><div style="font-size:20px;font-weight:700;">' + (d.invoices_count || 0) + '</div></div>' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">أقساط متأخرة</div><div style="font-size:20px;font-weight:700;color:#ef4444;">' + (d.overdue_installments || 0) + '</div></div>' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">الإيرادات</div><div style="font-size:20px;font-weight:700;color:#22c55e;">' + formatCompact(d.total_revenue || 0) + '</div></div>' +
-        '<div><div style="font-size:11px;color:var(--muted-foreground);">المستحقات</div><div style="font-size:20px;font-weight:700;color:#f59e0b;">' + formatCompact(d.total_receivable || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.activeEmployees") + '</div><div style="font-size:20px;font-weight:700;">' + (d.employees_active || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.customers") + '</div><div style="font-size:20px;font-weight:700;">' + (d.customers_count || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.invoices") + '</div><div style="font-size:20px;font-weight:700;">' + (d.invoices_count || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.overdueInstallments") + '</div><div style="font-size:20px;font-weight:700;color:#ef4444;">' + (d.overdue_installments || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.revenue") + '</div><div style="font-size:20px;font-weight:700;color:#22c55e;">' + formatCompact(d.total_revenue || 0) + '</div></div>' +
+        '<div><div style="font-size:11px;color:var(--muted-foreground);">' + t("dashboard.receivables") + '</div><div style="font-size:20px;font-weight:700;color:#f59e0b;">' + formatCompact(d.total_receivable || 0) + '</div></div>' +
         '</div>';
     } else if (type === "report") {
       html = '<div class="ai-answer-text">' + escapeHtml(ans) + '</div>';

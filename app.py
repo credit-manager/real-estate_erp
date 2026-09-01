@@ -403,6 +403,7 @@ def create_app():
     from routes.payroll import payroll_bp, payroll_pages_bp
     from routes.manufacturing import mf_bp, mf_pages_bp
     from routes.rentals import rental_bp, rental_pages_bp
+    from routes.project_finance import project_finance_bp
     from routes.assets import assets_bp
     from routes.mobile import mobile_bp, mobile_api
     from routes.license import license_bp, validate_license
@@ -451,6 +452,7 @@ def create_app():
     app.register_blueprint(mf_pages_bp)
     app.register_blueprint(rental_bp)
     app.register_blueprint(rental_pages_bp)
+    app.register_blueprint(project_finance_bp)
     app.register_blueprint(assets_bp)
     app.register_blueprint(mobile_bp)
     app.register_blueprint(mobile_api)
@@ -580,24 +582,24 @@ def create_app():
         import traceback
         current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
         if _is_api_path():
-            return jsonify({"success": False, "message": "خطأ داخلي في الخادم"}), 500
-        return "<h1>خطأ داخلي</h1><p>حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.</p>", 500
+            return jsonify({"success": False, "message": make_t()("common.serverError")}), 500
+        return "<h1>" + make_t()("common.serverError") + "</h1><p>" + make_t()("common.serverErrorDesc") + "</p>", 500
 
     @app.errorhandler(404)
     def not_found(e):
         if _is_api_path():
-            return jsonify({"success": False, "message": "غير موجود"}), 404
-        return "<h1>غير موجود</h1>", 404
+            return jsonify({"success": False, "message": make_t()("common.notFound")}), 404
+        return "<h1>" + make_t()("common.notFound") + "</h1>", 404
 
     @app.errorhandler(405)
     def method_not_allowed(e):
         if _is_api_path():
-            return jsonify({"success": False, "message": "الطريقة غير مسموحة"}), 405
-        return "<h1>غير مسموح</h1>", 405
+            return jsonify({"success": False, "message": make_t()("common.methodNotAllowed")}), 405
+        return "<h1>" + make_t()("common.methodNotAllowed") + "</h1>", 405
 
     @app.errorhandler(429)
     def rate_limit_exceeded(e):
-        return jsonify({"success": False, "message": "تم تجاوز حد الطلبات. يرجى الانتظار."}), 429
+        return jsonify({"success": False, "message": make_t()("common.rateLimitExceeded")}), 429
 
     # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
     @app.before_request

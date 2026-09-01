@@ -167,18 +167,22 @@ function populateModalSelects() {
     `<option value="visit">${t("crm.action.visit")}</option>`);
 }
 
-// ============ TAB SCROLL LINKS ============
+// ============ TAB SWITCH (fixed) ============
+function crmSwitchTab(targetId) {
+  document.querySelectorAll("#crm-tabs a.tab-btn").forEach((l) => l.classList.toggle("on", l.getAttribute("href") === targetId));
+  document.querySelectorAll("#crm-tabs ~ .tab-content").forEach((sec) => sec.classList.toggle("active", ("#" + sec.id) === targetId));
+  history.replaceState(null, "", targetId);
+}
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("#crm-tabs a.tab-btn").forEach((link) => {
     link.addEventListener("click", (e) => {
       e.preventDefault();
-      const target = document.querySelector(link.getAttribute("href"));
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        history.replaceState(null, "", link.getAttribute("href"));
-      }
+      const targetId = link.getAttribute("href");
+      if (document.querySelector(targetId)) crmSwitchTab(targetId);
     });
   });
+  const first = document.querySelector(".tab-content.active");
+  crmSwitchTab("#" + (first ? first.id : "crm-customers"));
   loadAll();
 });
 

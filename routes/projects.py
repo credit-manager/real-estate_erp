@@ -1,7 +1,8 @@
 import re
 from datetime import datetime
+import datetime as dt_module
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from sqlalchemy import Date as SqlDate
 
 from database import db
@@ -150,14 +151,115 @@ def create_project():
         spent=data.get("spent", 0),
         manager_id=data.get("manager_id"),
         completion=data.get("completion", 0),
+        land_cost=data.get("land_cost", 0),
+        papers_cost=data.get("papers_cost", 0),
+        construction_cost=data.get("construction_cost", 0),
     )
     for f in ["start_date", "deadline"]:
         if data.get(f):
             setattr(project, f, _clean_value(Project, f, data[f]))
     db.session.add(project)
     db.session.commit()
+
+    # Auto-create cost items + journal entries for initial project costs
+    _create_initial_cost_entries(project, data)
+
     log_action("create", "project", project.id, project.name)
     return jsonify(project.to_dict()), 201
+
+
+def _create_initial_cost_entries(project, data):
+    """Create ProjectCostItem + journal entries for land/papers/construction costs."""
+    from models.project_costs import ProjectCostItem
+    from utils import accounting as acct
+    from models import Account
+    from models.financial_year import FinancialYear
+    from utils.settings import get_int
+
+    payment_method = data.get("payment_method", "cash")
+    cost_date = dt_module.date.today()
+
+    costs = [
+        ("land", float(data.get("land_cost") or 0), "شراء الأرض"),
+        ("papers", float(data.get("papers_cost") or 0), "تكاليف الأوراق والتراخيص"),
+        ("construction", float(data.get("construction_cost") or 0), "تكاليف البناء"),
+    ]
+
+    # Get default financial year
+    year_id = get_int("default_financial_year_id")
+    year = db.session.get(FinancialYear, year_id) if year_id else None
+    if not year:
+        year = FinancialYear.query.filter_by(is_active=True, is_closed=False) \
+            .order_by(FinancialYear.start_date.desc()).first()
+
+    CATEGORY_ACCOUNT_MAP = {
+        "land": "acc_re_cost_land",
+        "papers": "acc_re_cost_licensing",
+        "construction": "acc_re_cost_construction",
+    }
+
+    for category, amount, description in costs:
+        if amount <= 0:
+            continue
+
+        # Determine expense account
+        acc_key = CATEGORY_ACCOUNT_MAP.get(category, "acc_re_cost_operating")
+        acc_id = acct.default_account_id(acc_key)
+        if not acc_id:
+            code = acct.DEFAULT_ACCOUNT_MAP.get(acc_key)
+            if code:
+                acc = Account.query.filter_by(code=code).first()
+                acc_id = acc.id if acc else None
+        expense_acc = db.session.get(Account, acc_id) if acc_id else None
+
+        # Determine credit account
+        if payment_method == "credit":
+            credit_code = "210100"
+        elif payment_method == "bank":
+            credit_code = "110200"
+        else:
+            credit_code = "110100"
+        credit_acc = Account.query.filter_by(code=credit_code).first()
+
+        if not expense_acc or not credit_acc:
+            continue
+
+        # Create cost item
+        cost = ProjectCostItem(
+            project_id=project.id,
+            cost_date=cost_date,
+            category=category,
+            description=description,
+            amount=amount,
+            account_id=expense_acc.id,
+            payment_method=payment_method,
+            supplier_account_id=credit_acc.id if payment_method == "credit" else None,
+            reference=f"إنشاء مشروع: {project.name}",
+            created_by=session.get("user_id"),
+        )
+
+        # Create journal entry
+        try:
+            entry = acct.make_entry(
+                [
+                    {"account_id": expense_acc.id, "debit": amount, "credit": 0, "description": description},
+                    {"account_id": credit_acc.id, "debit": 0, "credit": amount, "description": description},
+                ],
+                date=cost_date,
+                description=f"تكلفة {description} - مشروع {project.name}",
+                financial_year_id=year.id if year else None,
+                source="project_cost",
+                ref_type="project_cost_item",
+                ref_id=None,
+                commit=False,
+            )
+            cost.journal_entry_id = entry.id if entry else None
+        except Exception:
+            pass
+
+        db.session.add(cost)
+
+    db.session.commit()
 
 
 @projects_bp.route("/<int:project_id>", methods=["GET"])
@@ -499,3 +601,236 @@ register_crud("/equipment", Equipment,
 register_crud("/<int:project_id>/labor", LaborAssignment,
               ["project_id", "employee_id", "name", "trade", "start_date", "end_date",
                "daily_rate", "status"], parent_field="project_id")
+
+
+# ==================== سير عمل إنشاء المشروع (Wizard) ====================
+
+from models.real_estate_invest import Building, Floor, UnitType
+from models.unit import RealEstateUnit
+
+
+@projects_bp.route("/<int:project_id>/wizard/buildings", methods=["POST"])
+@require_api("projects", "create")
+def wizard_create_buildings(project_id):
+    """إنشاء مباني متعددة للمشروع دفعة واحدة."""
+    project = Project.query.get_or_404(project_id)
+    data = request.get_json() or {}
+    buildings_data = data.get("buildings", [])
+
+    if not buildings_data:
+        return jsonify({"message": "يجب إدخال بيانات مباني واحدة على الأقل"}), 400
+
+    created = []
+    for b in buildings_data:
+        building = Building(
+            project_id=project_id,
+            code=b.get("code", ""),
+            name=b.get("name", ""),
+            floors_count=b.get("floors_count", 0),
+            description=b.get("description", ""),
+        )
+        db.session.add(building)
+        db.session.flush()
+        created.append(building.to_dict())
+
+    db.session.commit()
+    log_action("create", "buildings_wizard", project_id, f"إنشاء {len(created)} مبنى للمشروع {project.name}")
+    return jsonify({"success": True, "buildings": created, "count": len(created)}), 201
+
+
+@projects_bp.route("/<int:project_id>/wizard/floors", methods=["POST"])
+@require_api("projects", "create")
+def wizard_create_floors(project_id):
+    """إنشاء طوابق لمبنى معين."""
+    data = request.get_json() or {}
+    building_id = data.get("building_id")
+    floors_data = data.get("floors", [])
+
+    if not building_id or not floors_data:
+        return jsonify({"message": "building_id و floors مطلوبان"}), 400
+
+    building = Building.query.get(building_id)
+    if not building or building.project_id != project_id:
+        return jsonify({"message": "المبنى غير موجود"}), 404
+
+    created = []
+    for f in floors_data:
+        floor = Floor(
+            building_id=building_id,
+            number=f.get("number", 0),
+            name=f.get("name", ""),
+            description=f.get("description", ""),
+        )
+        db.session.add(floor)
+        db.session.flush()
+        created.append(floor.to_dict())
+
+    # Update building floors_count
+    building.floors_count = Floor.query.filter_by(building_id=building_id).count() + len(created)
+    db.session.commit()
+
+    log_action("create", "floors_wizard", project_id, f"إنشاء {len(created)} طابق في مبنى {building.name}")
+    return jsonify({"success": True, "floors": created, "count": len(created)}), 201
+
+
+@projects_bp.route("/<int:project_id>/wizard/floors-bulk", methods=["POST"])
+@require_api("projects", "create")
+def wizard_create_floors_bulk(project_id):
+    """إنشاء طوابق لكل المباني دفعة واحدة."""
+    data = request.get_json() or {}
+    floors_per_building = data.get("floors_per_building", {})
+
+    if not floors_per_building:
+        return jsonify({"message": "يجب تحديد عدد الطوابق لكل مبنى"}), 400
+
+    total_floors = 0
+    for building_id_str, count in floors_per_building.items():
+        building_id = int(building_id_str)
+        count = int(count or 0)
+        if count <= 0:
+            continue
+        building = Building.query.get(building_id)
+        if not building or building.project_id != project_id:
+            continue
+        for i in range(1, count + 1):
+            floor = Floor(
+                building_id=building_id,
+                number=i,
+                name=f"طابق {i}",
+            )
+            db.session.add(floor)
+            total_floors += 1
+        building.floors_count = count
+
+    db.session.commit()
+    log_action("create", "floors_wizard_bulk", project_id, f"إنشاء {total_floors} طابق للمشروع")
+    return jsonify({"success": True, "total_floors": total_floors}), 201
+
+
+@projects_bp.route("/<int:project_id>/wizard/units", methods=["POST"])
+@require_api("projects", "create")
+def wizard_create_units(project_id):
+    """إنشاء وحدات لكل طوابق المبنى."""
+    data = request.get_json() or {}
+    building_id = data.get("building_id")
+    unit_type_id = data.get("unit_type_id")
+    units_per_floor = data.get("units_per_floor", 0)
+    area = data.get("area", 0)
+    price = data.get("price", 0)
+    prefix = data.get("prefix", "")
+    start_number = data.get("start_number", 1)
+
+    if not building_id or units_per_floor <= 0:
+        return jsonify({"message": "building_id و units_per_floor مطلوبان"}), 400
+
+    building = Building.query.get(building_id)
+    if not building or building.project_id != project_id:
+        return jsonify({"message": "المبنى غير موجود"}), 400
+
+    floors = Floor.query.filter_by(building_id=building_id).order_by(Floor.number.asc()).all()
+    if not floors:
+        return jsonify({"message": "لا توجد طوابق في هذا المبنى، أنشئ الطوابق أولاً"}), 400
+
+    created = []
+    counter = start_number
+    for floor in floors:
+        for u in range(1, units_per_floor + 1):
+            unit_code = f"{prefix}{counter:04d}" if prefix else f"B{building.id}F{floor.number}U{u}"
+            unit = RealEstateUnit(
+                unit_code=unit_code,
+                project_id=project_id,
+                building_id=building_id,
+                floor_id=floor.id,
+                unit_type_id=unit_type_id,
+                area=area,
+                price=price,
+                status="available",
+            )
+            db.session.add(unit)
+            db.session.flush()
+            created.append(unit.to_dict())
+            counter += 1
+
+    db.session.commit()
+    log_action("create", "units_wizard", project_id, f"إنشاء {len(created)} وحدة في مبنى {building.name}")
+    return jsonify({"success": True, "units": created, "count": len(created)}), 201
+
+
+@projects_bp.route("/<int:project_id>/wizard/units-all", methods=["POST"])
+@require_api("projects", "create")
+def wizard_create_units_all(project_id):
+    """إنشاء وحدات لكل المباني والطوابق دفعة واحدة."""
+    data = request.get_json() or {}
+    config = data.get("config", {})
+
+    if not config:
+        return jsonify({"message": "يجب تحيد إعدادات الوحدات"}), 400
+
+    total_units = 0
+    buildings = Building.query.filter_by(project_id=project_id).all()
+    for building in buildings:
+        b_config = config.get(str(building.id), config.get(building.id, {}))
+        if not b_config:
+            continue
+        unit_type_id = b_config.get("unit_type_id")
+        units_per_floor = int(b_config.get("units_per_floor", 0))
+        area = b_config.get("area", 0)
+        price = b_config.get("price", 0)
+        prefix = b_config.get("prefix", f"B{building.id}")
+
+        if units_per_floor <= 0:
+            continue
+
+        floors = Floor.query.filter_by(building_id=building.id).order_by(Floor.number.asc()).all()
+        counter = 1
+        for floor in floors:
+            for u in range(1, units_per_floor + 1):
+                unit_code = f"{prefix}{counter:04d}"
+                unit = RealEstateUnit(
+                    unit_code=unit_code,
+                    project_id=project_id,
+                    building_id=building.id,
+                    floor_id=floor.id,
+                    unit_type_id=unit_type_id,
+                    area=area,
+                    price=price,
+                    status="available",
+                )
+                db.session.add(unit)
+                total_units += 1
+                counter += 1
+
+    db.session.commit()
+    log_action("create", "units_wizard_all", project_id, f"إنشاء {total_units} وحدة لكل مشاريع المشروع")
+    return jsonify({"success": True, "total_units": total_units}), 201
+
+
+@projects_bp.route("/<int:project_id>/wizard/complete", methods=["GET"])
+@require_api("projects", "view")
+def wizard_complete_summary(project_id):
+    """ملخص بعد إنهاء الـ wizard — يعرض إحصائيات المشروع."""
+    project = Project.query.get_or_404(project_id)
+    buildings = Building.query.filter_by(project_id=project_id).all()
+    buildings_summary = []
+    for b in buildings:
+        floors_count = Floor.query.filter_by(building_id=b.id).count()
+        units_count = RealEstateUnit.query.filter_by(building_id=b.id).count()
+        buildings_summary.append({
+            "id": b.id,
+            "name": b.name,
+            "code": b.code,
+            "floors_count": floors_count,
+            "units_count": units_count,
+        })
+
+    total_buildings = len(buildings)
+    total_floors = sum(bf["floors_count"] for bf in buildings_summary)
+    total_units = RealEstateUnit.query.filter_by(project_id=project_id).count()
+
+    return jsonify({
+        "project": project.to_dict(),
+        "total_buildings": total_buildings,
+        "total_floors": total_floors,
+        "total_units": total_units,
+        "buildings": buildings_summary,
+    })
