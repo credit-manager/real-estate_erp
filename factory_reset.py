@@ -106,7 +106,6 @@ DELETE_ORDER = [
     # --- Sales ---
     ("sales_return_items", "بنود مرتجعات البيع"),
     ("sales_returns", "مرتجعات البيع"),
-    ("sales_commission_items", "عمولات المبيعات"),
     ("sales_order_items", "بنود أوراق البيع"),
     ("sales_orders", "أوراق البيع"),
     # --- Procurement ---
@@ -179,23 +178,10 @@ DELETE_ORDER = [
     # --- HR ---
     ("payroll_lines", "بنود الرواتب"),
     ("payroll_runs", "تشغيلات الرواتب"),
-    ("end_of_service", "مستحقات نهاية الخدمة"),
-    ("tax_brackets", "شرائح الضرائب"),
     ("payroll_bonuses", "المكافآت"),
     ("payroll_deductions", "الخصومات"),
     ("payroll_allowances", "البدلات"),
-    ("employee_salaries", "رواتب الموظفين"),
     ("payroll_settings", "إعدادات الرواتب"),
-    ("training_enrollments", "تسجيلات التدريب"),
-    ("training_programs", "برامج التدريب"),
-    ("performance_reviews", "تقييمات الأداء"),
-    ("employee_loans", "قروض الموظفين"),
-    ("employee_advances", "سلف الموظفين"),
-    ("penalties", "الجزاءات"),
-    ("leave_requests", "طلبات الإجازات"),
-    ("attendance_records", "سجلات الحضور"),
-    ("employment_contracts", "عقود العمل"),
-    ("recruitments", "التوظيف"),
     # --- Core ---
     ("customers", "العملاء"),
     ("suppliers", "الموردين"),
@@ -223,11 +209,18 @@ PRESERVE_TABLES = {
 
 def _table_exists(conn, table_name):
     """Check if a table exists in the database."""
-    result = conn.execute(text(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_name = :t)"
-    ), {"t": table_name})
-    return result.scalar()
+    try:
+        result = conn.execute(text(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = :t)"
+        ), {"t": table_name})
+        return result.scalar()
+    except Exception:
+        try:
+            conn.execute(text("ROLLBACK"))
+        except Exception:
+            pass
+        return False
 
 
 def _count_table(conn, table_name):
@@ -237,7 +230,12 @@ def _count_table(conn, table_name):
     try:
         result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
         return result.scalar() or 0
-    except Exception:
+    except Exception as e:
+        log.warning("Failed to count %s: %s", table_name, e)
+        try:
+            conn.execute(text("ROLLBACK"))
+        except Exception:
+            pass
         return 0
 
 
@@ -250,6 +248,10 @@ def _delete_table(conn, table_name):
         return result.rowcount
     except Exception as e:
         log.warning("Failed to delete %s: %s", table_name, e)
+        try:
+            conn.execute(text("ROLLBACK"))
+        except Exception:
+            pass
         return 0
 
 

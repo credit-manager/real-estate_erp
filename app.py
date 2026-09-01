@@ -310,6 +310,25 @@ def _csrf_valid():
     return hmac.compare_digest(str(expected), str(supplied))
 
 
+def _register_pool_event(app):
+    """Register a pool checkout event to auto-rollback failed psycopg2 connections."""
+    @app.before_request
+    def _check_failed_txn():
+        try:
+            engine = db.engine
+            pool = engine.pool
+            # Check the current connection's DBAPI status
+            conn = db.session.connection()
+            dbapi_conn = conn.connection.dbapi_connection
+            if hasattr(dbapi_conn, 'status') and dbapi_conn.status == 2:
+                dbapi_conn.rollback()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+
 def create_app():
     root = _source_dir()
     if root:
@@ -345,14 +364,7 @@ def create_app():
     db.init_app(app)
 
     # Auto-rollback failed psycopg2 connections when returned to pool
-    from sqlalchemy import event
-    @event.listens_for(db.engine, "checkout")
-    def _auto_rollback_bad_conn(dbapi_conn, connection_rec, connection_proxy):
-        try:
-            if dbapi_conn.status == 2:  # psycopg2.pq.constants.status.IN_FAILED_TRANSACTION
-                dbapi_conn.rollback()
-        except Exception:
-            pass
+    _register_pool_event(app)
 
     # CORS — allow Control Center frontend on localhost:3000
     CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"],
