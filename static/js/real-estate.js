@@ -2217,7 +2217,7 @@ async function pwSaveStep1() {
   try {
     const resp = await fetch('/api/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({
         name,
         location: document.getElementById('pw-location').value,
@@ -2274,7 +2274,7 @@ async function pwSaveStep2AndGo() {
   try {
     const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/buildings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({ buildings })
     });
     if (!resp.ok) throw new Error('Failed');
@@ -2311,7 +2311,7 @@ async function pwSaveStep3AndGo() {
   try {
     const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/floors-bulk`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({ floors_per_building: floorsPerBuilding })
     });
     if (!resp.ok) throw new Error('Failed');
@@ -2376,7 +2376,7 @@ async function pwCreateProject() {
   try {
     const resp = await fetch(`/api/projects/${pwState.projectId}/wizard/units-all`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({ config })
     });
     if (!resp.ok) throw new Error('Failed');
