@@ -479,4 +479,79 @@
 
   loadSettings();
 
-  })();
+  // ── Factory Reset ──
+  var btnPreview = document.getElementById("btn-reset-preview");
+  var btnExecute = document.getElementById("btn-reset-execute");
+  var confirmInput = document.getElementById("reset-confirm-input");
+  var resetMsg = document.getElementById("reset-msg");
+
+  if (btnPreview) {
+    btnPreview.addEventListener("click", function () {
+      btnPreview.disabled = true;
+      btnPreview.textContent = "جاري المعاينة...";
+      fetch("/api/factory-reset/preview", {
+        method: "POST",
+        headers: { "X-CSRF-Token": CSRF_TOKEN }
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        btnPreview.disabled = false;
+        btnPreview.textContent = "معاينة";
+        if (!d.success) { resetMsg.textContent = d.message || "خطأ"; resetMsg.style.color = "#dc3545"; return; }
+        var preview = d.preview;
+        var wrap = document.getElementById("reset-preview");
+        var summary = document.getElementById("reset-summary-text");
+        var tbody = document.querySelector("#reset-preview-table tbody");
+        wrap.style.display = "block";
+        summary.textContent = "إجمالي: " + preview.total_rows + " صف سيُحذف من " + preview.items.length + " جدول";
+        tbody.innerHTML = "";
+        preview.items.forEach(function (item) {
+          var tr = document.createElement("tr");
+          tr.innerHTML = "<td>" + item.table + "</td><td>" + item.description + "</td><td>" + item.count + "</td>";
+          tbody.appendChild(tr);
+        });
+      }).catch(function () {
+        btnPreview.disabled = false;
+        btnPreview.textContent = "معاينة";
+        resetMsg.textContent = "خطأ في الاتصال";
+        resetMsg.style.color = "#dc3545";
+      });
+    });
+  }
+
+  if (confirmInput) {
+    confirmInput.addEventListener("input", function () {
+      btnExecute.disabled = confirmInput.value.trim() !== "RESET";
+    });
+  }
+
+  if (btnExecute) {
+    btnExecute.addEventListener("click", function () {
+      if (!confirm("هل أنت متأكد من حذف جميع البيانات؟")) return;
+      btnExecute.disabled = true;
+      btnExecute.textContent = "جاري الحذف...";
+      fetch("/api/factory-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF_TOKEN },
+        body: JSON.stringify({
+          confirm: confirmInput.value.trim(),
+          seed_demo: document.getElementById("reset-seed-demo").checked
+        })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.success) {
+          resetMsg.textContent = "تم! " + d.total_deleted + " صف تم حذفه. إعادة تحميل...";
+          resetMsg.style.color = "#28a745";
+          setTimeout(function () { location.reload(); }, 2000);
+        } else {
+          resetMsg.textContent = d.error || d.message || "خطأ";
+          resetMsg.style.color = "#dc3545";
+          btnExecute.disabled = false;
+          btnExecute.textContent = "حذف جميع البيانات";
+        }
+      }).catch(function () {
+        resetMsg.textContent = "خطأ في الاتصال";
+        resetMsg.style.color = "#dc3545";
+        btnExecute.disabled = false;
+        btnExecute.textContent = "حذف جميع البيانات";
+      });
+    });
+  }
+})();
