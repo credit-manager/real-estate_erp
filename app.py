@@ -605,6 +605,18 @@ def create_app():
     def rate_limit_exceeded(e):
         return jsonify({"success": False, "message": make_t()("common.rateLimitExceeded")}), 429
 
+    # إعادة تعيين المعاملة الفاشلة تلقائياً لمنع InFailedSqlTransaction
+    @app.before_request
+    def reset_failed_transaction():
+        try:
+            if db.session.is_active:
+                db.session.execute(db.text("SELECT 1"))
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
     # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
     @app.before_request
     def protect_csrf():
