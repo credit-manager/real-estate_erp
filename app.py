@@ -310,16 +310,6 @@ def _csrf_valid():
     return hmac.compare_digest(str(expected), str(supplied))
 
 
-def _register_pool_event(app):
-    """Reset poisoned session before every request."""
-    @app.before_request
-    def _reset_session():
-        try:
-            db.session.remove()
-        except Exception:
-            pass
-
-
 def create_app():
     root = _source_dir()
     if root:
@@ -354,10 +344,7 @@ def create_app():
 
     db.init_app(app)
 
-    # Auto-rollback failed psycopg2 connections when returned to pool
-    _register_pool_event(app)
-
-    # CORS — allow Control Center frontend on localhost:3000
+    # CORS
     CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"],
          supports_credentials=True, expose_headers=["Content-Type"])
 

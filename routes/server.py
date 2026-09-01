@@ -191,22 +191,4 @@ def test_ai_provider():
     return jsonify(result)
 
 
-@server_bp.route("/api/factory-reset/preview", methods=["POST"])
-@require_api("settings", "edit")
-def factory_reset_preview():
-    from factory_reset import get_reset_preview
-    preview = get_reset_preview()
-    return jsonify({"success": True, "preview": preview})
 
-
-@server_bp.route("/api/factory-reset", methods=["POST"])
-@require_api("settings", "edit")
-def factory_reset():
-    from factory_reset import factory_reset as do_reset
-    data = request.get_json(silent=True) or {}
-    confirm = (data.get("confirm") or "").strip()
-    if confirm != "RESET":
-        return jsonify({"success": False, "message": "اكتب RESET للتأكيد"}), 400
-    seed_demo = data.get("seed_demo", False)
-    result = do_reset(seed_demo=seed_demo)
-    return jsonify(result)
