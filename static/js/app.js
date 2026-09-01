@@ -1207,13 +1207,17 @@ window.toastError = toastError;
 
 function closeModal(id) {
   var el = document.getElementById(id);
-  if (el) el.classList.remove("active");
+  if (el) {
+    el.classList.remove("active");
+    el.style.display = 'none';
+  }
 }
 window.closeModal = closeModal;
 
 function openModal(id) {
   var el = document.getElementById(id);
   if (el) {
+    el.style.display = '';
     el.classList.add("active");
     if (window._convertDateInput) {
       el.querySelectorAll('input[type="date"]').forEach(window._convertDateInput);
