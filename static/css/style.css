@@ -4345,70 +4345,81 @@ html[dir="ltr"] .ai-msg-bot .ai-result-card { border-radius: 12px 12px 2px 12px;
 
 /* ==================== Project Wizard ==================== */
 .pw-progress-bar {
-  padding: 20px 24px 0;
+  padding: 20px 28px 0;
 }
 .pw-progress-track {
   height: 3px;
   background: var(--border);
   border-radius: 4px;
-  margin-bottom: 18px;
-  overflow: hidden;
+  margin-bottom: 20px;
+  overflow: visible;
+  position: relative;
 }
 .pw-progress-fill {
   height: 100%;
-  background: var(--ac);
+  background: linear-gradient(90deg, var(--ok), var(--ac));
   border-radius: 4px;
   width: 0%;
   transition: width 0.4s var(--ease);
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 .pw-steps-row {
   display: flex;
   justify-content: space-between;
-  gap: 4px;
+  gap: 8px;
+  position: relative;
 }
 .pw-step-dot {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
   position: relative;
+  z-index: 1;
 }
 .pw-dot-num {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  background: var(--surface);
+  background: var(--card);
   color: var(--tx-muted);
   border: 2px solid var(--border);
   transition: all 0.3s var(--ease);
+  position: relative;
+  z-index: 2;
 }
 .pw-step-dot.active .pw-dot-num {
   background: var(--ac);
   color: #fff;
   border-color: var(--ac);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 15%, transparent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--ac) 18%, transparent);
+  transform: scale(1.08);
 }
 .pw-step-dot.done .pw-dot-num {
   background: var(--ok);
   color: #fff;
   border-color: var(--ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 12%, transparent);
 }
 .pw-step-dot.done .pw-dot-num::after { content: '✓'; }
 .pw-step-dot.done .pw-dot-num span { display: none; }
 .pw-dot-label {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   color: var(--tx-muted);
   text-align: center;
   white-space: nowrap;
+  font-weight: 500;
 }
-.pw-step-dot.active .pw-dot-label { color: var(--ac); font-weight: 600; }
-.pw-step-dot.done .pw-dot-label { color: var(--ok); }
+.pw-step-dot.active .pw-dot-label { color: var(--ac); font-weight: 700; }
+.pw-step-dot.done .pw-dot-label { color: var(--ok); font-weight: 600; }
 
 .pw-panels { padding: 0 !important; }
 .pw-panel { padding: 24px !important; animation: fadeIn 0.25s var(--ease); }
