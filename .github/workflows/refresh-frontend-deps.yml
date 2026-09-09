@@ -3,24 +3,26 @@ name: Refresh Frontend Dependencies
 on:
   push:
     branches: [main, master]
+    paths:
+      - "frontend/package.json"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   refresh:
-    if: contains(github.event.head_commit.message, '[refresh-deps]')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Refresh patched Next.js and React dependency graph
+      - name: Regenerate lockfile from declared production-safe versions
         working-directory: frontend
-        run: npm install next@16.3.4 react@19.2.8 react-dom@19.2.8 --save-exact
+        run: npm install --package-lock-only --ignore-scripts
       - name: Verify dependency tree
         working-directory: frontend
         run: npm audit --audit-level=high
@@ -29,6 +31,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add frontend/package.json frontend/package-lock.json
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: refresh patched frontend dependency graph [skip ci]"
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore: regenerate frontend lockfile [skip ci]"
           git push
