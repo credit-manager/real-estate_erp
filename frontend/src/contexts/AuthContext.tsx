@@ -7,10 +7,12 @@ import api from "@/lib/api";
 
 interface User {
   id: number;
+  username?: string;
   email: string;
   full_name: string;
   role: string;
-  permissions: string[];
+  permissions?: string[];
+  must_change_password?: boolean;
 }
 
 interface LoginResult {
@@ -50,21 +52,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-      const { data } = await api.get<{ success: boolean; user?: User }>("/admin/security/me");
-      if (data.success && data.user) {
+      const { data } = await api.get<{ authenticated: boolean; user?: User }>("/admin/api/me");
+      if (data.authenticated && data.user) {
         setUser(data.user);
       } else {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
+        setUser(null);
       }
     } catch {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      setUser(null);
     }
     setLoading(false);
   }, []);
@@ -76,16 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
-      const { data } = await api.post("/admin/login", { email, password });
+      const { data } = await api.post("/admin/login", { username: email, email, password });
       if (data.success) {
-        if (data.tokens) {
-          localStorage.setItem("access_token", data.tokens.access_token);
-          localStorage.setItem("refresh_token", data.tokens.refresh_token);
-        }
         if (data.user) setUser(data.user as User);
+        else await loadUser();
         return { success: true };
       }
-      if (data.requires_2fa) {
+      if (data.requires_2fa || data.two_factor_required) {
         return { success: false, two_factor_required: true, message: data.message };
       }
       return { success: false, message: data.message };
@@ -98,10 +90,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.post("/admin/security/2fa/verify", { code });
       if (data.success) {
-        if (data.tokens) {
-          localStorage.setItem("access_token", data.tokens.access_token);
-          localStorage.setItem("refresh_token", data.tokens.refresh_token);
-        }
         await loadUser();
         return { success: true };
       }
@@ -115,10 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.post("/admin/logout");
     } catch {
-      // Local logout remains authoritative if the server is unavailable.
+      // Local state is cleared even when the server is unavailable.
     }
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     setUser(null);
     router.push("/login");
   };
