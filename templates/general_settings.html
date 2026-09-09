@@ -48,10 +48,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span>{{ t('settings.backup') }}</span>
       </li>
-      <li class="settings-nav-item" data-section="mobile">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-        <span>{{ t('settings.mobile') }}</span>
-      </li>
       <li class="settings-nav-item" data-section="ai">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v1a2 2 0 012 2v1a2 2 0 01-2 2h-1l4 4H5l4-4H8a2 2 0 01-2-2V9a2 2 0 012-2h1V6a4 4 0 014-4z"/></svg>
         <span>{{ t('serverSettings.ai') }}</span>
@@ -446,45 +442,6 @@
       <div class="settings-section-footer">
         <button class="btn btn-primary settings-section-save" data-section="backup">{{ t('common.save') }}</button>
         <span class="settings-section-msg" id="section-msg-backup"></span>
-      </div>
-    </div>
-
-    <!-- ===== 10. Mobile ===== -->
-    <div class="settings-section" id="section-mobile">
-      <div class="settings-section-header">
-        <h3>{{ t('settings.mobile') }}</h3>
-        <p>{{ t('settings.mobileSub') }}</p>
-      </div>
-      <div class="settings-section-body">
-        <div class="settings-card">
-          <div class="settings-card-title">{{ t('settings.workLocation') }}</div>
-          <div class="form-row">
-            <div class="form-group"><label>{{ t('settings.workLat') }}</label><input type="number" id="set-work-lat" step="any" placeholder="30.0444"></div>
-            <div class="form-group"><label>{{ t('settings.workLng') }}</label><input type="number" id="set-work-lng" step="any" placeholder="31.2357"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label>{{ t('settings.attendanceRadius') }}</label><input type="number" id="set-attendance-radius" min="10" max="100000" step="1" value="200"></div>
-            <div class="form-group"><button class="btn btn-outline" type="button" id="set-use-my-location" style="margin-top:26px;">{{ t('settings.useMyLocation') }}</button></div>
-          </div>
-        </div>
-        <div class="settings-card">
-          <div class="settings-card-title">{{ t('settings.gpsInterval') }}</div>
-          <div class="form-group">
-            <input type="number" id="set-gps-interval" min="5" max="3600" value="30">
-            <p class="form-hint">{{ t('settings.gpsIntervalHint') }}</p>
-          </div>
-        </div>
-        <div class="settings-card">
-          <div class="settings-card-title">{{ t('settings.fcmServerKey') }}</div>
-          <div class="form-group">
-            <input type="password" id="set-fcm-server-key">
-            <p class="form-hint">{{ t('settings.fcmServerKeyHint') }}</p>
-          </div>
-        </div>
-      </div>
-      <div class="settings-section-footer">
-        <button class="btn btn-primary settings-section-save" data-section="mobile">{{ t('common.save') }}</button>
-        <span class="settings-section-msg" id="section-msg-mobile"></span>
       </div>
     </div>
 

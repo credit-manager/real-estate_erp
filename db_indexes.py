@@ -87,11 +87,6 @@ INDEXES = {
     "approval_requests": ["template_id", "status", "submitted_by", "decided_by"],
     "approval_step_records": ["request_id", "step_id", "approver_id", "status"],
     "audit_logs": ["user_id", "created_at"],
-    # موبايل
-    "mobile_field_visits": ["user_id", "customer_id", "unit_id", "status", "scheduled_date"],
-    "mobile_gps_locations": ["user_id", "employee_id", "recorded_at"],
-    "mobile_device_tokens": ["user_id"],
-    "mobile_app_notifications": ["user_id", "created_at"],
     # أصول
     "asset_items": ["category_id", "location_id", "supplier_id", "status", "assigned_employee_id", "account_id"],
     "asset_movements": ["asset_id", "movement_date", "from_location_id", "to_location_id"],

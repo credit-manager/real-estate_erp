@@ -53,7 +53,6 @@ api = Api(
             {"name": "HR & Payroll", "description": "Employees, attendance, payroll, contracts"},
             {"name": "Inventory", "description": "Items, warehouses, stock, transfers"},
             {"name": "Projects", "description": "WBS, BOQ, contracts, progress, costs"},
-            {"name": "Mobile", "description": "Mobile app endpoints (GPS, visits, collections)"},
             {"name": "Portal", "description": "Client portal (no auth required for lookup)"},
             {"name": "Escrow", "description": "Escrow accounts and transactions (Wafi/Oqood)"},
             {"name": "Off-plan", "description": "Construction milestones, DSP plans, title deeds"},

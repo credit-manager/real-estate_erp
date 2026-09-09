@@ -14,7 +14,6 @@ let allMeetings = [];
 let allTasks = [];
 let allCampaigns = [];
 let allCampaignLeads = [];
-let allFollowUps = [];
 let allQuotes = [];
 let allContracts = [];
 let allComplaints = [];
@@ -125,17 +124,16 @@ function populateModalSelects() {
   const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
 
   const empOpts = buildEmployeeOptions();
-  ["lead-owner", "opportunity-owner", "call-employee", "meeting-employee", "task-employee", "campaign-owner", "followup-employee", "complaint-assigned", "ticket-assigned"].forEach((id) => set(id, empOpts));
+  ["lead-owner", "opportunity-owner", "call-employee", "meeting-employee", "task-employee", "campaign-owner", "complaint-assigned", "ticket-assigned"].forEach((id) => set(id, empOpts));
 
   const custOpts = buildCustomerOptions();
-  ["opportunity-customer", "call-customer", "meeting-customer", "task-customer", "followup-customer", "quote-customer", "contract-customer", "complaint-customer", "ticket-customer"].forEach((id) => set(id, custOpts));
+  ["opportunity-customer", "call-customer", "meeting-customer", "task-customer", "quote-customer", "contract-customer", "complaint-customer", "ticket-customer"].forEach((id) => set(id, custOpts));
 
   const leadOpts = buildLeadOptions();
-  ["opportunity-lead", "call-lead", "meeting-lead", "task-lead", "followup-lead", "quote-lead", "campaign-leads-lead"].forEach((id) => set(id, leadOpts));
+  ["opportunity-lead", "call-lead", "meeting-lead", "task-lead", "quote-lead", "campaign-leads-lead"].forEach((id) => set(id, leadOpts));
 
   set("opportunity-stage", buildStageOptions());
   set("task-opportunity", buildOpportunityOptions());
-  set("followup-opportunity", buildOpportunityOptions());
   set("quote-opportunity", buildOpportunityOptions());
 
   set("campaign-leads-campaign", `<option value="">${t("common.choose")}</option>` + allCampaigns.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join(""));
@@ -159,12 +157,6 @@ function populateModalSelects() {
     `<option value="social">${t("crm.channel.social")}</option>` +
     `<option value="call">${t("crm.channel.call")}</option>` +
     `<option value="other">${t("crm.channel.other")}</option>`);
-
-  set("followup-action", `<option value="call">${t("crm.action.call")}</option>` +
-    `<option value="meeting">${t("crm.action.meeting")}</option>` +
-    `<option value="email">${t("crm.action.email")}</option>` +
-    `<option value="whatsapp">${t("crm.action.whatsapp")}</option>` +
-    `<option value="visit">${t("crm.action.visit")}</option>`);
 }
 
 // ============ TAB SWITCH (fixed) ============
@@ -188,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function loadAll() {
   try {
-    const [customers, employees, leads, stages, opportunities, calls, meetings, tasks, campaigns, campaignLeads, followUps, quotes, contracts, complaints, tickets] = await Promise.all([
+    const [customers, employees, leads, stages, opportunities, calls, meetings, tasks, campaigns, campaignLeads, quotes, contracts, complaints, tickets] = await Promise.all([
       api.get("/api/customers"),
       api.get("/api/employees"),
       api.get(`${CRM_API}/leads`),
@@ -199,7 +191,6 @@ async function loadAll() {
       api.get(`${CRM_API}/tasks`),
       api.get(`${CRM_API}/campaigns`),
       api.get(`${CRM_API}/campaign-leads`),
-      api.get(`${CRM_API}/follow-ups`),
       api.get(`${CRM_API}/quotes`),
       api.get(`${CRM_API}/contracts`),
       api.get(`${CRM_API}/complaints`),
@@ -215,7 +206,6 @@ async function loadAll() {
     allTasks = tasks;
     allCampaigns = campaigns;
     allCampaignLeads = campaignLeads;
-    allFollowUps = followUps;
     allQuotes = quotes;
     allContracts = contracts;
     allComplaints = complaints;
@@ -237,7 +227,6 @@ function renderAll() {
   renderMeetings();
   renderTasks();
   renderCampaigns();
-  renderFollowUps();
   renderQuotes();
   renderContracts();
   renderComplaints();
@@ -256,13 +245,11 @@ async function loadSummary() {
     fmt("kpi-opportunities", s.opportunities_open);
     fmt("kpi-pipeline", s.pipeline_total, true);
     fmt("kpi-won", s.won_total, true);
-    fmt("kpi-followups", s.follow_ups_pending);
     fmt("kpi-quotes", s.quotes_count);
     fmt("kpi-contracts", s.contracts_count);
     fmt("kpi-complaints", s.complaints_open);
     fmt("kpi-tickets", s.tickets_open);
     fmt("kpi-meetings", s.meetings_today);
-    fmt("kpi-overdue", s.follow_ups_overdue);
   } catch (err) {
     console.error(err);
   }
@@ -923,85 +910,6 @@ async function saveCampaignLead() {
     showToast(t("crm.leadLinked"));
     await loadAll();
   } catch (e) { console.error(e); }
-}
-
-// ============ FOLLOW-UPS ============
-function renderFollowUps() {
-  const tbody = document.getElementById("followups-table");
-  if (!allFollowUps.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">${t("crm.noFollowUps")}</div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = allFollowUps.map((f) => {
-    const overdue = f.status === "pending" && f.follow_up_date && f.follow_up_date < new Date().toISOString().slice(0, 10);
-    return `
-    <tr>
-      <td>${f.customer_name || "—"}</td>
-      <td style="color:var(--muted-foreground);">${f.opportunity_title || "—"}</td>
-      <td>${t(`crm.action.${f.action_type}`)}</td>
-      <td style="color:var(--muted-foreground);">${formatDate(f.follow_up_date)}</td>
-      <td style="color:var(--muted-foreground);">${f.employee_name || "—"}</td>
-      <td>${overdue ? `<span class="badge badge-danger">${t("crm.overdue")}</span>` : crmStatusBadge(f.status)}</td>
-      <td>
-        <div class="table-actions">
-          ${canAction("crm", "edit") && f.status !== "done" ? `<button class="btn btn-success btn-sm" onclick="completeFollowUp(${f.id})">${t("crm.markDone")}</button>` : ""}
-          ${canAction("crm", "edit") ? `<button class="btn btn-secondary btn-sm" onclick='editFollowUp(${JSON.stringify(f)})'>${t("common.edit")}</button>` : ""}
-          ${canAction("crm", "delete") ? `<button class="btn btn-danger btn-sm" onclick="deleteFollowUp(${f.id})">${t("common.delete")}</button>` : ""}
-        </div>
-      </td>
-    </tr>`;
-  }).join("");
-}
-function openFollowUpModal() {
-  document.getElementById("followup-modal-title").textContent = t("crm.addFollowUp");
-  document.getElementById("followup-id").value = "";
-  ["followup-date", "followup-notes"].forEach((id) => document.getElementById(id).value = "");
-  ["followup-customer", "followup-lead", "followup-opportunity", "followup-employee"].forEach((id) => document.getElementById(id).value = "");
-  document.getElementById("followup-action").value = "call";
-  modal("followup-modal");
-}
-function editFollowUp(f) {
-  document.getElementById("followup-modal-title").textContent = t("crm.editFollowUp");
-  document.getElementById("followup-id").value = f.id;
-  document.getElementById("followup-customer").value = f.customer_id || "";
-  document.getElementById("followup-lead").value = f.lead_id || "";
-  document.getElementById("followup-opportunity").value = f.opportunity_id || "";
-  document.getElementById("followup-employee").value = f.employee_id || "";
-  document.getElementById("followup-date").value = f.follow_up_date || "";
-  document.getElementById("followup-action").value = f.action_type || "call";
-  document.getElementById("followup-notes").value = f.notes || "";
-  modal("followup-modal");
-}
-async function saveFollowUp() {
-  const id = document.getElementById("followup-id").value;
-  const body = {
-    customer_id: document.getElementById("followup-customer").value || null,
-    lead_id: document.getElementById("followup-lead").value || null,
-    opportunity_id: document.getElementById("followup-opportunity").value || null,
-    employee_id: document.getElementById("followup-employee").value || null,
-    follow_up_date: document.getElementById("followup-date").value || null,
-    action_type: document.getElementById("followup-action").value,
-    notes: document.getElementById("followup-notes").value,
-  };
-  if (!body.follow_up_date) { showToast(t("crm.errorDate"), "error"); return; }
-  try {
-    if (id) { await api.put(`${CRM_API}/follow-ups/${id}`, body); }
-    else { await api.post(`${CRM_API}/follow-ups`, body); }
-    closeModal("followup-modal");
-    showToast(t("crm.saved"));
-    await loadAll();
-  } catch (e) { console.error(e); }
-}
-async function completeFollowUp(id) {
-  await api.post(`${CRM_API}/follow-ups/${id}/done`, {});
-  showToast(t("crm.saved"));
-  await loadAll();
-}
-async function deleteFollowUp(id) {
-  if (!confirm(t("crm.confirmDelete"))) return;
-  await api.delete(`${CRM_API}/follow-ups/${id}`);
-  showToast(t("crm.deleted"));
-  await loadAll();
 }
 
 // ============ QUOTES ============

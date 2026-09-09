@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>DynamicPro ERP | Admin Panel</title>
   <script>
     (function(){
@@ -1621,7 +1622,7 @@ var chartStatus=null,chartPlans=null;
 var profCom=null,profSubs=[],profLics=[],profPays=[],profActs=[],profBack='companies',profTabT='overview';
 var dashTimer=null,autoRefreshInterval=30000;
 
-function api(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'},credentials:'same-origin'};if(b)o.body=JSON.stringify(b);return fetch(A+p,o).then(function(r){return r.json().then(function(d){if(r.status===401){doLogout();throw new Error('Unauthorized')}if(!d.success)throw new Error(d.message||'Error');return d})})}
+function api(m,p,b){var o={method:m,headers:{'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name="csrf-token"]').content},credentials:'same-origin'};if(b)o.body=JSON.stringify(b);return fetch(A+p,o).then(function(r){return r.json().then(function(d){if(r.status===401){doLogout();throw new Error('Unauthorized')}if(!d.success)throw new Error(d.message||'Error');return d})})}
 function toast(m,t){var e=document.createElement('div');e.className='toast toast-'+t;e.innerHTML=(t==='ok'?'&#10003;':'&#10007;')+' '+m;document.getElementById('toastWrap').appendChild(e);setTimeout(function(){e.remove()},4000)}
 function toggleTheme(){var t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('dp-theme',t)}
 function cl(id){document.getElementById(id).classList.remove('on');document.querySelectorAll('.err-box').forEach(function(e){e.style.display='none'})}

@@ -133,14 +133,6 @@
           backup_auto_folder: v("set-backup-folder"),
           backup_encryption_password: v("set-backup-encryption-password"),
         };
-      case "mobile":
-        return {
-          mobile_work_lat: v("set-work-lat"),
-          mobile_work_lng: v("set-work-lng"),
-          mobile_attendance_radius_meters: v("set-attendance-radius"),
-          mobile_gps_interval_seconds: v("set-gps-interval"),
-          fcm_server_key: v("set-fcm-server-key"),
-        };
       default:
         return {};
     }
@@ -423,14 +415,6 @@
         if (lastInfo) lastInfo.style.display = "";
         if (lastVal) lastVal.textContent = s.backup_auto_last;
       }
-
-      // Mobile
-      setVal("set-work-lat", s.mobile_work_lat);
-      setVal("set-work-lng", s.mobile_work_lng);
-      setVal("set-attendance-radius", s.mobile_attendance_radius_meters || "200");
-      setVal("set-gps-interval", s.mobile_gps_interval_seconds || "30");
-      var fcm = document.getElementById("set-fcm-server-key");
-      if (fcm) { fcm.value = ""; fcm.placeholder = s.fcm_server_key_set ? "••••••••" : ""; }
 
       // Company
       var companies = o.companies || [];

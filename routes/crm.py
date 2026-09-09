@@ -58,9 +58,6 @@ def _next_number(model, prefix):
 @require_api("crm", "view")
 def summary():
     today = date.today()
-    follow_ups = FollowUp.query.filter(FollowUp.status == "pending").all()
-    overdue = sum(1 for f in follow_ups if f.follow_up_date and f.follow_up_date < today)
-    due_today = sum(1 for f in follow_ups if f.follow_up_date == today)
     open_opps = Opportunity.query.filter_by(status="open").all()
     pipeline_total = sum(float(o.amount or 0) for o in open_opps)
     won_total = sum(
@@ -82,9 +79,6 @@ def summary():
         "contracts_total": round(sum(float(c.value or 0) for c in active_contracts), 2),
         "complaints_open": Complaint.query.filter(Complaint.status.in_(["open", "in_progress"])).count(),
         "tickets_open": SupportTicket.query.filter(SupportTicket.status.in_(["new", "open", "pending"])).count(),
-        "follow_ups_pending": len(follow_ups),
-        "follow_ups_overdue": overdue,
-        "follow_ups_today": due_today,
         "meetings_today": Meeting.query.filter(
             db.func.date(Meeting.meeting_date) == today,
             Meeting.status == "scheduled",

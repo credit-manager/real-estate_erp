@@ -70,9 +70,7 @@ from models.manufacturing import (
 from models.assets import (
     AssetCategory, AssetItem, AssetMaintenance, AssetMovement, AssetCustody,
 )
-from models.mobile import (
-    FieldVisit, GpsLocation, DeviceToken, AppNotification,
-)
+
 from models.license import License, LicenseActivity, OwnerNotification
 from models.escrow import EscrowAccount, EscrowTransaction
 from models.offplan import ConstructionMilestone, DSPPlan, TitleDeed
@@ -222,10 +220,6 @@ __all__ = [
     "AssetMaintenance",
     "AssetMovement",
     "AssetCustody",
-    "FieldVisit",
-    "GpsLocation",
-    "DeviceToken",
-    "AppNotification",
     "License",
     "LicenseActivity",
     "OwnerNotification",

@@ -40,12 +40,6 @@ DEFAULTS = {
     "backup_auto_keep": "10",
     "backup_auto_last": "",
     "backup_encryption_password": "",
-    # ---- Mobile / Push notifications ----
-    "fcm_server_key": "",
-    "mobile_gps_interval_seconds": "30",
-    "mobile_attendance_radius_meters": "200",
-    "mobile_work_lat": "",
-    "mobile_work_lng": "",
     # ---- Country / Currency ----
     "country": "EG",
     "country_name": "مصر",

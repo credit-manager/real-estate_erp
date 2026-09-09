@@ -345,8 +345,9 @@ def create_app():
     db.init_app(app)
 
     # CORS
-    CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-         supports_credentials=True, expose_headers=["Content-Type"])
+    _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1111", "http://127.0.0.1:1111"]
+    CORS(app, origins=_cors_origins,
+         supports_credentials=True, expose_headers=["Content-Type", "X-CSRF-Token"])
 
     # تهيئة OpenAPI/Swagger (flask-smorest)
     from api_spec import api as api_spec
@@ -405,7 +406,7 @@ def create_app():
     from routes.rentals import rental_bp, rental_pages_bp
     from routes.project_finance import project_finance_bp
     from routes.assets import assets_bp
-    from routes.mobile import mobile_bp, mobile_api
+
     from routes.license import license_bp, validate_license
     from licensing.routes import admin_lic_bp, company_auth_bp
     from api_spec import doc_bp
@@ -454,8 +455,7 @@ def create_app():
     app.register_blueprint(rental_pages_bp)
     app.register_blueprint(project_finance_bp)
     app.register_blueprint(assets_bp)
-    app.register_blueprint(mobile_bp)
-    app.register_blueprint(mobile_api)
+
     app.register_blueprint(license_bp)
     app.register_blueprint(company_auth_bp)
     app.register_blueprint(doc_bp)
@@ -480,6 +480,7 @@ def create_app():
         def t(key):
             return make_t(lang)(key)
 
+        _server_cfg = server_config.load_config()
         return {
             "t": t,
             "lang": lang,
@@ -494,13 +495,13 @@ def create_app():
             "is_server_local": request.remote_addr in ("127.0.0.1", "::1"),
             "system_name": _settings.get("system_name") or "Dynamic Pro ERP",
             "system_logo": _settings.get("system_logo") or "",
-            "owner_name": server_config.load_config().get("owner_name") or "Dynamic Pro",
-            "owner_logo": server_config.load_config().get("owner_logo") or "",
+            "owner_name": _server_cfg.get("owner_name") or "Dynamic Pro",
+            "owner_logo": _server_cfg.get("owner_logo") or "",
             "default_theme": _settings.get("default_theme") or "light",
             "default_lang": _settings.get("default_lang") or "ar",
             "doc_footer_text": _settings.get("doc_footer_text") or "",
             "number_decimals": settings_module.get_int("number_decimals", 2),
-            "app_settings_json": json.dumps(settings_module.get_all()),
+            "app_settings_json": json.dumps(_settings),
             "year": datetime.now().year,
         }
 
@@ -578,28 +579,35 @@ def create_app():
 
     def _is_api_path():
         p = request.path
-        return p.startswith("/api/") or "/api/" in p
+        return p.startswith("/api/")
 
-    # معالج أخطاء مركزي — يمنع تسريب تفاصيل الأخطاء للمستخدم
+    def _error_html(title, description=""):
+        from markupsafe import escape
+        safe_title = escape(title)
+        safe_desc = escape(description) if description else ""
+        return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{safe_title}</title>
+<style>body{{font-family:'IBM Plex Sans Arabic',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:var(--bg,#f5f5f5);color:var(--fg,#222)}}
+.box{{text-align:center;padding:3rem}}h1{{font-size:3rem;margin:0;color:var(--primary,#4a90d9)}}p{{font-size:1.2rem;color:var(--muted,#666)}}</style></head>
+<body><div class="box"><h1>{safe_title}</h1>{f'<p>{safe_desc}</p>' if safe_desc else ''}</div></body></html>"""
+
     @app.errorhandler(Exception)
     def handle_exception(e):
-        import traceback
         current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
         if _is_api_path():
             return jsonify({"success": False, "message": make_t()("common.serverError")}), 500
-        return "<h1>" + make_t()("common.serverError") + "</h1><p>" + make_t()("common.serverErrorDesc") + "</p>", 500
+        return _error_html(make_t()("common.serverError"), make_t()("common.serverErrorDesc")), 500
 
     @app.errorhandler(404)
     def not_found(e):
         if _is_api_path():
             return jsonify({"success": False, "message": make_t()("common.notFound")}), 404
-        return "<h1>" + make_t()("common.notFound") + "</h1>", 404
+        return _error_html("404", make_t()("common.notFound")), 404
 
     @app.errorhandler(405)
     def method_not_allowed(e):
         if _is_api_path():
             return jsonify({"success": False, "message": make_t()("common.methodNotAllowed")}), 405
-        return "<h1>" + make_t()("common.methodNotAllowed") + "</h1>", 405
+        return _error_html("405", make_t()("common.methodNotAllowed")), 405
 
     @app.errorhandler(429)
     def rate_limit_exceeded(e):
@@ -613,8 +621,6 @@ def create_app():
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return
         if request.path.startswith("/static"):
-            return
-        if request.path.startswith("/admin/"):
             return
         if not session.get("user_id"):
             return
