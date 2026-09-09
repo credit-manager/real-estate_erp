@@ -95,6 +95,7 @@ MASTER_SESSION_KEYS = [
 ]
 PENDING_MFA_KEYS = [SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_MFA_PENDING, SESS_MASTER_MFA_ISSUED_AT]
 MFA_PENDING_TTL_SECONDS = 300
+MFA_PENDING_PATHS = {"/admin/security/2fa/enroll", "/admin/security/2fa/verify"}
 
 
 def clear_company_session():
@@ -131,16 +132,22 @@ def pending_mfa_user_id():
 
 
 def _mfa_required(user_id):
+    user = db.session.get(LicMasterUser, user_id)
+    if user and str(user.role or "").strip().lower() == "super_admin":
+        return True
     try:
         from security.two_factor import require_two_factor
         return not require_two_factor(user_id)
     except Exception:
-        # Fail closed for elevated accounts; ordinary accounts remain compatible.
-        try:
-            from security.rbac import user_permissions, _all_codes
-            return user_permissions(user_id) >= set(_all_codes())
-        except Exception:
-            return False
+        return False
+
+
+def _mfa_enabled(user_id):
+    try:
+        from security.two_factor import is_enabled
+        return is_enabled(user_id)
+    except Exception:
+        return False
 
 
 def _establish_master_session(user):
@@ -182,22 +189,18 @@ def authenticate_company_user(email, password):
     password = (password or "").strip()
     if not email or not password:
         return {"success": False, "message": "البريد الإلكتروني وكلمة المرور مطلوبان"}
-
     cu = LicCompanyUser.query.filter_by(email=email, is_active=True).first()
     if not cu or not check_password_hash(cu.password_hash, password):
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
-
     company = db.session.get(LicCompany, cu.company_id)
     if not company:
         return {"success": False, "message": "الشركة غير موجودة"}
     if company.status != "active":
         message = "تم تعليق حساب الشركة" if company.status == "suspended" else "حساب الشركة غير نشط"
         return {"success": False, "message": message}
-
     access = can_access(company.id)
     if not access["allowed"]:
         return {"success": False, "message": access.get("warning") or "الوصول غير مسموح", "access": access}
-
     user_role = cu.role
     user_full_name = cu.full_name or email
     company_db_user_id = None
@@ -214,7 +217,6 @@ def authenticate_company_user(email, password):
                 user_full_name = row[3] or cu.full_name or email
     except Exception as exc:
         log.info("Company DB unavailable for %s, using master DB auth: %s", email, exc)
-
     cu.last_login = datetime.utcnow()
     db.session.commit()
     session.permanent = True
@@ -236,7 +238,6 @@ def authenticate_company_user(email, password):
 
 
 def logout_company_user():
-    log.info("Company user logged out: %s (company=%s)", session.get(SESS_COMPANY_USER_EMAIL, ""), session.get(SESS_COMPANY_ID))
     clear_company_session()
 
 
@@ -246,13 +247,12 @@ def authenticate_master_user(email, password):
     password = (password or "").strip()
     if not email or not password:
         return {"success": False, "message": "البريد الإلكتروني وكلمة المرور مطلوبان"}
-
     user = LicMasterUser.query.filter_by(email=email).first()
     if not user or not user.is_active or not check_password_hash(user.password_hash, password):
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
-    from security.security_events import record_event
     try:
+        from security.security_events import record_event
         record_event("login_success", master_user_id=user.id, master_user_email=email, ip=getattr(request, "remote_addr", None), details={"role": user.role}, severity="info")
     except Exception:
         log.exception("Unable to record master login event")
@@ -289,14 +289,12 @@ def authenticate_master_user(email, password):
 
 
 def logout_master_user():
-    log.info("Platform admin logged out: %s", session.get(SESS_MASTER_EMAIL, ""))
     _end_master_session()
     clear_master_session()
     clear_pending_mfa_session()
 
 
 def _start_master_session(user, is_company_user=False, extra=None):
-    """Create a revocable persisted master session."""
     from security.models import MasterSession
     jti = __import__("uuid").uuid4().hex
     sess = MasterSession(
@@ -326,20 +324,16 @@ def _end_master_session():
         log.exception("Unable to revoke master session %s", jti)
 
 
-def _mfa_enabled(master_user_id):
-    try:
-        from security.two_factor import is_enabled
-        return is_enabled(master_user_id)
-    except Exception:
-        return False
-
-
 def get_master_session_data():
     """Return an authenticated master identity only after MFA when required."""
     uid = session.get(SESS_MASTER_USER_ID)
     if not uid:
         return None
     if is_pending_mfa_session():
+        if request.path in MFA_PENDING_PATHS:
+            user = db.session.get(LicMasterUser, uid)
+            if user and user.is_active:
+                return {"id": user.id, "email": user.email, "full_name": user.full_name or user.email, "role": user.role, "mfa_pending": True}
         return None
     jti = session.get(SESS_MASTER_JTI)
     try:
