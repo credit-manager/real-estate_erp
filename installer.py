@@ -11,6 +11,8 @@ import tkinter as tk
 import winreg
 from tkinter import filedialog, messagebox, ttk
 
+from webview2_runtime import WEBVIEW2_INSTALLER, install_if_missing, installer_path
+
 APP_NAME = "Dynamic Pro ERP"
 APP_VERSION = "1.0.0"
 SERVER_EXE = "DynamicPro.exe"
@@ -81,13 +83,7 @@ def make_shortcut(lnk_path, target, icon=None, args=""):
         "$s.WorkingDirectory='%s';$s.Save()"
         % tuple(
             value.replace("'", "''")
-            for value in (
-                lnk_path,
-                target,
-                args,
-                icon,
-                os.path.dirname(target),
-            )
+            for value in (lnk_path, target, args, icon, os.path.dirname(target))
         )
     )
     subprocess.run(
@@ -99,7 +95,7 @@ def make_shortcut(lnk_path, target, icon=None, args=""):
 
 def enable_autostart(exe_path):
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
-        winreg.SetValueEx(winreg.HKEY_CURRENT_USER, RUN_VALUE, 0, winreg.REG_SZ, '"%s" --background' % exe_path)
+        winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, '"%s" --background' % exe_path)
 
 
 def disable_autostart():
@@ -129,7 +125,7 @@ def taskkill(exe_name):
 
 
 def run_smoke_test():
-    """Validate that the frozen setup contains a usable desktop payload."""
+    """Validate that the frozen setup contains the ERP and offline WebView2 payload."""
     if not is_frozen():
         raise RuntimeError("Setup smoke test must run from a PyInstaller executable.")
     bundled = find_server(default_source_dir())
@@ -137,29 +133,39 @@ def run_smoke_test():
         raise RuntimeError("Embedded DynamicPro.exe is missing from the setup bundle.")
     if os.path.getsize(bundled) < 1024 * 1024:
         raise RuntimeError("Embedded DynamicPro.exe is unexpectedly small.")
+    runtime = installer_path(default_source_dir())
+    if not runtime:
+        raise RuntimeError("Embedded WebView2 Offline Runtime installer is missing from the setup bundle.")
+    if os.path.getsize(runtime) < 10 * 1024 * 1024:
+        raise RuntimeError("Embedded WebView2 Runtime installer is unexpectedly small.")
     print("DYNAMICPRO SETUP SMOKE TEST: PASS", flush=True)
 
 
 def run_install_smoke_test():
-    """Exercise the real payload installation path without GUI or shortcuts."""
+    """Exercise the real payload installation copy path without GUI or shortcuts."""
     if not is_frozen():
         raise RuntimeError("Installer installation smoke test must run from a PyInstaller executable.")
     source = find_server(default_source_dir())
+    runtime = installer_path(default_source_dir())
     if not source:
         raise RuntimeError("Embedded DynamicPro.exe is missing from the setup bundle.")
+    if not runtime:
+        raise RuntimeError("Embedded WebView2 Offline Runtime installer is missing from the setup bundle.")
 
     temp_root = tempfile.mkdtemp(prefix="dynamicpro-install-smoke-")
     try:
         target = os.path.join(temp_root, INSTALL_SUBDIR)
         os.makedirs(target, exist_ok=True)
         destination = os.path.join(target, SERVER_EXE)
+        runtime_destination = os.path.join(target, WEBVIEW2_INSTALLER)
         shutil.copy2(source, destination)
-        if not os.path.isfile(destination):
-            raise RuntimeError("Installed DynamicPro.exe was not created.")
-        source_size = os.path.getsize(source)
-        target_size = os.path.getsize(destination)
-        if source_size != target_size or target_size < 1024 * 1024:
+        shutil.copy2(runtime, runtime_destination)
+        if not os.path.isfile(destination) or not os.path.isfile(runtime_destination):
+            raise RuntimeError("Installed setup payload is incomplete.")
+        if os.path.getsize(source) != os.path.getsize(destination) or os.path.getsize(destination) < 1024 * 1024:
             raise RuntimeError("Installed DynamicPro.exe failed integrity/size validation.")
+        if os.path.getsize(runtime) != os.path.getsize(runtime_destination) or os.path.getsize(runtime_destination) < 10 * 1024 * 1024:
+            raise RuntimeError("Installed WebView2 Runtime payload failed integrity/size validation.")
         print("DYNAMICPRO INSTALL SMOKE TEST: PASS", flush=True)
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
@@ -177,7 +183,6 @@ class InstallerApp(tk.Tk):
             self.iconbitmap(resource_path("app.ico"))
         except Exception:
             pass
-
         self.target = os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
             "Programs", INSTALL_SUBDIR,
@@ -237,7 +242,6 @@ class InstallerApp(tk.Tk):
         self._path_row(card, self.src_var, self._browse_source if not is_frozen() else None)
         self._field_label(card, "Installation folder")
         self._path_row(card, self.dst_var, self._browse_dest)
-
         options = tk.Frame(card, bg=CARD)
         options.pack(fill="x", pady=(0, 14))
         self.opt_desktop = tk.BooleanVar(value=True)
@@ -249,18 +253,17 @@ class InstallerApp(tk.Tk):
             (self.opt_autostart, "Start the ERP automatically with Windows"),
         ):
             tk.Checkbutton(options, text=label, variable=variable, bg=CARD, fg=TEXT, font=("Segoe UI", 10), activebackground=CARD, selectcolor="#e0e7ff", anchor="w").pack(fill="x", pady=2)
-
         tk.Frame(card, bg="#e5e7eb", height=1).pack(fill="x", pady=(0, 14))
         info = tk.Frame(card, bg="#eff6ff", padx=14, pady=10)
         info.pack(fill="x")
         tk.Label(info, text="Included in this setup", bg="#eff6ff", fg=PRIMARY_DARK, font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
         for text in (
             "  - Dynamic Pro ERP desktop application (embedded)",
+            "  - Microsoft Edge WebView2 Evergreen Offline Runtime (embedded)",
             "  - Local SQLite data directory and first-run configuration",
             "  - No Python, PostgreSQL, Git, or project source files required",
         ):
             tk.Label(info, text=text, bg="#eff6ff", fg=TEXT, font=("Segoe UI", 9), anchor="w").pack(fill="x")
-
         self.status = tk.Label(card, text="", bg=CARD, fg=GREEN, font=("Segoe UI", 10), anchor="w", wraplength=580)
         self.status.pack(fill="x", pady=(12, 8))
         self.progress = ttk.Progressbar(card, style="TProgressbar", maximum=100)
@@ -286,17 +289,21 @@ class InstallerApp(tk.Tk):
 
     def _refresh_status(self):
         self.server_source = find_server(self.source)
-        if self.server_source:
-            self.status.config(text="Ready to install. The desktop application is included.", fg=GREEN)
+        runtime = installer_path(self.source)
+        if self.server_source and runtime:
+            self.status.config(text="Ready to install. ERP and offline WebView2 Runtime are included.", fg=GREEN)
             self.install_btn.config(state="normal")
-        else:
+        elif not self.server_source:
             self.status.config(text="DynamicPro.exe was not found. Build the desktop application first.", fg=AMBER)
+            self.install_btn.config(state="disabled")
+        else:
+            self.status.config(text="WebView2 Offline Runtime was not found in the setup package.", fg=AMBER)
             self.install_btn.config(state="disabled")
 
     def _install(self):
         self.target = self.dst_var.get().strip()
         self.server_source = find_server(self.source)
-        if not self.server_source:
+        if not self.server_source or not installer_path(self.source):
             self._refresh_status()
             return
         if is_running(SERVER_EXE):
@@ -311,12 +318,13 @@ class InstallerApp(tk.Tk):
         def status(message, percent):
             self.after(0, lambda: self.status.config(text=message, fg=PRIMARY_DARK))
             self.after(0, lambda: self.progress.config(value=percent))
-
         try:
             status("Preparing installation folder...", 10)
             os.makedirs(self.target, exist_ok=True)
+            status("Installing Microsoft Edge WebView2 Runtime...", 25)
+            install_if_missing(default_source_dir())
             destination = os.path.join(self.target, SERVER_EXE)
-            status("Copying Dynamic Pro ERP...", 35)
+            status("Copying Dynamic Pro ERP...", 45)
             for _ in range(3):
                 try:
                     shutil.copy2(self.server_source, destination)
@@ -326,12 +334,11 @@ class InstallerApp(tk.Tk):
                     time.sleep(1)
             else:
                 raise RuntimeError("Could not replace DynamicPro.exe because it is in use.")
-
             if self.opt_desktop.get():
-                status("Creating Desktop shortcut...", 60)
+                status("Creating Desktop shortcut...", 65)
                 make_shortcut(os.path.join(desktop_dir(), "Dynamic Pro ERP.lnk"), destination)
             if self.opt_startmenu.get():
-                status("Creating Start Menu shortcut...", 70)
+                status("Creating Start Menu shortcut...", 75)
                 menu = start_menu_dir()
                 os.makedirs(menu, exist_ok=True)
                 make_shortcut(os.path.join(menu, "Dynamic Pro ERP.lnk"), destination)
@@ -375,11 +382,11 @@ class InstallerApp(tk.Tk):
         self._header(self)
         card = self._card(self)
         tk.Label(card, text="Installation Complete", bg=CARD, fg=GREEN, font=("Segoe UI", 16, "bold"), anchor="w").pack(fill="x", pady=(10, 14))
-        tk.Label(card, text="Dynamic Pro ERP is ready. The application uses its local SQLite data directory.", bg=CARD, fg=MUTED, font=("Segoe UI", 10), anchor="w", wraplength=580).pack(fill="x", pady=(0, 12))
+        tk.Label(card, text="Dynamic Pro ERP is ready. WebView2 Runtime is installed when needed and the application uses its local SQLite data directory.", bg=CARD, fg=MUTED, font=("Segoe UI", 10), anchor="w", wraplength=580).pack(fill="x", pady=(0, 12))
         tk.Label(card, text=self.target, bg="#f9fafb", fg=TEXT, font=("Segoe UI", 9), anchor="w").pack(fill="x", ipady=8)
         footer = tk.Frame(self, bg=BG, padx=24, pady=16)
         footer.pack(fill="x")
-        tk.Button(footer, text="Launch Dynamic Pro ERP", font=("Segoe UI", 11, "bold"), bg=PRIMARY, fg="white", padx=20, pady=7, relief="flat", command=lambda: self._launch_installed()).pack(side="left")
+        tk.Button(footer, text="Launch Dynamic Pro ERP", font=("Segoe UI", 11, "bold"), bg=PRIMARY, fg="white", padx=20, pady=7, relief="flat", command=self._launch_installed).pack(side="left")
         tk.Button(footer, text="Close", font=("Segoe UI", 10), bg=BG, fg=TEXT, padx=18, pady=7, relief="flat", command=self.destroy).pack(side="left")
 
     def _launch_installed(self):
