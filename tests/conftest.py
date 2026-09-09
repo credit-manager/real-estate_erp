@@ -50,7 +50,7 @@ def client(app):
 @pytest.fixture(scope="function")
 def auth_client(client, app):
     """Return a test client authenticated against a seeded test administrator."""
-    from models import User
+    from models import AuditLog, User
     from database import db
     from werkzeug.security import generate_password_hash
 
@@ -75,10 +75,13 @@ def auth_client(client, app):
     yield client
 
     with app.app_context():
+        db.session.query(AuditLog).filter(AuditLog.user_id == user_id).delete(
+            synchronize_session=False
+        )
         user = db.session.get(User, user_id)
         if user is not None:
             db.session.delete(user)
-            db.session.commit()
+        db.session.commit()
 
 
 @pytest.fixture(scope="session")
