@@ -1,3 +1,4 @@
+import hashlib
 import time
 import threading
 from flask import Blueprint, request, jsonify, session, render_template, redirect, url_for, current_app, make_response
@@ -13,8 +14,37 @@ auth_bp = Blueprint("auth", __name__)
 # ---------- حد محاولات الدخول (قفل مؤقت بعد محاولات خاطئة + تأخير) ----------
 MAX_LOGIN_ATTEMPTS = 5      # عدد المحاولات الخاطئة المسموح بها قبل القفل
 LOGIN_LOCK_SECONDS = 900    # مدة القفل المؤقت (15 دقيقة)
-_LOGIN_FAILURES = {}        # key -> {"count": int, "lock_until": float}
+_LOGIN_FAILURES = {}        # development/Desktop fallback only
 _cleanup_lock = threading.Lock()
+_REDIS_CLIENT = None
+_REDIS_UNAVAILABLE = False
+
+
+def _redis_login_store():
+    global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    if _REDIS_UNAVAILABLE:
+        return None
+    env = str(os.environ.get("DYNAMICPRO_ENV", "")).lower()
+    if env not in {"production", "prod"}:
+        return None
+    uri = os.environ.get("REDIS_URL") or os.environ.get("RATELIMIT_STORAGE_URI")
+    if not uri:
+        raise RuntimeError("Production login protection requires REDIS_URL or RATELIMIT_STORAGE_URI.")
+    try:
+        import redis
+        _REDIS_CLIENT = redis.Redis.from_url(uri, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
+        _REDIS_CLIENT.ping()
+        return _REDIS_CLIENT
+    except Exception as exc:
+        _REDIS_UNAVAILABLE = True
+        raise RuntimeError("Production login protection cannot connect to Redis.") from exc
+
+
+def _redis_key(prefix, key):
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return f"dynamicpro:login:{prefix}:{digest}"
 
 
 def _cleanup_old_failures():
@@ -47,7 +77,12 @@ def _login_key(username):
 
 
 def _check_login_lock(key):
-    """يعيد عدد الثواني المتبقية للقفل، أو 0 إذا لم يكن هناك قفل نشط."""
+    """Return remaining lock seconds, using Redis for production."""
+    store = _redis_login_store()
+    if store is not None:
+        lock_key = _redis_key("lock", key)
+        remaining = store.ttl(lock_key)
+        return max(int(remaining), 0)
     rec = _LOGIN_FAILURES.get(key)
     if not rec:
         return 0
@@ -55,23 +90,37 @@ def _check_login_lock(key):
     remaining = int(lock_until - time.time())
     if remaining > 0:
         return remaining
-    if lock_until:  # انتهت مدة القفل: نمسح السجل للسماح بمحاولات جديدة
+    if lock_until:
         _LOGIN_FAILURES.pop(key, None)
     return 0
 
 
 def _register_login_failure(key):
-    """يسجّل محاولة فاشلة ويطبّق تأخيراً بسيطاً؛ يقفل مؤقتاً بعد بلوغ الحد."""
+    """Register a failed login atomically in Redis for production."""
+    store = _redis_login_store()
+    if store is not None:
+        count_key = _redis_key("count", key)
+        count = store.incr(count_key)
+        if count == 1:
+            store.expire(count_key, LOGIN_LOCK_SECONDS)
+        if count >= MAX_LOGIN_ATTEMPTS:
+            store.set(_redis_key("lock", key), "1", ex=LOGIN_LOCK_SECONDS)
+        if count >= 3:
+            time.sleep(min(0.3 * (count - 2), 2.0))
+        return
     rec = _LOGIN_FAILURES.setdefault(key, {"count": 0, "lock_until": 0})
     rec["count"] += 1
     if rec["count"] >= MAX_LOGIN_ATTEMPTS:
         rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
-    # تأخير متدرّج فقط بعد 3 محاولات فاشلة (يمنع DoS عبر تأخير كل طلب)
     if rec["count"] >= 3:
         time.sleep(min(0.3 * (rec["count"] - 2), 2.0))
 
 
 def _reset_login_failures(key):
+    store = _redis_login_store()
+    if store is not None:
+        store.delete(_redis_key("count", key), _redis_key("lock", key))
+        return
     _LOGIN_FAILURES.pop(key, None)
 
 
