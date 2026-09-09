@@ -390,19 +390,6 @@ def create_app():
         app.config["SESSION_COOKIE_SECURE"] = True
 
     db.init_app(app)
-    @app.get("/health")
-    def health_check():
-        return {"status": "ok", "service": "dynamicpro", "version": os.environ.get("DYNAMICPRO_VERSION", "dev")}, 200
-
-    @app.get("/ready")
-    def readiness_check():
-        try:
-            from sqlalchemy import text
-            db.session.execute(text("SELECT 1"))
-            return {"status": "ready", "service": "dynamicpro"}, 200
-        except Exception:
-            return {"status": "not_ready", "service": "dynamicpro"}, 503
-
 
     # CORS
     _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1111", "http://127.0.0.1:1111"]
@@ -594,6 +581,16 @@ def create_app():
             "database": "connected" if db_ok else "disconnected",
         }), 200 if db_ok else 503
 
+    @app.route("/ready")
+    def readiness():
+        """Readiness probe: dependency check used by load balancers."""
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("SELECT 1"))
+            return jsonify({"status": "ready", "database": "connected"}), 200
+        except Exception:
+            return jsonify({"status": "not_ready", "database": "disconnected"}), 503
+
     # إنشاء الجداول + مستخدم وادوار افتراضية
     # HIGH #9: company instances لا تُشغّل الترحيلات العامة
     _is_company = bool(config.COMPANY_ID)
@@ -716,8 +713,12 @@ def create_app():
                     if _is_api_path():
                         return jsonify({"success": False, "message": "Subscription expired"}), 403
                     return redirect(url_for("auth.login"))
-            except Exception:
-                pass
+            except Exception as exc:
+                from utils.errlog import log_exc
+                log_exc("app.enforce-company-license")
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "Subscription validation unavailable"}), 503
+                return redirect(url_for("auth.login"))
             return
         try:
             is_valid, err = validate_license()
@@ -725,9 +726,12 @@ def create_app():
                 if _is_api_path():
                     return jsonify({"success": False, "message": "License expired"}), 403
                 return redirect(url_for("pages.change_password", error="license_expired"))
-        except Exception:
+        except Exception as exc:
             from utils.errlog import log_exc
             log_exc("app.enforce-license")
+            if _is_api_path():
+                return jsonify({"success": False, "message": "License validation unavailable"}), 503
+            return redirect(url_for("auth.login"))
 
     @app.before_request
     def enforce_password_change():
