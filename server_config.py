@@ -9,7 +9,11 @@ import json
 import os
 import socket
 import sys
-import winreg
+
+try:
+    import winreg
+except ImportError:  # pragma: no cover - winreg is Windows-only
+    winreg = None
 
 CONFIG_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "DynamicPro")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "server_config.json")
@@ -25,17 +29,15 @@ DEFAULTS = {
     "https_port": 5443,
     "gemini_api_key": "",
     "gemini_model": "gemini-3.6-flash",
-    # ── Branding of the software owner (vendor/developer) ──
     "owner_name": "Dynamic Pro",
     "owner_logo": "",
-    # ── Multi-provider AI settings ──
     "ai_providers": {
-        "gemini":     {"enabled": True,  "api_key": "", "model": "gemini-3.6-flash",         "priority": 1},
-        "groq":       {"enabled": False, "api_key": "", "model": "llama-3.3-70b-versatile",   "priority": 2},
+        "gemini": {"enabled": True, "api_key": "", "model": "gemini-3.6-flash", "priority": 1},
+        "groq": {"enabled": False, "api_key": "", "model": "llama-3.3-70b-versatile", "priority": 2},
         "openrouter": {"enabled": False, "api_key": "", "model": "nvidia/nemotron-3.5-lightning:free", "priority": 3},
-        "cerebras":   {"enabled": False, "api_key": "", "model": "gpt-oss-120b",              "priority": 4},
-        "mistral":    {"enabled": False, "api_key": "", "model": "mistral-small-latest",      "priority": 5},
-        "qwen":       {"enabled": False, "api_key": "", "model": "qwen-plus",                 "priority": 6},
+        "cerebras": {"enabled": False, "api_key": "", "model": "gpt-oss-120b", "priority": 4},
+        "mistral": {"enabled": False, "api_key": "", "model": "mistral-small-latest", "priority": 5},
+        "qwen": {"enabled": False, "api_key": "", "model": "qwen-plus", "priority": 6},
     },
 }
 
@@ -48,7 +50,6 @@ def load_config():
         for key in DEFAULTS:
             if key in saved:
                 if key == "ai_providers" and isinstance(saved[key], dict):
-                    # Deep merge: saved providers over defaults
                     merged = dict(DEFAULTS["ai_providers"])
                     for pname, pcfg in saved[key].items():
                         if pname in merged and isinstance(pcfg, dict):
@@ -59,7 +60,6 @@ def load_config():
                 else:
                     cfg[key] = saved[key]
         cfg["port"] = int(cfg.get("port", 5000)) or 5000
-        # Legacy migration: move gemini_api_key into ai_providers if not already there
         providers = cfg.get("ai_providers") or {}
         legacy_key = cfg.get("gemini_api_key", "")
         if legacy_key and providers.get("gemini", {}).get("api_key") == "":
@@ -99,7 +99,6 @@ def is_https_enabled():
 
 
 def get_cert_paths():
-    """Returns (cert_pem, key_pem) if both exist, else (None, None)."""
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
     cert = os.path.join(base, "cert.pem")
     key = os.path.join(base, "key.pem")
@@ -113,32 +112,26 @@ def get_access_password():
 
 
 def hash_access_password(plain):
-    """يُعيد تمثيلاً غير قابل للقراءة (hash) لكلمة مرور الوصول للخادم."""
     from werkzeug.security import generate_password_hash
     return generate_password_hash(str(plain or ""))
 
 
 def check_access_password(stored, plain):
-    """يتحقق من كلمة مرور الوصول مقابل القيمة المخزنة.
-    يدعم القيم الجديدة (hash) والقيم القديمة (نص صريح) للتوافق الخلفي."""
     import hmac
     stored = str(stored or "")
     plain = str(plain or "")
     if not stored:
         return not plain
-    # hash من werkzeug يحتوي دائماً على ':' (مثل pbkdf2:sha256:... / scrypt:...)
     if ":" in stored and len(stored) > 30:
         from werkzeug.security import check_password_hash
         try:
             return check_password_hash(stored, plain)
         except ValueError:
             return False
-    # قيم قديمة مخزنة كنص صريح
     return hmac.compare_digest(stored, plain)
 
 
 def _launch_command():
-    """Command line used to start the server (for the Run registry entry)."""
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}" --background'
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop.py")
@@ -146,10 +139,10 @@ def _launch_command():
 
 
 def set_auto_start(enabled):
+    if winreg is None:
+        return False
     try:
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE
-        )
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE)
     except OSError:
         return False
     try:
@@ -171,6 +164,8 @@ def set_auto_start(enabled):
 
 
 def is_auto_start_enabled():
+    if winreg is None:
+        return False
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_QUERY_VALUE)
         winreg.QueryValueEx(key, RUN_VALUE)
@@ -181,7 +176,6 @@ def is_auto_start_enabled():
 
 
 def get_network_addresses():
-    """IPv4 addresses the server can be reached at on the local network."""
     addresses = set()
     try:
         hostname = socket.gethostname()
