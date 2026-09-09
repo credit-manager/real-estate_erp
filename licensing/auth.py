@@ -221,6 +221,7 @@ def complete_pending_master_mfa(user_id):
         clear_pending_mfa_session()
         return False
     try:
+        user.last_login = datetime.utcnow()
         _establish_master_session(user)
         db.session.commit()
     except Exception:
