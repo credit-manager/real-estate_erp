@@ -1,11 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller build for the single-file Dynamic Pro ERP installer."""
 
+import os
+
+server_exe = os.path.join("dist", "DynamicPro.exe")
+if not os.path.isfile(server_exe):
+    raise SystemExit(
+        "DynamicPro-Setup.spec requires dist/DynamicPro.exe. "
+        "Build DynamicPro.spec first."
+    )
 
 a = Analysis(
-    ['installer.py'],
-    pathex=[],
+    ["installer.py"],
+    pathex=["."],
     binaries=[],
-    datas=[('app.ico', '.')],
+    datas=[
+        (server_exe, "."),
+        ("app.ico", "."),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -14,6 +26,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -22,7 +35,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='DynamicPro-Setup',
+    name="DynamicPro-Setup",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +48,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['app.ico'],
+    icon=["app.ico"],
 )
