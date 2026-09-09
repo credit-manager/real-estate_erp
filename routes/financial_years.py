@@ -1,6 +1,5 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from sqlalchemy import and_, or_
 from database import db
 from models import (
     FinancialYear, Company, Invoice, PurchaseOrder, RentalContract,
