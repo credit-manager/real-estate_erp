@@ -162,6 +162,26 @@ jobs:
               Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             }
           }
+      - name: Real installer payload installation smoke test
+        shell: pwsh
+        env:
+          DYNAMICPRO_SETUP_INSTALL_SMOKE_TEST: "1"
+        run: |
+          $p = Start-Process -FilePath "dist\DynamicPro-Setup.exe" -PassThru -WindowStyle Hidden
+          try {
+            Wait-Process -Id $p.Id -Timeout 60 -ErrorAction SilentlyContinue
+            if (-not $p.HasExited) {
+              throw "DynamicPro-Setup.exe installation smoke test timed out."
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "DynamicPro-Setup.exe installation smoke test failed with exit code $($p.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:

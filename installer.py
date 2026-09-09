@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -98,7 +99,7 @@ def make_shortcut(lnk_path, target, icon=None, args=""):
 
 def enable_autostart(exe_path):
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
-        winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, '"%s" --background' % exe_path)
+        winreg.SetValueEx(winreg.HKEY_CURRENT_USER, RUN_VALUE, 0, winreg.REG_SZ, '"%s" --background' % exe_path)
 
 
 def disable_autostart():
@@ -137,6 +138,31 @@ def run_smoke_test():
     if os.path.getsize(bundled) < 1024 * 1024:
         raise RuntimeError("Embedded DynamicPro.exe is unexpectedly small.")
     print("DYNAMICPRO SETUP SMOKE TEST: PASS", flush=True)
+
+
+def run_install_smoke_test():
+    """Exercise the real payload installation path without GUI or shortcuts."""
+    if not is_frozen():
+        raise RuntimeError("Installer installation smoke test must run from a PyInstaller executable.")
+    source = find_server(default_source_dir())
+    if not source:
+        raise RuntimeError("Embedded DynamicPro.exe is missing from the setup bundle.")
+
+    temp_root = tempfile.mkdtemp(prefix="dynamicpro-install-smoke-")
+    try:
+        target = os.path.join(temp_root, INSTALL_SUBDIR)
+        os.makedirs(target, exist_ok=True)
+        destination = os.path.join(target, SERVER_EXE)
+        shutil.copy2(source, destination)
+        if not os.path.isfile(destination):
+            raise RuntimeError("Installed DynamicPro.exe was not created.")
+        source_size = os.path.getsize(source)
+        target_size = os.path.getsize(destination)
+        if source_size != target_size or target_size < 1024 * 1024:
+            raise RuntimeError("Installed DynamicPro.exe failed integrity/size validation.")
+        print("DYNAMICPRO INSTALL SMOKE TEST: PASS", flush=True)
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
 
 
 class InstallerApp(tk.Tk):
@@ -362,6 +388,13 @@ class InstallerApp(tk.Tk):
 
 
 def main():
+    if os.environ.get("DYNAMICPRO_SETUP_INSTALL_SMOKE_TEST") == "1":
+        try:
+            run_install_smoke_test()
+        except Exception as exc:
+            print("DYNAMICPRO INSTALL SMOKE TEST: FAIL: %s" % exc, file=sys.stderr, flush=True)
+            return 1
+        return 0
     if os.environ.get("DYNAMICPRO_SETUP_SMOKE_TEST") == "1":
         try:
             run_smoke_test()
