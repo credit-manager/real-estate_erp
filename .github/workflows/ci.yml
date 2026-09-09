@@ -39,6 +39,22 @@ jobs:
         run: python -m pip install -r requirements-production.txt
       - name: Install quality tools
         run: python -m pip install ruff pip-audit
+      - name: Verify application source integrity
+        shell: bash
+        run: |
+          test "$(wc -c < app.py)" -gt 10000
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          source = Path("app.py").read_text(encoding="utf-8")
+          ast.parse(source, filename="app.py")
+          forbidden = ('generate_password_hash("admin123")', 'password_hash=generate_password_hash("admin123")')
+          assert not any(marker in source for marker in forbidden), "legacy bootstrap credential found in app.py"
+          required = ("def create_app", "@app.route(\"/health\")", "@app.route(\"/ready\")")
+          for marker in required:
+              assert marker in source, f"missing required application marker: {marker}"
+          print(f"app.py integrity OK: {len(source)} bytes")
+          PY
       - name: Lint production entrypoints
         run: |
           ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
@@ -75,9 +91,10 @@ jobs:
           app = create_app()
           print('APP CREATED OK')
           client = app.test_client()
-          r = client.get('/health')
-          print('HEALTH:', r.status_code, r.get_json())
-          assert r.status_code == 200
+          for path in ('/health', '/ready'):
+              r = client.get(path)
+              print(path.upper() + ':', r.status_code, r.get_json())
+              assert r.status_code == 200
           print('ALL SMOKE TESTS PASS')
           "
 
