@@ -73,6 +73,11 @@ def _check_lock(key):
 
 
 def _register_failure(key):
+    # A successful password followed by required MFA deliberately returns
+    # success=False at the HTTP layer. Do not classify that state as a failed
+    # password attempt; OTP failures are throttled separately in two_factor.py.
+    if session.get(SESS_MASTER_MFA_PENDING):
+        return
     store = _redis_login_store()
     if store is not None:
         count_key = _redis_key("count", key)
