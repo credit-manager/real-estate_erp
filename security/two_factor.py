@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
-"""TOTP 2FA for the Master Control Center."""
+"""TOTP 2FA for the Master Control Center.
+
+The control-center MFA verifier is deliberately fail-closed and rate limited.
+A password-verified master user still has only a pending-MFA session until OTP
+or a recovery code succeeds.
+"""
+import hashlib
 import json
 import logging
+import os
 import secrets
+import time
 from datetime import datetime
 
 import pyotp
@@ -12,6 +20,11 @@ from database import db
 
 log = logging.getLogger(__name__)
 ISSUER = "ERP Control Center"
+MFA_MAX_ATTEMPTS = 5
+MFA_LOCK_SECONDS = 300
+_MFA_FAILURES = {}
+_REDIS_CLIENT = None
+_REDIS_UNAVAILABLE = False
 
 
 def generate_secret():
@@ -20,6 +33,82 @@ def generate_secret():
 
 def provisioning_uri(user_email, secret):
     return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=ISSUER)
+
+
+def _redis_mfa_store():
+    global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    env = str(os.environ.get("DYNAMICPRO_ENV", "")).strip().lower()
+    if env not in {"production", "prod"}:
+        return None
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    if _REDIS_UNAVAILABLE:
+        raise RuntimeError("Production MFA protection cannot connect to Redis.")
+    uri = os.environ.get("REDIS_URL") or os.environ.get("RATELIMIT_STORAGE_URI")
+    if not uri or not uri.lower().startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production MFA protection requires Redis storage.")
+    try:
+        import redis
+        _REDIS_CLIENT = redis.Redis.from_url(
+            uri,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        _REDIS_CLIENT.ping()
+        return _REDIS_CLIENT
+    except Exception as exc:
+        _REDIS_CLIENT = None
+        _REDIS_UNAVAILABLE = True
+        raise RuntimeError("Production MFA protection cannot connect to Redis.") from exc
+
+
+def _mfa_key(master_user_id):
+    digest = hashlib.sha256(str(master_user_id).encode("utf-8")).hexdigest()
+    return f"dynamicpro:mfa:verify:{digest}"
+
+
+def _mfa_attempt_allowed(master_user_id):
+    store = _redis_mfa_store()
+    if store is not None:
+        key = _mfa_key(master_user_id)
+        remaining = store.ttl(f"{key}:lock")
+        if remaining > 0:
+            return False
+        return True
+    rec = _MFA_FAILURES.get(master_user_id)
+    if not rec:
+        return True
+    lock_until = rec.get("lock_until", 0)
+    if lock_until > time.time():
+        return False
+    _MFA_FAILURES.pop(master_user_id, None)
+    return True
+
+
+def _register_mfa_failure(master_user_id):
+    store = _redis_mfa_store()
+    if store is not None:
+        key = _mfa_key(master_user_id)
+        count = store.incr(f"{key}:count")
+        if count == 1:
+            store.expire(f"{key}:count", MFA_LOCK_SECONDS)
+        if count >= MFA_MAX_ATTEMPTS:
+            store.set(f"{key}:lock", "1", ex=MFA_LOCK_SECONDS)
+        return
+    rec = _MFA_FAILURES.setdefault(master_user_id, {"count": 0, "lock_until": 0})
+    rec["count"] += 1
+    if rec["count"] >= MFA_MAX_ATTEMPTS:
+        rec["lock_until"] = time.time() + MFA_LOCK_SECONDS
+
+
+def _reset_mfa_failures(master_user_id):
+    store = _redis_mfa_store()
+    if store is not None:
+        key = _mfa_key(master_user_id)
+        store.delete(f"{key}:count", f"{key}:lock")
+        return
+    _MFA_FAILURES.pop(master_user_id, None)
 
 
 def enroll(master_user_id, user_email):
@@ -34,20 +123,29 @@ def enroll(master_user_id, user_email):
         mfa.verified_at = None
         mfa.recovery_codes_hash = None
     db.session.commit()
+    _reset_mfa_failures(master_user_id)
     return mfa.secret, provisioning_uri(user_email, mfa.secret)
 
 
 def verify_code(master_user_id, code):
     """Verify a TOTP code and complete a pending password+MFA master login."""
     from security.models import MasterTwoFactor
+    if not _mfa_attempt_allowed(master_user_id):
+        return False
+
     mfa = MasterTwoFactor.query.filter_by(master_user_id=master_user_id).first()
     if not mfa or not mfa.secret:
+        _register_mfa_failure(master_user_id)
         return False
     code = (code or "").strip()
     if not code.isdigit() or len(code) != 6:
+        _register_mfa_failure(master_user_id)
         return False
     if not pyotp.TOTP(mfa.secret).verify(code, valid_window=1):
+        _register_mfa_failure(master_user_id)
         return False
+
+    _reset_mfa_failures(master_user_id)
     now = datetime.utcnow()
     if not mfa.enabled_at:
         mfa.enabled_at = now
@@ -76,6 +174,7 @@ def disable(master_user_id):
     if mfa:
         db.session.delete(mfa)
         db.session.commit()
+    _reset_mfa_failures(master_user_id)
     return True
 
 
@@ -84,6 +183,7 @@ def generate_recovery_codes(master_user_id, count=8):
     mfa = MasterTwoFactor.query.filter_by(master_user_id=master_user_id).first()
     if not mfa:
         return []
+    count = max(4, min(int(count), 12))
     codes = []
     hashes = []
     for _ in range(count):
@@ -92,37 +192,50 @@ def generate_recovery_codes(master_user_id, count=8):
         hashes.append(generate_password_hash(raw))
     mfa.recovery_codes_hash = json.dumps(hashes)
     db.session.commit()
+    _reset_mfa_failures(master_user_id)
     return codes
 
 
 def verify_recovery_code(master_user_id, code):
     from security.models import MasterTwoFactor
+    if not _mfa_attempt_allowed(master_user_id):
+        return False
     mfa = MasterTwoFactor.query.filter_by(master_user_id=master_user_id).first()
     if not mfa or not mfa.recovery_codes_hash:
+        _register_mfa_failure(master_user_id)
         return False
     try:
         hashes = json.loads(mfa.recovery_codes_hash)
     except (ValueError, TypeError):
+        _register_mfa_failure(master_user_id)
         return False
+    if not isinstance(hashes, list):
+        _register_mfa_failure(master_user_id)
+        return False
+
     remaining = []
     matched = False
     candidate = (code or "").strip().upper()
     for stored in hashes:
-        if not matched and check_password_hash(stored, candidate):
+        if not matched and isinstance(stored, str) and check_password_hash(stored, candidate):
             matched = True
             continue
         remaining.append(stored)
-    if matched:
-        mfa.recovery_codes_hash = json.dumps(remaining)
-        db.session.commit()
-        try:
-            from licensing.auth import complete_pending_master_mfa, is_pending_mfa_session
-            if is_pending_mfa_session():
-                return complete_pending_master_mfa(master_user_id)
-        except Exception:
-            log.exception("Failed to complete pending master MFA recovery session")
-            return False
-    return False
+    if not matched:
+        _register_mfa_failure(master_user_id)
+        return False
+
+    _reset_mfa_failures(master_user_id)
+    mfa.recovery_codes_hash = json.dumps(remaining)
+    db.session.commit()
+    try:
+        from licensing.auth import complete_pending_master_mfa, is_pending_mfa_session
+        if is_pending_mfa_session():
+            return complete_pending_master_mfa(master_user_id)
+    except Exception:
+        log.exception("Failed to complete pending master MFA recovery session")
+        return False
+    return True
 
 
 def require_two_factor(master_user_id):
