@@ -102,17 +102,13 @@ def create_year():
     if err:
         return jsonify({"message": err, "error_key": err}), 400
     normalized_name = str(data["name"]).strip()
-    dup = FinancialYear.query.filter_by(
-        company_id=data["company_id"], name=normalized_name).first()
+    dup = FinancialYear.query.filter_by(company_id=data["company_id"], name=normalized_name).first()
     if dup:
         return jsonify({"message": "financialYears.duplicate", "error_key": "financialYears.duplicate"}), 400
     year = FinancialYear(
-        company_id=data["company_id"],
-        name=normalized_name,
-        start_date=_parse_date(data.get("start_date")),
-        end_date=_parse_date(data.get("end_date")),
-        is_active=bool(data.get("is_active", False)),
-        is_closed=bool(data.get("is_closed", False)),
+        company_id=data["company_id"], name=normalized_name,
+        start_date=_parse_date(data.get("start_date")), end_date=_parse_date(data.get("end_date")),
+        is_active=bool(data.get("is_active", False)), is_closed=bool(data.get("is_closed", False)),
     )
     if year.is_active and year.is_closed:
         return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
@@ -144,16 +140,20 @@ def update_year(year_id):
     target_end = _parse_date(data["end_date"]) if "end_date" in data else year.end_date
     target_closed = bool(data.get("is_closed")) if "is_closed" in data else bool(year.is_closed)
     target_active = bool(data.get("is_active")) if "is_active" in data else bool(year.is_active)
+    target_name = str(data["name"]).strip() if "name" in data else year.name
 
     if target_active and target_closed:
         return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
-    if year.is_closed and (target_company_id != year.company_id or target_start != year.start_date or target_end != year.end_date):
+    if year.is_closed and (
+        target_company_id != year.company_id or target_start != year.start_date
+        or target_end != year.end_date or target_name != year.name
+    ):
         return jsonify({"message": "financialYears.closedImmutable", "error_key": "financialYears.closedImmutable"}), 409
 
     if "company_id" in data:
         year.company_id = target_company_id
     if "name" in data:
-        year.name = str(data["name"]).strip()
+        year.name = target_name
     if "start_date" in data:
         year.start_date = target_start
     if "end_date" in data:
@@ -179,8 +179,7 @@ def delete_year(year_id):
     summary = _summary(year)
     if any(summary.values()):
         return jsonify({
-            "message": "financialYears.hasTransactions",
-            "error_key": "financialYears.hasTransactions",
+            "message": "financialYears.hasTransactions", "error_key": "financialYears.hasTransactions",
             "summary": summary,
         }), 409
     name = year.name
