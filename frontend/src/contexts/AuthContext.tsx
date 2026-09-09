@@ -61,14 +61,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = useCallback(async () => {
     try {
+      try {
+        const { data } = await api.get<{ success?: boolean; user?: User; permissions?: string[] }>("/admin/security/me");
+        if (data.user) {
+          setUser({ ...data.user, permissions: data.permissions || data.user.permissions });
+          return;
+        }
+      } catch {
+        // Not a Control Center session; fall back to ERP employee/company identity.
+      }
+
       const { data } = await api.get<{ authenticated: boolean; user?: User; csrf_token?: string }>("/api/me");
       if (data.csrf_token) setCsrfToken(data.csrf_token);
       if (data.authenticated && data.user) setUser(data.user);
       else setUser(null);
     } catch {
       setUser(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -86,11 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         two_factor_required?: boolean;
         mfa_setup_required?: boolean;
         message?: string;
-      }>("/login", { username: email, email, password });
+      }>("/admin/login", { email, password });
       if (data.csrf_token) setCsrfToken(data.csrf_token);
       if (data.success) {
-        if (data.user) setUser(data.user);
-        else await loadUser();
+        await loadUser();
         return { success: true };
       }
       if (data.requires_2fa || data.two_factor_required) {
@@ -117,19 +127,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const enroll2FA = async (): Promise<EnrollResult> => {
+  const enroll2FA = useCallback(async (): Promise<EnrollResult> => {
     try {
       const { data } = await api.post<{ success?: boolean; secret?: string; otpauth_uri?: string; message?: string }>("/admin/security/2fa/enroll", {});
-      return {
-        success: !!data.success,
-        secret: data.secret,
-        otpauth_uri: data.otpauth_uri,
-        message: data.message,
-      };
+      return { success: !!data.success, secret: data.secret, otpauth_uri: data.otpauth_uri, message: data.message };
     } catch (error: unknown) {
       return { success: false, message: apiErrorMessage(error, "تعذر بدء إعداد المصادقة الثنائية") };
     }
-  };
+  }, []);
 
   const verify2FA = async (code: string): Promise<VerifyResult> => {
     try {
@@ -146,9 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await api.post("/logout");
+      await api.post("/admin/logout");
     } catch {
-      // Local state is cleared even when the server is unavailable.
+      try { await api.post("/logout"); } catch { /* local state is still cleared */ }
     }
     setCsrfToken();
     setUser(null);
