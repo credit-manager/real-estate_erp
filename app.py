@@ -740,8 +740,11 @@ def create_app():
                         if request.path.startswith("/api/"):
                             return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
                         return redirect(url_for("pages.change_password"))
-            except Exception:
-                pass
+            except Exception as exc:
+                current_app.logger.error("Password-change enforcement failed closed", exc_info=True)
+                if request.path.startswith("/api/"):
+                    return jsonify({"success": False, "message": "تعذر التحقق من حالة كلمة المرور", "code": "password_guard_unavailable"}), 503
+                return _error_html("503", "تعذر التحقق من حالة كلمة المرور"), 503
 
     return app
 
