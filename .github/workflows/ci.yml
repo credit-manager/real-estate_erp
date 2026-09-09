@@ -55,11 +55,28 @@ jobs:
               assert marker in source, f"missing required application marker: {marker}"
           print(f"app.py integrity OK: {len(source)} bytes")
           PY
+      - name: Verify production architecture guards
+        shell: bash
+        run: |
+          test -d migrations/versions
+          test -n "$(find migrations/versions -maxdepth 1 -name '*.py' -not -name '__init__.py' -print -quit)"
+          python - <<'PY'
+          from pathlib import Path
+          api = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+          auth = Path("frontend/src/contexts/AuthContext.tsx").read_text(encoding="utf-8")
+          nginx = Path("deployment/nginx/nginx.conf").read_text(encoding="utf-8")
+          docker = Path("Dockerfile").read_text(encoding="utf-8")
+          forbidden_browser_tokens = ("localStorage.getItem(\"access_token\")", "localStorage.setItem(\"access_token\")", "localStorage.setItem(\"refresh_token\")", "sessionStorage.setItem(\"access_token\")")
+          assert not any(marker in api + auth for marker in forbidden_browser_tokens), "browser JWT persistence detected"
+          assert "location = /health" in nginx and "proxy_pass http://backend/health" in nginx, "nginx health is not backend-aware"
+          assert "USER dynamicpro" in docker, "container must run as non-root dynamicpro user"
+          print("production architecture guards OK")
+          PY
       - name: Lint production entrypoints and authentication
         run: |
-          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/0001_accounting_integrity.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/0001_accounting_integrity.py
       - name: Dependency vulnerability audit
         run: |
           pip-audit -r requirements.txt --progress-spinner off
@@ -75,6 +92,25 @@ jobs:
           SECRET_KEY: test-application-secret-key-for-ci
           DYNAMICPRO_ENV: test
         run: pytest -q --disable-warnings --maxfail=1
+      - name: Migration smoke test
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
+        run: |
+          python - <<'PY'
+          from app import create_app
+          from database import db
+          app = create_app()
+          with app.app_context():
+              db.create_all()
+          PY
+          alembic upgrade head
       - name: Application smoke test
         env:
           DB_USER: test_user
@@ -235,3 +271,9 @@ jobs:
         run: docker build -t dp-app:latest .
       - name: Build frontend image
         run: docker build -t dp-frontend:latest ./frontend
+      - name: Verify backend image runs as non-root
+        run: |
+          test "$(docker inspect -f '{{.Config.User}}' dp-app:latest)" = "dynamicpro"
+      - name: Verify frontend image
+        run: |
+          test -n "$(docker inspect -f '{{.Id}}' dp-frontend:latest)"
