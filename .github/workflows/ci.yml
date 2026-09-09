@@ -112,6 +112,27 @@ jobs:
             throw "DynamicPro.exe was not produced"
           }
           Get-Item "dist\DynamicPro.exe" | Format-List FullName,Length
+      - name: Frozen executable smoke test
+        shell: pwsh
+        env:
+          DYNAMICPRO_SMOKE_TEST: "1"
+          DYNAMICPRO_DESKTOP: "1"
+        run: |
+          $p = Start-Process -FilePath "dist\DynamicPro.exe" -PassThru -WindowStyle Hidden
+          try {
+            Wait-Process -Id $p.Id -Timeout 90 -ErrorAction SilentlyContinue
+            if (-not $p.HasExited) {
+              throw "DynamicPro.exe frozen smoke test timed out."
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "DynamicPro.exe frozen smoke test failed with exit code $($p.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
