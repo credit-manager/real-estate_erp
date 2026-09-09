@@ -1,9 +1,5 @@
 #!/bin/sh
-# ─────────────────────────────────────────────────────────────
-# DynamicPro ERP — Database Backup Worker
-# Creates a verified PostgreSQL backup at a fixed interval and
-# applies retention cleanup after each successful backup.
-# ─────────────────────────────────────────────────────────────
+# DynamicPro ERP — verified periodic PostgreSQL backup worker.
 set -eu
 
 BACKUP_DIR="/backups"
@@ -18,8 +14,8 @@ while :; do
     TMP_FILE="${BACKUP_FILE}.tmp"
 
     echo "[BACKUP] Starting backup: ${DATE}"
-
     rm -f "${TMP_FILE}"
+
     if pg_dump -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" \
         --no-owner --no-privileges --clean --if-exists \
         | gzip > "${TMP_FILE}"; then
@@ -49,12 +45,9 @@ while :; do
     mv -f "${TMP_FILE}" "${BACKUP_FILE}"
     echo "[BACKUP] Created and verified: ${BACKUP_FILE} (${FILESIZE} bytes)"
 
-    echo "[BACKUP] Cleaning backups older than ${BACKUP_RETENTION} days..."
     find "${BACKUP_DIR}" -name "dp_*.sql.gz" -mtime "+${BACKUP_RETENTION}" -delete 2>/dev/null || true
-
     REMAINING=$(find "${BACKUP_DIR}" -maxdepth 1 -type f -name "dp_*.sql.gz" | wc -l)
     echo "[BACKUP] ${REMAINING} backups remaining"
-
     echo "[BACKUP] Sleeping ${BACKUP_INTERVAL_SECONDS}s before next run."
     sleep "${BACKUP_INTERVAL_SECONDS}"
 done
