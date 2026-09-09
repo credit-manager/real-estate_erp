@@ -1,16 +1,5 @@
 # -*- coding: utf-8 -*-
-"""TOTP 2FA for the Master Control Center (Phase 1).
-
-Uses pyotp (RFC 6238 TOTP) against a per-user secret stored in the
-``master_two_factor`` table.  Secrets are never returned after enrollment;
-only the otpauth:// provisioning URI (for the authenticator app QR) and the
-raw secret are shown once at enrollment time.
-
-The spec mandates: **no Super Admin without 2FA** — enforced by
-``require_two_factor()`` for roles that carry elevated privileges.
-"""
-import hashlib
-import hmac
+"""TOTP 2FA for the Master Control Center."""
 import json
 import logging
 import secrets
@@ -22,24 +11,19 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from database import db
 
 log = logging.getLogger(__name__)
-
 ISSUER = "ERP Control Center"
 
 
 def generate_secret():
-    """Create a base32 TOTP secret."""
     return pyotp.random_base32()
 
 
 def provisioning_uri(user_email, secret):
-    totp = pyotp.TOTP(secret)
-    return totp.provisioning_uri(name=user_email, issuer_name=ISSUER)
+    return pyotp.TOTP(secret).provisioning_uri(name=user_email, issuer_name=ISSUER)
 
 
 def enroll(master_user_id, user_email):
-    """Create and return a fresh TOTP secret + provisioning URI (shown once)."""
     from security.models import MasterTwoFactor
-
     mfa = MasterTwoFactor.query.filter_by(master_user_id=master_user_id).first()
     if mfa is None:
         mfa = MasterTwoFactor(master_user_id=master_user_id, secret=generate_secret())
@@ -54,24 +38,30 @@ def enroll(master_user_id, user_email):
 
 
 def verify_code(master_user_id, code):
-    """Validate a 6-digit TOTP code for the given master user.
-
-    Enables the user's 2FA upon the first successful verification.
-    """
+    """Verify a TOTP code and complete a pending password+MFA master login."""
     from security.models import MasterTwoFactor
-
     mfa = MasterTwoFactor.query.filter_by(master_user_id=master_user_id).first()
     if not mfa or not mfa.secret:
         return False
-    totp = pyotp.TOTP(mfa.secret)
-    if totp.verify(code, valid_window=1):
-        if not mfa.enabled_at:
-            mfa.enabled_at = datetime.utcnow()
-            mfa.verified_at = datetime.utcnow()
-        mfa.last_used_at = datetime.utcnow()
-        db.session.commit()
-        return True
-    return False
+    code = (code or "").strip()
+    if not code.isdigit() or len(code) != 6:
+        return False
+    if not pyotp.TOTP(mfa.secret).verify(code, valid_window=1):
+        return False
+    now = datetime.utcnow()
+    if not mfa.enabled_at:
+        mfa.enabled_at = now
+        mfa.verified_at = now
+    mfa.last_used_at = now
+    db.session.commit()
+    try:
+        from licensing.auth import complete_pending_master_mfa, is_pending_mfa_session
+        if is_pending_mfa_session():
+            return complete_pending_master_mfa(master_user_id)
+    except Exception:
+        log.exception("Failed to complete pending master MFA session")
+        return False
+    return True
 
 
 def is_enabled(master_user_id):
@@ -114,26 +104,29 @@ def verify_recovery_code(master_user_id, code):
         hashes = json.loads(mfa.recovery_codes_hash)
     except (ValueError, TypeError):
         return False
-    now = []
-    for h in hashes:
-        if check_password_hash(h, code.strip().upper()):
-            # consume the code: remove it and keep remaining
+    remaining = []
+    matched = False
+    candidate = (code or "").strip().upper()
+    for stored in hashes:
+        if not matched and check_password_hash(stored, candidate):
+            matched = True
             continue
-        now.append(h)
-    if len(now) != len(hashes):
-        mfa.recovery_codes_hash = json.dumps(now)
+        remaining.append(stored)
+    if matched:
+        mfa.recovery_codes_hash = json.dumps(remaining)
         db.session.commit()
-        return True
+        try:
+            from licensing.auth import complete_pending_master_mfa, is_pending_mfa_session
+            if is_pending_mfa_session():
+                return complete_pending_master_mfa(master_user_id)
+        except Exception:
+            log.exception("Failed to complete pending master MFA recovery session")
+            return False
     return False
 
 
 def require_two_factor(master_user_id):
-    """Require that 2FA is enabled for a super_admin (or any 2FA-mandated user).
-
-    Returns True if enforcement should apply AND is satisfied.
-    """
     from security.rbac import user_permissions, _all_codes
-    # A user holding every permission is a super admin — 2FA is mandatory.
     if user_permissions(master_user_id) >= set(_all_codes()):
         return is_enabled(master_user_id)
     return True
