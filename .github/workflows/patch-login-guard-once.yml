@@ -1,27 +1,15 @@
 name: Patch Distributed Login Guard Once
 
 on:
-  push:
-    branches: [master, main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
-    if: "!contains(github.event.head_commit.message, '[login-guard-hardened]')"
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch login guard
-        run: python tools/patch_login_guard.py
-      - name: Validate auth module
+      - name: Validate distributed login guard
         run: python -m py_compile routes/auth.py
-      - name: Commit login guard hardening
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add routes/auth.py
-          git diff --cached --quiet && exit 0
-          git commit -m "security: use distributed Redis login lock in production [login-guard-hardened]"
-          git push
