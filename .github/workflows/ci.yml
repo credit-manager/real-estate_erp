@@ -55,11 +55,11 @@ jobs:
               assert marker in source, f"missing required application marker: {marker}"
           print(f"app.py integrity OK: {len(source)} bytes")
           PY
-      - name: Lint production entrypoints
+      - name: Lint production entrypoints and authentication
         run: |
-          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py
       - name: Dependency vulnerability audit
         run: |
           pip-audit -r requirements.txt --progress-spinner off
