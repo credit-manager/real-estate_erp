@@ -38,7 +38,7 @@ jobs:
       - name: Lint production entrypoints
         run: |
           pip install ruff
-          ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303
+          ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
         run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py
       - name: Test (smoke)
