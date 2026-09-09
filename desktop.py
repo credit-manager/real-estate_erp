@@ -53,6 +53,9 @@ def _kill_tree(pid):
 
 def _bundled_server_loop(port, state, stop_event):
     """Serve the bundled Flask application without spawning Python.exe."""
+    # The application has one PostgreSQL-only legacy migration statement.
+    # Install the SQLite compatibility layer before importing app.
+    import desktop_sqlite_compat  # noqa: F401
     from werkzeug.serving import make_server
     from app import app
 
