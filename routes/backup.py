@@ -34,6 +34,7 @@ from models import (
     ConstructionMilestone, DSPPlan, TitleDeed,
     UnitDocument, OwnerAssociation, ServiceCharge,
 )
+# PropTech (may not be in __init__ yet — import directly as fallback)
 try:
     from models.proptech import DeliveryChecklistItem, TenantScreening, UnitMortgage
 except ImportError:
@@ -43,7 +44,10 @@ from auditlog import log_action
 
 backup_bp = Blueprint("backup", __name__, url_prefix="/api/backup")
 
+
+# الترتيب: أبناء قبل الآباء (حذف آمن مع قيود FK)، والاستعادة تعكسه.
 _TABLES = [
+    # --- PropTech / Escrow / OffPlan / Addons (أبناء أولاً) ---
     ("escrow_transactions", EscrowTransaction),
     ("title_deeds", TitleDeed),
     ("dsp_plans", DSPPlan),
@@ -57,8 +61,10 @@ _TABLES = [
     ("owner_associations", OwnerAssociation),
     ("real_estate_brokers", Broker),
 ]
+# إزالة المدخلات الفارغة (إن فشل استيراد PropTech)
 _TABLES = [t for t in _TABLES if t is not None and t[1] is not None]
 _TABLES += [
+    # --- وحدة CRM (أبناء أولاً: حذف آمن مع FK) ---
     ("crm_quote_items", QuoteItem),
     ("crm_contracts", CrmContract),
     ("crm_complaints", Complaint),
@@ -73,6 +79,7 @@ _TABLES += [
     ("crm_leads", Lead),
     ("crm_campaigns", Campaign),
     ("crm_pipeline_stages", CrmPipelineStage),
+    # --- وحدة الاستثمار العقاري (أبناء أولاً: حذف آمن مع FK) ---
     ("commissions", Commission),
     ("sales_contracts", SalesContract),
     ("unit_reservations", Reservation),
@@ -147,6 +154,7 @@ def _dump():
                 if isinstance(val, (datetime, date)):
                     val = val.isoformat()
                 elif isinstance(val, Decimal):
+                    # Preserve exact financial precision; JSON restores it as Decimal.
                     val = format(val, "f")
                 row[col.name] = val
             rows.append(row)
@@ -155,6 +163,7 @@ def _dump():
 
 
 def _sorted_rows(model, rows):
+    """يرتب الصفوف داخل الجدول لضمان إدراج الآباء قبل الأبناء (إشارات ذاتية مثل accounts)."""
     cols = {c.name for c in model.__table__.columns}
     if "parent_id" not in cols or "id" not in cols:
         return rows
@@ -179,6 +188,9 @@ def _sorted_rows(model, rows):
     return out
 
 
+# ============ تشفير النسخ الاحتياطية (AES-256-GCM بكلمة مرور) ============
+# يُشتق المفتاح من كلمة المرور عبر PBKDF2-SHA256، ويُعمَّل التشفير بـ AES-GCM
+# (salt و nonce مختلفان لكل ملف لضمان مرونة عشوائية عالية حتى لنفس المحتوى).
 _PBKDF2_ITERATIONS = 200_000
 _BACKUP_FORMAT = "dynamicpro-backup-aes-gcm"
 
@@ -194,6 +206,7 @@ def _derive_key(password, salt):
 
 
 def _encrypt_payload(payload_bytes, password):
+    """يُشفر محتوى النسخة الاحتياطية ويعيد حاوية JSON آمنة."""
     salt = os.urandom(16)
     nonce = os.urandom(12)
     key = _derive_key(password, salt)
@@ -209,6 +222,7 @@ def _encrypt_payload(payload_bytes, password):
 
 
 def _decrypt_payload(container, password):
+    """يفك تشفير حاوية النسخة الاحتياطية ويعيد البايتات الأصلية."""
     salt = base64.b64decode(container["salt"])
     nonce = base64.b64decode(container["nonce"])
     tag = base64.b64decode(container["tag"])
@@ -219,43 +233,46 @@ def _decrypt_payload(container, password):
 
 
 def _restore(data):
-    """Restore all tables in one transaction so failures roll back cleanly."""
-    for _, model in _TABLES:
-        db.session.query(model).delete()
-
-    for key, model in reversed(_TABLES):
-        for row in _sorted_rows(model, data.get(key, [])):
-            obj = model()
-            for col in model.__table__.columns:
-                name = col.name
-                if name not in row or row[name] is None:
-                    continue
-                val = row[name]
-                if isinstance(col.type, DateTime):
-                    val = datetime.fromisoformat(val)
-                elif isinstance(col.type, Date):
-                    val = date.fromisoformat(val)
-                elif isinstance(col.type, Numeric):
-                    val = Decimal(str(val))
-                setattr(obj, name, val)
-            db.session.add(obj)
-
-    # Keep PostgreSQL sequences aligned after explicit primary-key restoration.
+    """Restore the complete dataset in one transaction."""
     try:
         for _, model in _TABLES:
-            pk_columns = list(model.__table__.primary_key.columns)
-            if not pk_columns:
-                continue
-            pk = pk_columns[0].name
-            max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()
-            if max_id:
-                seq_name = f"{model.__tablename__}_{pk}_seq"
-                db.session.execute(text("SELECT setval(:seq, :n, true)"), {"seq": seq_name, "n": int(max_id)})
-    except Exception:
-        # SQLite has no PostgreSQL sequence catalogue; sequence reset is optional.
-        pass
+            db.session.query(model).delete()
 
-    db.session.commit()
+        for key, model in reversed(_TABLES):
+            for row in _sorted_rows(model, data.get(key, [])):
+                obj = model()
+                for col in model.__table__.columns:
+                    name = col.name
+                    if name not in row or row[name] is None:
+                        continue
+                    val = row[name]
+                    if isinstance(col.type, DateTime):
+                        val = datetime.fromisoformat(val)
+                    elif isinstance(col.type, Date):
+                        val = date.fromisoformat(val)
+                    elif isinstance(col.type, Numeric):
+                        val = Decimal(str(val))
+                    setattr(obj, name, val)
+                db.session.add(obj)
+
+        # Re-align PostgreSQL sequences after explicit primary-key restoration.
+        if db.engine.dialect.name == "postgresql":
+            for _, model in _TABLES:
+                pk_columns = list(model.__table__.primary_key.columns)
+                if not pk_columns:
+                    continue
+                pk = pk_columns[0].name
+                max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()
+                if max_id:
+                    seq_name = f"{model.__tablename__}_{pk}_seq"
+                    db.session.execute(
+                        text("SELECT setval(:seq, :n, true)"),
+                        {"seq": seq_name, "n": int(max_id)},
+                    )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 @backup_bp.route("/export")
@@ -268,9 +285,12 @@ def export_backup():
         **_dump(),
     }
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # كلمة المرور تُقرأ من الهيدر فقط (لا تُمرَّر في الـ URL حتى لا تتسرب إلى السجلات)
     password = (request.headers.get("X-Backup-Password") or "").strip()
     if password:
-        container = _encrypt_payload(json.dumps(data, ensure_ascii=False).encode("utf-8"), password)
+        container = _encrypt_payload(
+            json.dumps(data, ensure_ascii=False).encode("utf-8"), password
+        )
         payload = json.dumps(container, ensure_ascii=False)
         filename = f"backup_{stamp}.dyncpro"
         mimetype = "application/octet-stream"
@@ -286,13 +306,16 @@ def export_backup():
 @backup_bp.route("/import", methods=["POST"])
 @require_api("backup", "create")
 def import_backup():
+    # حد حجم الملف: 100MB كحد أقصى لمنع DoS
     MAX_BACKUP_SIZE = 100 * 1024 * 1024
     file = request.files.get("file")
     if not file:
         return jsonify({"message": "ملف مطلوب", "error_key": "backup.fileRequired"}), 400
+    # تحقق من امتداد الملف
     fname = (file.filename or "").lower()
     if not (fname.endswith(".json") or fname.endswith(".dyncpro")):
         return jsonify({"message": "صيغة الملف غير مدعومة — استخدم .json أو .dyncpro", "error_key": "backup.invalidExtension"}), 400
+    # قراءة مع حد الحجم
     file.seek(0, 2)
     fsize = file.tell()
     file.seek(0)
@@ -303,29 +326,200 @@ def import_backup():
     raw = file.read(MAX_BACKUP_SIZE + 1)
     if len(raw) > MAX_BACKUP_SIZE:
         return jsonify({"message": "حجم الملف كبير جداً", "error_key": "backup.tooLarge"}), 413
-    password = (request.form.get("password") or request.headers.get("X-Backup-Password") or "").strip()
+    # كلمة مرور فك التشفير (تُقرأ من حقل النموذج أو الهيدر)
+    password = (
+        request.form.get("password")
+        or request.headers.get("X-Backup-Password")
+        or ""
+    ).strip()
     try:
         container = json.loads(raw.decode("utf-8"))
     except Exception:
         container = None
     if isinstance(container, dict) and container.get("format") == _BACKUP_FORMAT:
         if not password:
-            return jsonify({"message": "كلمة مرور التشفير مطلوبة", "error_key": "backup.passwordRequired"}), 400
+            return jsonify({
+                "message": "كلمة مرور التشفير مطلوبة",
+                "error_key": "backup.passwordRequired",
+            }), 400
         try:
-            raw = _decrypt_payload(container, password)
+            plain = _decrypt_payload(container, password)
+            data = json.loads(plain.decode("utf-8"))
         except Exception:
-            return jsonify({"message": "فشل فك تشفير النسخة الاحتياطية", "error_key": "backup.decryptFailed"}), 400
-    try:
-        data = json.loads(raw.decode("utf-8"))
-    except Exception:
-        return jsonify({"message": "محتوى النسخة الاحتياطية غير صالح", "error_key": "backup.invalidJson"}), 400
-    if not isinstance(data, dict) or data.get("app") != "Dynamic Pro ERP":
-        return jsonify({"message": "ملف النسخة الاحتياطية غير صالح", "error_key": "backup.invalidFormat"}), 400
+            return jsonify({
+                "message": "كلمة مرور غير صحيحة أو ملف تالف",
+                "error_key": "backup.badPassword",
+            }), 400
+    else:
+        data = container
+    if not isinstance(data, dict) or "users" not in data:
+        return jsonify({"message": "ملف غير صالح", "error_key": "backup.invalidFile"}), 400
     try:
         _restore(data)
-    except Exception:
+    except Exception as e:
         db.session.rollback()
-        log_action("backup_restore_failed", details={"filename": file.filename or "unknown"})
-        return jsonify({"message": "فشلت استعادة النسخة الاحتياطية وتم التراجع عن التغييرات", "error_key": "backup.restoreFailed"}), 422
-    log_action("backup_restored", details={"filename": file.filename or "unknown"})
-    return jsonify({"success": True, "message": "تمت الاستعادة بنجاح"}), 200
+        return jsonify({
+            "message": "فشلت الاستعادة",
+            "error_key": "backup.restoreFailed",
+            "detail": str(e),
+        }), 400
+    return jsonify({"success": True})
+
+
+# ============ النسخ الاحتياطي التلقائي ============
+
+def _run_auto_backup_once(app):
+    import utils.settings as settings
+    if not settings.get_bool("backup_auto_enabled", False):
+        return
+    interval_days = settings.get_int("backup_auto_interval_days", 1) or 1
+    last_raw = (settings.get("backup_auto_last", "") or "").strip()
+    now = datetime.now()
+    due = True
+    if last_raw:
+        try:
+            last = datetime.fromisoformat(last_raw)
+            due = (now - last).total_seconds() >= interval_days * 86400
+        except ValueError:
+            due = True
+    if not due:
+        return
+
+    folder = (settings.get("backup_auto_folder", "") or "").strip()
+    if not folder:
+        folder = os.path.join(app.instance_path, "backups")
+    # حماية من Path Traversal — السماح فقط داخل instance_path أو مسار صريح آمن
+    try:
+        folder_abs = os.path.abspath(folder)
+        allowed_root = os.path.abspath(app.instance_path)
+        # اسمح أيضاً بمجلد النسخ الافتراضي فقط خارج instance_path إذا كان صريحاً وموجوداً
+        if not folder_abs.startswith(allowed_root):
+            # تحقق من أن المسار لا يحتوي على .. وأنه مجلد موجود/قابل للإنشاء بأمان
+            if ".." in folder or not os.path.isabs(folder_abs):
+                folder = os.path.join(app.instance_path, "backups")
+                folder_abs = os.path.abspath(folder)
+            # إذا كان المسار مطلقاً خارج instance_path، تأكد أنه ليس جذر النظام
+            if folder_abs in (os.path.abspath(os.sep), os.path.abspath("C:\\"), os.path.abspath("D:\\")):
+                folder = os.path.join(app.instance_path, "backups")
+                folder_abs = os.path.abspath(folder)
+        folder = folder_abs
+    except Exception:
+        folder = os.path.join(app.instance_path, "backups")
+    os.makedirs(folder, exist_ok=True)
+
+    payload = json.dumps({
+        "app": "Dynamic Pro ERP",
+        "version": 1,
+        "exported_at": now.isoformat(),
+        **_dump(),
+    }, ensure_ascii=False, indent=2)
+    # تشفير النسخة التلقائية بكلمة مرور (إن كانت مضبوطة في الإعدادات)
+    password = (settings.get("backup_encryption_password", "") or "").strip()
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    if password:
+        container = _encrypt_payload(payload.encode("utf-8"), password)
+        filename = f"auto_backup_{stamp}.dyncpro"
+        content = json.dumps(container, ensure_ascii=False)
+    else:
+        filename = f"auto_backup_{stamp}.json"
+        content = payload
+    with open(os.path.join(folder, filename), "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+    keep = settings.get_int("backup_auto_keep", 10) or 10
+    files = sorted(glob.glob(os.path.join(folder, "auto_backup_*")))
+    for old in files[:-keep]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+
+    settings.set("backup_auto_last", now.isoformat())
+    db.session.commit()
+
+
+_scheduler_started = False
+
+
+def schedule_auto_backup(app):
+    """خيط خلفي يفحص كل دقيقة هل حان موعد النسخة التلقائية."""
+    global _scheduler_started
+    if _scheduler_started:
+        return None
+    _scheduler_started = True
+
+    def worker():
+        while True:
+            try:
+                with app.app_context():
+                    _run_auto_backup_once(app)
+            except Exception as e:
+                try:
+                    with app.app_context():
+                        log_action("error", "backup", None,
+                                   "خطأ في النسخ الاحتياطي التلقائي: %s" % e)
+                        db.session.commit()
+                except Exception:
+                    pass
+            time.sleep(60)
+
+    t = threading.Thread(target=worker, daemon=True, name="auto-backup")
+    t.start()
+    return t
+
+
+@backup_bp.route("/settings", methods=["GET"])
+@require_api("backup", "view")
+def get_backup_settings():
+    import utils.settings as settings
+    data = settings.get_all()
+    enc_pw = data.get("backup_encryption_password", "")
+    return jsonify({
+        "success": True,
+        "settings": {
+            "backup_auto_enabled": settings.get_bool("backup_auto_enabled", False),
+            "backup_auto_interval_days": settings.get_int("backup_auto_interval_days", 1),
+            "backup_auto_folder": data.get("backup_auto_folder", ""),
+            "backup_auto_keep": settings.get_int("backup_auto_keep", 10),
+            "backup_auto_last": data.get("backup_auto_last", ""),
+            "backup_encryption_password_set": bool(enc_pw),
+            # لا نعيد كلمة المرور نفسها — فقط هل هي مضبوطة
+        },
+    })
+
+
+@backup_bp.route("/settings", methods=["POST"])
+@require_api("backup", "edit")
+def save_backup_settings():
+    import utils.settings as settings
+    data = request.get_json(silent=True) or {}
+    if "backup_auto_enabled" in data:
+        settings.set("backup_auto_enabled", "1" if data["backup_auto_enabled"] else "0")
+    if "backup_auto_interval_days" in data:
+        try:
+            interval = max(1, int(data["backup_auto_interval_days"]))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error_key": "backup.invalidInterval"}), 400
+        settings.set("backup_auto_interval_days", interval)
+    if "backup_auto_keep" in data:
+        try:
+            keep = max(1, int(data["backup_auto_keep"]))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error_key": "backup.invalidKeep"}), 400
+        settings.set("backup_auto_keep", keep)
+    if "backup_auto_folder" in data:
+        raw_folder = (data["backup_auto_folder"] or "").strip()
+        if raw_folder:
+            # منع Path Traversal
+            if ".." in raw_folder or raw_folder.startswith("\\\\"):
+                return jsonify({"success": False, "error_key": "backup.invalidFolder"}), 400
+            # منع المسارات الخطرة (جذر النظام)
+            abs_check = os.path.abspath(raw_folder)
+            if abs_check in (os.path.abspath(os.sep), os.path.abspath("C:\\"), os.path.abspath("D:\\")):
+                return jsonify({"success": False, "error_key": "backup.invalidFolder"}), 400
+        settings.set("backup_auto_folder", raw_folder)
+    if "backup_encryption_password" in data:
+        settings.set("backup_encryption_password", (data["backup_encryption_password"] or "").strip())
+    db.session.commit()
+    log_action("edit", "backup", None, "تعديل إعدادات النسخ الاحتياطي التلقائي")
+    return jsonify({"success": True})
