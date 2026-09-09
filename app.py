@@ -22,11 +22,9 @@ def _run_migrations_and_seeds(app, db):
     insp = inspect(db.engine)
 
     if is_sqlite:
-        # ── وضع Desktop (SQLite): إنشاء الجداول من Models ثم Seed فقط ──
         db.create_all()
         db.session.commit()
     else:
-        # ── وضع Cloud (PostgreSQL): migrations كاملة ──
         cols = [c["name"] for c in insp.get_columns("users")]
         if "must_change_password" not in cols:
             db.session.execute(text(
@@ -199,7 +197,6 @@ def _run_migrations_and_seeds(app, db):
         except Exception:
             db.session.rollback()
 
-    # ── Seed Data (مشترك بين SQLite و PostgreSQL) ──
     from models import TaxType
     if TaxType.query.count() == 0:
         db.session.add(TaxType(name="ضريبة القيمة المضافة", rate=15, is_active=True, is_default=True))
@@ -262,21 +259,14 @@ def _run_migrations_and_seeds(app, db):
         from db_indexes import ensure_indexes
         ensure_indexes(db.engine, db.session)
 
-    # Phase 1 — seed Master Cloud RBAC (roles + permission catalog). Idempotent.
     from security.rbac import seed_roles_and_permissions
     seed_roles_and_permissions()
 
-    # Phase 5 — seed module catalog. Idempotent.
     from security.modules import seed_module_catalog
     seed_module_catalog()
 
 
 def _source_dir():
-    """مجلد المصدر الذي يُقرأ منه القوالب والملفات الثابتة.
-
-    عند تشغيل النسخة المجمعة (frozen) يبحث أولاً عن مجلد المصدر الم开办
-    (للتطوير)، ثم يعود إلى مجلد الحزمة (sys._MEIPASS).
-    """
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
         marker = os.path.join(exe_dir, "_source_dir.txt")
@@ -291,7 +281,6 @@ def _source_dir():
         parent = os.path.abspath(os.path.join(exe_dir, os.pardir))
         if os.path.isfile(os.path.join(parent, "app.py")) and os.path.isdir(os.path.join(parent, "templates")):
             return parent
-        # Fall back to the PyInstaller bundle directory
         meipass = getattr(sys, "_MEIPASS", None)
         if meipass and os.path.isdir(os.path.join(meipass, "templates")):
             return meipass
@@ -300,7 +289,6 @@ def _source_dir():
 
 
 def _get_csrf_token():
-    """Returns the CSRF token for the current session (generates one if absent)."""
     token = session.get("_csrf_token")
     if not token:
         import secrets as _secrets
@@ -310,7 +298,6 @@ def _get_csrf_token():
 
 
 def _csrf_valid():
-    """Validates the CSRF token on state-changing requests."""
     supplied = request.headers.get("X-CSRF-Token")
     if not supplied:
         data = request.get_json(silent=True)
@@ -337,53 +324,57 @@ def create_app():
     app.config.from_object(config)
     app.config["TEMPLATES_AUTO_RELOAD"] = True
 
-    # أساس التسجيل المركزي (Logging Foundation) — كونسول + ملف دوّار
     from utils.logging_setup import configure_logging
     configure_logging()
     logging.getLogger("dynamicpro.app").info("Applying app configuration")
 
-    # حد أقصى لحجم الطلبات المرفوعة (110MB للسماح بـ 100MB نسخ احتياطي + هامش)
     app.config["MAX_CONTENT_LENGTH"] = 110 * 1024 * 1024
 
-    # إعدادات الخادم المحلي (منفذ + كلمة مرور الوصول)
     _server_cfg = server_config.load_config()
     app.config["SERVER_PORT"] = _server_cfg.get("port", 5000)
     app.config["SERVER_ACCESS_PASSWORD"] = _server_cfg.get("access_password", "")
 
-    # في وضع الإنتاج مع HTTPS مفعّل: الكوكي يُرسل عبر HTTPS فقط
     if (os.environ.get("DYNAMICPRO_MODE") == "production"
             and bool(server_config.get_cert_paths()[0])):
         app.config["SESSION_COOKIE_SECURE"] = True
 
     db.init_app(app)
 
-    # CORS
-    _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1111", "http://127.0.0.1:1111"]
-    CORS(app, origins=_cors_origins,
-         supports_credentials=True, expose_headers=["Content-Type", "X-CSRF-Token"])
+    _cors_raw = os.environ.get("CORS_ORIGINS", "")
+    if _cors_raw.strip():
+        _cors_origins = [origin.strip() for origin in _cors_raw.split(",") if origin.strip()]
+    else:
+        _cors_origins = [
+            "http://localhost:3000", "http://127.0.0.1:3000",
+            "http://localhost:1111", "http://127.0.0.1:1111",
+        ]
+    CORS(app, origins=_cors_origins, supports_credentials=True,
+         expose_headers=["Content-Type", "X-CSRF-Token"])
 
-    # تهيئة OpenAPI/Swagger (flask-smorest)
     from api_spec import api as api_spec
     api_spec.init_app(app)
 
-    # تهيئة Rate Limiting
+    _rate_storage = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    if config.IS_PRODUCTION and not config.IS_FROZEN and _rate_storage.startswith("memory://"):
+        raise RuntimeError(
+            "RATELIMIT_STORAGE_URI must use a shared production backend such as Redis."
+        )
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute", "50 per second"],
-        storage_uri="memory://",
+        storage_uri=_rate_storage,
         strategy="fixed-window",
-        key_prefix="rl:"
+        key_prefix="rl:",
     )
-    # متاح للوحدات التي تحتاج حدود مخصصة (مثل /api/ai/query)
     app.config["RATELIMITER"] = limiter
 
-    # لا CORS مفتوح: الواجهة والموبايل يعملان من نفس الأصل،
-    # فلا حاجة لسماح cross-origin (المتصفح يرفض الطلبات الخارجية تلقائياً).
+    if config.IS_PRODUCTION and not config.IS_FROZEN:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-    # تسجيل الـ Blueprints
     from routes.auth import auth_bp
     from routes.projects import projects_bp
     from routes.api import api_bp
@@ -423,66 +414,28 @@ def create_app():
     from routes.license import license_bp, validate_license
     from licensing.routes import admin_lic_bp, company_auth_bp
     from api_spec import doc_bp
-    # Phase 1 — ensure security/RBAC models are registered before db.create_all()
     import security.models  # noqa: F401
     from security.routes import security_bp
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(projects_bp)
-    app.register_blueprint(api_bp)
-    app.register_blueprint(pages_bp)
-    app.register_blueprint(users_bp)
-    app.register_blueprint(backup_bp)
-    app.register_blueprint(server_bp)
-    app.register_blueprint(roles_bp)
-    app.register_blueprint(companies_bp)
-    app.register_blueprint(financial_years_bp)
-    app.register_blueprint(currencies_bp)
-    app.register_blueprint(taxes_bp)
-    app.register_blueprint(settings_bp)
-    app.register_blueprint(workflow_bp)
-    app.register_blueprint(accounting_bp)
-    app.register_blueprint(re_bp)
-    app.register_blueprint(escrow_bp)
-    app.register_blueprint(offplan_bp)
-    app.register_blueprint(addons_bp)
-    app.register_blueprint(esign_bp)
-    app.register_blueprint(bi_bp)
-    app.register_blueprint(dms_bp)
-    app.register_blueprint(notif_bp)
-    app.register_blueprint(payments_bp)
-    app.register_blueprint(portal_bp)
-    app.register_blueprint(portal_api_bp)
-    app.register_blueprint(crm_bp)
-    app.register_blueprint(sales_bp)
-    app.register_blueprint(procurement_bp)
-    app.register_blueprint(inventory_bp)
-    app.register_blueprint(inventory_pages_bp)
-    app.register_blueprint(hr_bp)
-    app.register_blueprint(hr_pages_bp)
-    app.register_blueprint(payroll_bp)
-    app.register_blueprint(payroll_pages_bp)
-    app.register_blueprint(mf_bp)
-    app.register_blueprint(mf_pages_bp)
-    app.register_blueprint(rental_bp)
-    app.register_blueprint(rental_pages_bp)
-    app.register_blueprint(project_finance_bp)
-    app.register_blueprint(assets_bp)
+    for blueprint in (
+        auth_bp, projects_bp, api_bp, pages_bp, users_bp, backup_bp, server_bp,
+        roles_bp, companies_bp, financial_years_bp, currencies_bp, taxes_bp,
+        settings_bp, workflow_bp, accounting_bp, re_bp, escrow_bp, offplan_bp,
+        addons_bp, esign_bp, bi_bp, dms_bp, notif_bp, payments_bp, portal_bp,
+        portal_api_bp, crm_bp, sales_bp, procurement_bp, inventory_bp,
+        inventory_pages_bp, hr_bp, hr_pages_bp, payroll_bp, payroll_pages_bp,
+        mf_bp, mf_pages_bp, rental_bp, rental_pages_bp, project_finance_bp,
+        assets_bp, license_bp, company_auth_bp, doc_bp,
+    ):
+        app.register_blueprint(blueprint)
 
-    app.register_blueprint(license_bp)
-    app.register_blueprint(company_auth_bp)
-    app.register_blueprint(doc_bp)
-
-    # CRITICAL #3: Admin routes فقط على الوضع الرئيسي (master port)
     if not config.COMPANY_ID:
         app.register_blueprint(admin_lic_bp)
         app.register_blueprint(security_bp)
 
     def get_lang():
         lang = request.cookies.get("lang", DEFAULT_LANG)
-        if lang not in LANG_CODES:
-            lang = DEFAULT_LANG
-        return lang
+        return lang if lang in LANG_CODES else DEFAULT_LANG
 
     @app.context_processor
     def inject_i18n():
@@ -495,15 +448,13 @@ def create_app():
 
         _server_cfg = server_config.load_config()
         return {
-            "t": t,
-            "lang": lang,
+            "t": t, "lang": lang,
             "full_name": session.get("full_name", ""),
             "role": session.get("role", ""),
             "csrf_token": _get_csrf_token(),
             "translations_json": json.dumps(TRANSLATIONS[lang]),
             "permissions_json": json.dumps(permissions.current_perms(), ensure_ascii=False),
-            "can": permissions.can,
-            "perms": permissions.current_perms,
+            "can": permissions.can, "perms": permissions.current_perms,
             "is_dark": request.cookies.get("theme", "light") == "dark",
             "is_server_local": request.remote_addr in ("127.0.0.1", "::1"),
             "system_name": _settings.get("system_name") or "Dynamic Pro ERP",
@@ -532,7 +483,6 @@ def create_app():
 
     @app.route("/health")
     def health():
-        """Health check endpoint for Docker / Nginx."""
         from sqlalchemy import text
         try:
             db.session.execute(text("SELECT 1"))
@@ -544,19 +494,14 @@ def create_app():
             "database": "connected" if db_ok else "disconnected",
         }), 200 if db_ok else 503
 
-    # إنشاء الجداول + مستخدم وادوار افتراضية
-    # HIGH #9: company instances لا تُشغّل الترحيلات العامة
-    _is_company = bool(config.COMPANY_ID)
     with app.app_context():
         db.create_all()
-        if not _is_company:
+        if not config.COMPANY_ID:
             _run_migrations_and_seeds(app, db)
 
-    # بدء النسخ الاحتياطي التلقائي (خيط خلفي)
     from routes.backup import schedule_auto_backup
     schedule_auto_backup(app)
 
-    # منع الكاش تماماً للملفات الثابتة (JS/CSS/Images) لضمان ظهور أي تحديث فوراً
     @app.after_request
     def no_cache_static(response):
         if request.path.startswith("/static/"):
@@ -565,25 +510,22 @@ def create_app():
             response.headers["Expires"] = "0"
         return response
 
-    # هيدرات أمان على كل الاستجابات
     @app.after_request
     def security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        # Ensure UTF-8 charset for HTML responses
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
         ct = response.content_type or ""
         if "text/html" in ct and "charset" not in ct:
             response.content_type = ct.rstrip(";") + "; charset=utf-8"
-        # CSP أساسي: اسمح بـ self + CDN المحددة فقط (Chart.js + Google Fonts)
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; "
             "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'",
         )
-        # HSTS عند تفعيل HTTPS
-        if (server_config.is_https_enabled() and server_config.get_cert_paths()[0]):
+        if server_config.is_https_enabled() and server_config.get_cert_paths()[0]:
             response.headers.setdefault(
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
@@ -591,21 +533,20 @@ def create_app():
         return response
 
     def _is_api_path():
-        p = request.path
-        return p.startswith("/api/")
+        return request.path.startswith("/api/")
 
     def _error_html(title, description=""):
         from markupsafe import escape
         safe_title = escape(title)
         safe_desc = escape(description) if description else ""
-        return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{safe_title}</title>
+        return f"""<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>{safe_title}</title>
 <style>body{{font-family:'IBM Plex Sans Arabic',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:var(--bg,#f5f5f5);color:var(--fg,#222)}}
 .box{{text-align:center;padding:3rem}}h1{{font-size:3rem;margin:0;color:var(--primary,#4a90d9)}}p{{font-size:1.2rem;color:var(--muted,#666)}}</style></head>
-<body><div class="box"><h1>{safe_title}</h1>{f'<p>{safe_desc}</p>' if safe_desc else ''}</div></body></html>"""
+<body><div class=\"box\"><h1>{safe_title}</h1>{f'<p>{safe_desc}</p>' if safe_desc else ''}</div></body></html>"""
 
     @app.errorhandler(Exception)
     def handle_exception(e):
-        current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
+        current_app.logger.error("Unhandled exception: %s", e, exc_info=True)
         if _is_api_path():
             return jsonify({"success": False, "message": make_t()("common.serverError")}), 500
         return _error_html(make_t()("common.serverError"), make_t()("common.serverErrorDesc")), 500
@@ -626,7 +567,6 @@ def create_app():
     def rate_limit_exceeded(e):
         return jsonify({"success": False, "message": make_t()("common.rateLimitExceeded")}), 429
 
-    # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
     @app.before_request
     def protect_csrf():
         if current_app.config.get("TESTING"):
@@ -635,47 +575,50 @@ def create_app():
             return
         if request.path.startswith("/static"):
             return
-        if not session.get("user_id"):
+        # Company sessions use their own lic_* namespace; master/company state
+        # changing requests are both protected by the same signed session token.
+        if not (session.get("user_id") or session.get("lic_company_user_id") or session.get("master_user_id")):
             return
         if request.path in ("/login", "/logout"):
             return
         if not _csrf_valid():
             return jsonify({"success": False, "message": "invalid-csrf-token"}), 403
 
-    # التحقق من صلاحية الترخيص
     @app.before_request
     def enforce_license():
         if request.path.startswith("/static"):
             return
         if request.path in ("/login", "/logout"):
             return
-        if request.path.startswith("/license/"):
+        if request.path.startswith("/license/") or request.path.startswith("/admin/"):
             return
-        if request.path.startswith("/admin/"):
-            return
-        # HIGH #12: Company instances use LicLicense from licensing engine
         if config.COMPANY_ID:
             try:
                 from licensing.engine import can_access
                 access = can_access(int(config.COMPANY_ID))
-                if not access["allowed"]:
-                    if _is_api_path():
-                        return jsonify({"success": False, "message": "Subscription expired"}), 403
-                    return redirect(url_for("auth.login"))
-            except Exception:
-                pass
+            except Exception as exc:
+                current_app.logger.error("License validation failed: %s", exc, exc_info=True)
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "Service temporarily unavailable"}), 503
+                return _error_html("503", "خدمة التحقق من الترخيص غير متاحة مؤقتاً"), 503
+            if not access["allowed"]:
+                if _is_api_path():
+                    return jsonify({"success": False, "message": access.get("warning") or "Subscription expired"}), 403
+                return redirect(url_for("auth.login"))
             return
         try:
             is_valid, err = validate_license()
             if not is_valid:
                 if _is_api_path():
-                    return jsonify({"success": False, "message": "License expired"}), 403
+                    return jsonify({"success": False, "message": err or "License expired"}), 403
                 return redirect(url_for("pages.change_password", error="license_expired"))
-        except Exception:
-            from utils.errlog import log_exc
-            log_exc("app.enforce-license")
+        except Exception as exc:
+            current_app.logger.error("Master license validation failed: %s", exc, exc_info=True)
+            if config.IS_PRODUCTION:
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "License validation unavailable"}), 503
+                return _error_html("503", "تعذر التحقق من الترخيص حالياً"), 503
 
-    # (تم تعطيل إجبار تغيير كلمة المرور)
     @app.before_request
     def enforce_password_change():
         pass
@@ -689,9 +632,6 @@ if __name__ == "__main__":
     import threading
     from werkzeug.serving import make_server
 
-    # وضع الإنتاج (يُفعل عند التشغيل عبر desktop.py أو الخدمة):
-    #  - debug معطل تماماً في الإنتاج (لا يعرض الكود أو تتبع الأخطاء)
-    #  - في وضع التطوير: debug يُفعَّل فقط عبر DYNAMICPRO_MODE=dev
     production = os.environ.get("DYNAMICPRO_MODE", "dev") == "production"
     debug = os.environ.get("FLASK_DEBUG", "0") == "1" and not production
 
@@ -700,19 +640,17 @@ if __name__ == "__main__":
         if not cert or not key:
             return
         https_port = server_config.get_https_port()
-        srv = make_server("0.0.0.0", https_port, app,
-                          ssl_context=(cert, key), threaded=True)
-        print(f"[HTTPS] https://0.0.0.0:{https_port} (geolocation available)")
+        srv = make_server("0.0.0.0", https_port, app, ssl_context=(cert, key), threaded=True)
+        print(f"[HTTPS] https://0.0.0.0:{https_port}")
         srv.serve_forever()
 
-    # مع debug=True يعمل werkzeug reloader في عمليتين (رئيسية + تبعية).
-    # نبدأ خادم HTTPS فقط في العملية التبعية الفعلية حتى لا يتعارض على المنفذ.
     if (server_config.is_https_enabled()
             and server_config.get_cert_paths()[0]
             and (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or production)):
         threading.Thread(target=_start_https, daemon=True).start()
 
     import signal, atexit
+
     def _shutdown():
         try:
             with app.app_context():
@@ -720,16 +658,24 @@ if __name__ == "__main__":
                 _db.session.close()
         except Exception:
             pass
+
     atexit.register(_shutdown)
+
     def _sig_handler(signum, frame):
         _shutdown()
         import sys
         sys.exit(0)
+
     try:
         signal.signal(signal.SIGTERM, _sig_handler)
         signal.signal(signal.SIGINT, _sig_handler)
     except (OSError, AttributeError):
         pass
 
-    app.run(host="127.0.0.1", port=server_config.get_port(),
-            debug=debug, use_reloader=debug, threaded=True)
+    app.run(
+        host="127.0.0.1",
+        port=server_config.get_port(),
+        debug=debug,
+        use_reloader=debug,
+        threaded=True,
+    )
