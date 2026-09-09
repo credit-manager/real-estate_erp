@@ -3,6 +3,7 @@ import secrets
 from pathlib import Path
 
 from database import db
+from sqlalchemy import event
 
 
 class User(db.Model):
@@ -31,8 +32,9 @@ class User(db.Model):
         }
 
 
-def _configure_bootstrap_admin(target):
+def _configure_bootstrap_admin(mapper, connection, target):
     """Eliminate the known default admin password during first-time seeding."""
+    del mapper, connection
     if (target.username or "").strip().lower() != "admin" or not target.must_change_password:
         return
 
@@ -83,7 +85,5 @@ def _configure_bootstrap_admin(target):
     except OSError as exc:
         raise RuntimeError("Unable to persist first-run administrator credentials securely.") from exc
 
-
-from sqlalchemy import event
 
 event.listen(User, "before_insert", _configure_bootstrap_admin)
