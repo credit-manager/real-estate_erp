@@ -15,7 +15,8 @@ except Exception:
     pass
 
 IS_FROZEN = getattr(sys, "frozen", False)
-DYNAMICPRO_ENV = os.environ.get("DYNAMICPRO_ENV", "development").strip().lower()
+DYNAMICPRO_ENV = os.environ.get("DYNAMICPRO_ENV") or os.environ.get("DYNAMICPRO_MODE", "development")
+DYNAMICPRO_ENV = DYNAMICPRO_ENV.strip().lower()
 IS_PRODUCTION = DYNAMICPRO_ENV in {"production", "prod"}
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -58,7 +59,9 @@ else:
     DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
 
     if IS_PRODUCTION and not DB_PASSWORD:
-        raise RuntimeError("DB_PASSWORD is required in production; refusing to start without managed credentials.")
+        raise RuntimeError(
+            "DB_PASSWORD is required in production; refusing to start without managed credentials."
+        )
     if not DB_USER:
         if IS_PRODUCTION:
             raise RuntimeError("DB_USER is required in production.")
@@ -103,9 +106,11 @@ if not SECRET_KEY:
     if IS_PRODUCTION and not IS_FROZEN:
         raise RuntimeError("SECRET_KEY is required in production; configure a managed secret.")
 
-    _secret_file = Path(USER_DATA_DIR) / (f".secret_key_{COMPANY_ID}" if COMPANY_ID else ".secret_key")
+    _secret_file = Path(USER_DATA_DIR) / (
+        f".secret_key_{COMPANY_ID}" if COMPANY_ID else ".secret_key"
+    )
     try:
-        USER_DATA_DIR and os.makedirs(USER_DATA_DIR, exist_ok=True)
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
         SECRET_KEY = _secret_file.read_text(encoding="utf-8").strip() if _secret_file.is_file() else ""
         if not SECRET_KEY:
             SECRET_KEY = secrets.token_hex(32)
@@ -126,6 +131,13 @@ PERMANENT_SESSION_LIFETIME = 8 * 3600
 # Redis-backed rate limiting is mandatory for production multi-instance Cloud.
 RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI") or os.environ.get("REDIS_URL", "")
 if IS_PRODUCTION and not RATELIMIT_STORAGE_URI:
-    raise RuntimeError("REDIS_URL or RATELIMIT_STORAGE_URI is required in production for distributed rate limiting.")
+    raise RuntimeError(
+        "REDIS_URL or RATELIMIT_STORAGE_URI is required in production for distributed rate limiting."
+    )
 
 IS_MASTER_INSTANCE = not COMPANY_ID
+
+# Install compatibility/runtime hardening before application models and factories load.
+from runtime_hardening import install as _install_runtime_hardening
+
+_install_runtime_hardening()
