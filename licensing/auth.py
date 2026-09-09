@@ -15,6 +15,10 @@ Flow:
 Two login types exist:
     1. Master Login (/admin/login) → LicMasterUser → Admin Panel
     2. Company Login (/login) → Company User → Company DB
+
+Browser authentication uses the revocable Flask session plus CSRF protection.
+JWTs are not stored in the Flask cookie. Token issuance is reserved for explicit
+API clients instead of silently placing access/refresh tokens in browser state.
 """
 import logging
 import time
@@ -30,8 +34,6 @@ from licensing.engine import can_access
 from licensing.db_manager import get_company_engine
 
 log = logging.getLogger(__name__)
-
-# ── Rate Limiting ───────────────────────────────────────────
 
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 900
@@ -68,7 +70,6 @@ def _reset_failures(key):
     _LOGIN_FAILURES.pop(key, None)
 
 
-# Periodic cleanup to prevent memory leak
 def _cleanup_old():
     import threading as _t
     now = time.time()
@@ -76,15 +77,16 @@ def _cleanup_old():
                if 0 < v.get("lock_until", 0) < now]
     for k in expired:
         _LOGIN_FAILURES.pop(k, None)
-    _t.Timer(600, _cleanup_old).start()
+    timer = _t.Timer(600, _cleanup_old)
+    timer.daemon = True
+    timer.start()
+
 
 try:
     _cleanup_old()
 except Exception:
     pass
 
-
-# ── Session Keys ────────────────────────────────────────────
 
 SESS_COMPANY_ID = "lic_company_id"
 SESS_COMPANY_USER_ID = "lic_company_user_id"
@@ -94,11 +96,11 @@ SESS_COMPANY_ROLE = "lic_company_role"
 SESS_COMPANY_USER_EMAIL = "lic_company_user_email"
 SESS_COMPANY_FULL_NAME = "lic_company_full_name"
 
-# Platform Admin (Master) keys — fully separated from company-user session.
 SESS_MASTER_USER_ID = "master_user_id"
 SESS_MASTER_EMAIL = "master_user_email"
 SESS_MASTER_NAME = "master_user_name"
 SESS_MASTER_ROLE = "master_user_role"
+SESS_MASTER_JTI = "master_jti"
 
 COMPANY_SESSION_KEYS = [
     SESS_COMPANY_ID, SESS_COMPANY_USER_ID, SESS_COMPANY_NAME,
@@ -106,57 +108,36 @@ COMPANY_SESSION_KEYS = [
     SESS_COMPANY_FULL_NAME,
 ]
 MASTER_SESSION_KEYS = [
-    SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_NAME, SESS_MASTER_ROLE,
+    SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_NAME,
+    SESS_MASTER_ROLE, SESS_MASTER_JTI,
 ]
 
 
 def clear_company_session():
-    """Remove all company-user session keys (used when entering admin context)."""
     for key in COMPANY_SESSION_KEYS:
         session.pop(key, None)
 
 
 def clear_master_session():
-    """Remove all platform-admin session keys (used when entering company context)."""
     for key in MASTER_SESSION_KEYS:
         session.pop(key, None)
 
 
-# ── Core Login Logic ────────────────────────────────────────
-
 def authenticate_company_user(email, password):
-    """Authenticate a company user.
-
-    Auth flow:
-    1. Find LicCompanyUser in master DB → identify company
-    2. Verify password against master DB record
-    3. Check subscription + license
-    4. (Optional) Verify user exists in company DB
-    5. Create session
-
-    When company DB is unavailable (e.g. no CREATEDB privilege),
-    authentication falls back to master DB only.
-
-    Returns:
-        dict: {success, message, company?, user?, access?}
-    """
     email = (email or "").strip().lower()
     password = (password or "").strip()
 
     if not email or not password:
         return {"success": False, "message": "البريد الإلكتروني وكلمة المرور مطلوبان"}
 
-    # Step 1: Find user in master DB
     cu = LicCompanyUser.query.filter_by(email=email, is_active=True).first()
     if not cu:
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
-    # Step 2: Verify password against master DB record
     if not check_password_hash(cu.password_hash, password):
         log.warning("Failed login for company user %s (company %d)", email, cu.company_id)
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
-    # Step 3: Get company
     company = db.session.get(LicCompany, cu.company_id)
     if not company:
         return {"success": False, "message": "الشركة غير موجودة"}
@@ -165,13 +146,11 @@ def authenticate_company_user(email, password):
         status_msg = "تم تعليق حساب الشركة" if company.status == "suspended" else "حساب الشركة غير نشط"
         return {"success": False, "message": status_msg}
 
-    # Step 4: Check subscription + license
     access = can_access(company.id)
     if not access["allowed"]:
         warning = access.get("warning") or "الوصول غير مسموح"
         return {"success": False, "message": warning, "access": access}
 
-    # Step 5: Try to verify against company DB (optional — don't fail if DB unavailable)
     user_role = cu.role
     user_full_name = cu.full_name or email
     company_db_user_id = None
@@ -192,14 +171,11 @@ def authenticate_company_user(email, password):
     except Exception as e:
         log.info("Company DB unavailable for %s, using master DB auth: %s", email, e)
 
-    # Step 6: Update last_login in master DB
     cu.last_login = datetime.utcnow()
     db.session.commit()
 
-    # Step 7: Store in session (mutual exclusion with platform-admin session)
     session.permanent = True
-    session.clear()  # Prevent session fixation: generate new session ID
-    clear_master_session()  # a client can never hold admin panel access
+    session.clear()
     session[SESS_COMPANY_ID] = company.id
     session[SESS_COMPANY_USER_ID] = company_db_user_id or cu.id
     session[SESS_COMPANY_NAME] = company.name_ar or company.name
@@ -229,22 +205,14 @@ def authenticate_company_user(email, password):
 
 
 def logout_company_user():
-    """Clear company user session."""
     email = session.get(SESS_COMPANY_USER_EMAIL, "")
     company_id = session.get(SESS_COMPANY_ID)
     log.info("Company user logged out: %s (company=%s)", email, company_id)
     clear_company_session()
 
 
-# ── Platform Admin (Master) Auth ─────────────────────────────
-
 def authenticate_master_user(email, password):
-    """Authenticate a Platform Admin (LicMasterUser) for the Admin Panel.
-
-    Fully separate from company-user auth: it only sets master session keys,
-    and always clears any leftover company-user session first, so a client
-    account can never sit inside the platform admin panel.
-    """
+    """Authenticate platform admin using a revocable browser session only."""
     email = (email or "").strip().lower()
     password = (password or "").strip()
     if not email or not password:
@@ -254,11 +222,12 @@ def authenticate_master_user(email, password):
     if not user or not user.is_active:
         try:
             from security.security_events import record_event
-            record_event("login_failure", master_user_email=email,
-                         ip=getattr(request, 'remote_addr', None),
-                         user_agent=getattr(request, 'user_agent', {}).get('string', None) if hasattr(request, 'user_agent') else None,
-                         details={"reason": "user_not_found_or_inactive"},
-                         severity="warning")
+            record_event(
+                "login_failure", master_user_email=email,
+                ip=getattr(request, "remote_addr", None),
+                user_agent=request.user_agent.string if request.user_agent else None,
+                details={"reason": "user_not_found_or_inactive"}, severity="warning",
+            )
         except Exception:
             pass
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
@@ -267,100 +236,89 @@ def authenticate_master_user(email, password):
         log.warning("Failed platform-admin login: %s", email)
         try:
             from security.security_events import record_event
-            record_event("login_failure", master_user_id=user.id, master_user_email=email,
-                         ip=getattr(request, 'remote_addr', None),
-                         details={"reason": "wrong_password"},
-                         severity="warning")
+            record_event(
+                "login_failure", master_user_id=user.id, master_user_email=email,
+                ip=getattr(request, "remote_addr", None),
+                details={"reason": "wrong_password"}, severity="warning",
+            )
         except Exception:
             pass
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
-    # Phase 6 — record successful login
     try:
         from security.security_events import record_event
-        record_event("login_success", master_user_id=user.id, master_user_email=email,
-                     ip=getattr(request, 'remote_addr', None),
-                     details={"role": user.role}, severity="info")
+        record_event(
+            "login_success", master_user_id=user.id, master_user_email=email,
+            ip=getattr(request, "remote_addr", None),
+            details={"role": user.role}, severity="info",
+        )
     except Exception:
         pass
 
     user.last_login = datetime.utcnow()
-    clear_company_session()  # mutual exclusion: a client session can't enter admin
+    clear_company_session()
     session.permanent = True
+    session.clear()
     session[SESS_MASTER_USER_ID] = user.id
     session[SESS_MASTER_EMAIL] = user.email
     session[SESS_MASTER_NAME] = user.full_name or user.email
     session[SESS_MASTER_ROLE] = user.role
 
-    # Phase 1 — link legacy role column to RBAC (idempotent)
+    # Keep the browser session revocable without putting JWT material into the cookie.
+    jti = _start_master_session(user, is_company_user=False, extra=None)
+    if jti:
+        session[SESS_MASTER_JTI] = jti
+
     try:
         from security.rbac import ensure_user_role_link
         ensure_user_role_link(user.id, user.role)
     except Exception:
         pass
 
-    # Phase 1 — JWT + revocable master session
-    jti = _start_master_session(user, is_company_user=False, extra=None)
-
     db.session.commit()
 
     log.info("Platform admin logged in: %s (role=%s)", email, user.role)
-    out = {"success": True, "user": user.to_dict()}
-    if jti:
-        out["mfa_enabled"] = _mfa_enabled_for(user.id)
-    return out
+    return {
+        "success": True,
+        "user": user.to_dict(),
+        "mfa_enabled": _mfa_enabled_for(user.id),
+    }
 
 
 def logout_master_user():
-    """Clear platform-admin session keys only."""
     email = session.get(SESS_MASTER_EMAIL, "")
     log.info("Platform admin logged out: %s", email)
-    # Phase 1 — revoke the persisted master session (invalidate its JWT refresh)
     _end_master_session()
     clear_master_session()
 
 
 def _start_master_session(user, is_company_user=False, extra=None):
-    """Phase 1 — create a revocable MasterSession row + issue JWT tokens.
-
-    Stores the resulting ``jti`` and tokens in the master session. Returns the
-    jti (or None on failure — login still succeeds for bootstrap compatibility).
-    """
+    """Create a revocable MasterSession without embedding JWTs in browser state."""
     try:
         import uuid
         from datetime import timedelta
         from security.models import MasterSession
-        from security.tokens import issue_token_pair
-        from security.rbac import user_permissions
 
         jti = uuid.uuid4().hex
-        perms = user_permissions(user.id)
-        access, refresh, _ = issue_token_pair(user.id, user.email,
-                                              user.full_name or user.email, perms, jti=jti)
         sess = MasterSession(
             master_user_id=user.id,
             jti=jti,
-            refresh_token_hash=refresh[-64:],  # store a hint only, never full token
+            refresh_token_hash=None,
             ip=request.remote_addr,
             user_agent=(request.user_agent.string[:250] if request.user_agent else None),
             expires_at=datetime.utcnow() + timedelta(days=7),
+            last_seen=datetime.utcnow(),
         )
         db.session.add(sess)
-        session["master_jti"] = jti
-        # JWT tokens are retained server-side so the Control Center frontend can
-        # obtain an access token for its API calls without re-entering login.
-        session["master_access_token"] = access
-        session["master_refresh_token"] = refresh
-        log.info("Master session started for user %s", user.email)
+        log.info("Revocable master session started for user %s", user.email)
         return jti
-    except Exception as e:
-        log.error("Could not start master JWT session for %s: %s", user.email, e)
+    except Exception as exc:
+        log.error("Could not start master session for %s: %s", user.email, exc)
         return None
 
 
 def _end_master_session():
-    """Phase 1 — revoke the persisted master session row bound to the current jti."""
-    jti = session.get("master_jti")
+    jti = session.get(SESS_MASTER_JTI)
     if not jti:
         return
     try:
@@ -369,8 +327,8 @@ def _end_master_session():
         if ms:
             ms.revoked = True
             db.session.commit()
-    except Exception as e:
-        log.error("Could not revoke master session %s: %s", jti, e)
+    except Exception as exc:
+        log.error("Could not revoke master session %s: %s", jti, exc)
 
 
 def _mfa_enabled_for(master_user_id):
@@ -382,27 +340,46 @@ def _mfa_enabled_for(master_user_id):
 
 
 def get_master_session_data():
-    """Get current platform-admin info from session. None if not logged in."""
+    """Return active master identity only when the persisted session is valid."""
     uid = session.get(SESS_MASTER_USER_ID)
+    jti = session.get(SESS_MASTER_JTI)
     if not uid:
         return None
-    return {
-        "id": uid,
-        "email": session.get(SESS_MASTER_EMAIL),
-        "full_name": session.get(SESS_MASTER_NAME),
-        "role": session.get(SESS_MASTER_ROLE),
-    }
+    try:
+        from security.models import MasterSession
+        from security.models import MasterSession
+        from datetime import datetime
+        master_session = MasterSession.query.filter_by(
+            master_user_id=uid, jti=jti, revoked=False
+        ).first() if jti else None
+        if jti and (
+            not master_session
+            or (master_session.expires_at and master_session.expires_at < datetime.utcnow())
+        ):
+            clear_master_session()
+            return None
+        user = db.session.get(LicMasterUser, uid)
+        if not user or not user.is_active:
+            clear_master_session()
+            return None
+        if master_session:
+            master_session.last_seen = datetime.utcnow()
+            db.session.commit()
+        return {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name or user.email,
+            "role": user.role,
+        }
+    except Exception:
+        return None
 
 
 def is_master_logged_in():
-    """Check if a platform admin is currently logged in."""
-    return SESS_MASTER_USER_ID in session
+    return get_master_session_data() is not None
 
-
-# ── Session Helpers ─────────────────────────────────────────
 
 def get_company_session_data():
-    """Get current company user info from session. Returns None if not logged in."""
     company_id = session.get(SESS_COMPANY_ID)
     if not company_id:
         return None
@@ -418,92 +395,4 @@ def get_company_session_data():
 
 
 def is_company_user_logged_in():
-    """Check if a company user is currently logged in."""
-    return SESS_COMPANY_ID in session
-
-
-# ── Access Middleware ────────────────────────────────────────
-
-def company_login_required(f):
-    """Decorator: require company user login + valid subscription/license.
-
-    Redirects to /login if not authenticated.
-    Returns 403 if subscription/license expired.
-    """
-    from functools import wraps
-    from flask import redirect, url_for, jsonify, request
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not is_company_user_logged_in():
-            if request.path.startswith("/api/"):
-                return jsonify({"success": False, "message": "غير مصرح"}), 401
-            return redirect(url_for("company_auth.company_login"))
-
-        company_id = session.get(SESS_COMPANY_ID)
-        access = can_access(company_id)
-        if not access["allowed"]:
-            logout_company_user()
-            if request.path.startswith("/api/"):
-                return jsonify({
-                    "success": False,
-                    "message": access.get("warning") or "الوصول غير مسموح",
-                    "code": "access_denied",
-                }), 403
-            return redirect(url_for("company_auth.company_login"))
-
-        return f(*args, **kwargs)
-
-    return decorated
-
-
-def master_login_required(f):
-    """Decorator: require platform-admin login.
-
-    Returns 401 JSON for /api/ paths, otherwise redirects to the admin panel.
-    """
-    from functools import wraps
-    from flask import redirect, url_for, jsonify
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not is_master_logged_in():
-            if request.path.startswith("/api/"):
-                return jsonify({"success": False, "message": "غير مصرح"}), 401
-            return redirect(url_for("admin_lic.admin_panel"))
-        return f(*args, **kwargs)
-
-    return decorated
-
-
-def get_company_engine_from_session():
-    """Get a SQLAlchemy engine for the current company's DB.
-
-    Returns None if no company is in session or company not found.
-    """
-    company_id = session.get(SESS_COMPANY_ID)
-    if not company_id:
-        return None
-    from database import db as _db
-    company = _db.session.get(LicCompany, company_id)
-    if not company:
-        return None
-    return get_company_engine(company)
-
-
-def get_company_db_connection():
-    """Get a raw connection to the current company's DB.
-
-    Returns (connection, engine) or (None, None) on failure.
-    Caller must close connection and dispose engine.
-    """
-    engine = get_company_engine_from_session()
-    if not engine:
-        return None, None
-    try:
-        conn = engine.connect()
-        return conn, engine
-    except Exception as e:
-        log.error("Failed to connect to company DB: %s", e)
-        engine.dispose()
-        return None, None
+    return bool(session.get(SESS_COMPANY_ID) and session.get(SESS_COMPANY_USER_ID))
