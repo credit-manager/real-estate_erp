@@ -40,7 +40,7 @@ jobs:
           pip install ruff
           ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py
       - name: Test (smoke)
         env:
           DB_USER: test_user
@@ -133,11 +133,42 @@ jobs:
               Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             }
           }
-      - name: Upload desktop artifact
+      - name: Build self-contained setup
+        run: python -m PyInstaller --clean --noconfirm DynamicPro-Setup.spec
+      - name: Verify setup executable exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\DynamicPro-Setup.exe")) {
+            throw "DynamicPro-Setup.exe was not produced"
+          }
+          Get-Item "dist\DynamicPro-Setup.exe" | Format-List FullName,Length
+      - name: Setup executable smoke test
+        shell: pwsh
+        env:
+          DYNAMICPRO_SETUP_SMOKE_TEST: "1"
+        run: |
+          $p = Start-Process -FilePath "dist\DynamicPro-Setup.exe" -PassThru -WindowStyle Hidden
+          try {
+            Wait-Process -Id $p.Id -Timeout 60 -ErrorAction SilentlyContinue
+            if (-not $p.HasExited) {
+              throw "DynamicPro-Setup.exe smoke test timed out."
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "DynamicPro-Setup.exe smoke test failed with exit code $($p.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+      - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DynamicPro-Windows
-          path: dist/DynamicPro.exe
+          path: |
+            dist/DynamicPro.exe
+            dist/DynamicPro-Setup.exe
           if-no-files-found: error
 
   docker:
