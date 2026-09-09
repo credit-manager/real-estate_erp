@@ -2,33 +2,58 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { BarChart3, TrendingUp, Building2, Package } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
 
+interface RevenueSummary {
+  total: number;
+  last_30d: number;
+}
+interface CompanySummary { active: number }
+interface ModuleSummary { company_module_grants: number }
+interface AnalyticsOverview {
+  revenue: RevenueSummary;
+  companies: CompanySummary;
+  modules: ModuleSummary;
+  success: boolean;
+}
+interface ModuleAdoption {
+  module_code: string;
+  module_name: string;
+  enabled_count: number;
+  total_companies: number;
+  adoption_pct: number;
+}
+interface SubscriptionSummary { success: boolean; statuses: Record<string, number> }
+
 export default function AnalyticsPage() {
-  const [overview, setOverview] = useState<any>(null);
-  const [modules, setModules] = useState<any[]>([]);
-  const [subscriptions, setSubscriptions] = useState<any>(null);
+  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
+  const [modules, setModules] = useState<ModuleAdoption[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     Promise.all([
-      api.get("/admin/security/analytics/overview"),
-      api.get("/admin/security/analytics/modules"),
-      api.get("/admin/security/analytics/subscriptions"),
+      api.get<AnalyticsOverview>("/admin/security/analytics/overview"),
+      api.get<{ success: boolean; modules: ModuleAdoption[] }>("/admin/security/analytics/modules"),
+      api.get<SubscriptionSummary>("/admin/security/analytics/subscriptions"),
     ]).then(([ov, md, sub]) => {
+      if (!active) return;
       if (ov.data.success) setOverview(ov.data);
       if (md.data.success) setModules(md.data.modules);
       if (sub.data.success) setSubscriptions(sub.data);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>;
 
   const moduleData = modules.slice(0, 8).map((m) => ({ name: m.module_code, adoption: m.adoption_pct }));
-  const subData = subscriptions ? Object.entries(subscriptions.statuses).map(([k, v]) => ({ name: k, value: v as number })) : [];
+  const subData = subscriptions ? Object.entries(subscriptions.statuses).map(([name, value]) => ({ name, value })) : [];
 
   return (
     <div className="space-y-6">
@@ -74,7 +99,7 @@ export default function AnalyticsPage() {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie data={subData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                {subData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {subData.map((entry, i) => <Cell key={`${entry.name}-${i}`} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: "12px", color: "#fff" }} />
             </PieChart>
