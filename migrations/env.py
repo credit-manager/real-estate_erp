@@ -14,19 +14,17 @@ if config.config_file_name is not None:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Build metadata from the real application. Migration tooling must fail closed
-# when the application schema cannot be loaded; running with target_metadata=None
-# can otherwise produce a misleading successful no-op migration.
+# Import model metadata directly instead of create_app(). This prevents Alembic
+# from recursively invoking application startup, seeding, or migration logic.
 try:
-    from app import create_app
+    import models  # noqa: F401 - import registers all ORM models
     from database import db
-    _app = create_app()
-    with _app.app_context():
-        target_metadata = db.metadata
-    import config as _cfg
-    config.set_main_option("sqlalchemy.url", _cfg.SQLALCHEMY_DATABASE_URI)
+    import config as app_config
+
+    target_metadata = db.metadata
+    config.set_main_option("sqlalchemy.url", app_config.SQLALCHEMY_DATABASE_URI)
 except Exception as exc:
-    raise RuntimeError("Unable to load Dynamic Pro ERP metadata for Alembic.") from exc
+    raise RuntimeError("Unable to load Dynamic Pro ERP ORM metadata for Alembic.") from exc
 
 
 def run_migrations_offline() -> None:
