@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Shield, AlertTriangle, Users, Activity, XCircle } from "lucide-react";
 
-interface SecSummary { login_failures_24h: number; login_success_24h: number; critical_events_7d: number; active_sessions: number }
+interface SecSummary { success: boolean; login_failures_24h: number; login_success_24h: number; critical_events_7d: number; active_sessions: number }
 interface SecEvent { id: number; event_type: string; master_user_email: string; ip: string; severity: string; details: Record<string, unknown> | null; created_at: string }
 
 export default function SecurityPage() {
@@ -62,7 +62,7 @@ export default function SecurityPage() {
       )}
 
       <div className="flex gap-3">
-        <button onClick={killAll} className="flex items-center gap-2 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 rounded-xl text-sm font-medium transition">
+        <button onClick={() => void killAll()} className="flex items-center gap-2 px-4 py-2.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 rounded-xl text-sm font-medium transition">
           <XCircle className="w-4 h-4" /> Kill All Sessions
         </button>
       </div>
