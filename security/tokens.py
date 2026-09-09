@@ -26,11 +26,28 @@ ISSUER = "dynamicpro-control-center"
 
 
 def _secret():
-    # Fall back to a per-install generated key if SECRET_KEY is not set, so the
-    # module stays usable in tests/scratch. Production must set SECRET_KEY.
+    """Return the JWT signing key. Raises RuntimeError if not configured."""
     if SECRET_KEY:
         return SECRET_KEY
-    return "dev-only-insecure-secret-do-not-use"
+    # Generate and persist a random key on first use (desktop mode)
+    import os
+    import secrets as _secrets
+    key_file = os.path.join(
+        os.environ.get("APPDATA") or os.path.expanduser("~"),
+        "DynamicPro", ".jwt_secret"
+    )
+    if os.path.isfile(key_file):
+        with open(key_file, "r", encoding="utf-8") as fh:
+            return fh.read().strip()
+    key = _secrets.token_hex(32)
+    os.makedirs(os.path.dirname(key_file), exist_ok=True)
+    with open(key_file, "w", encoding="utf-8") as fh:
+        fh.write(key)
+    try:
+        os.chmod(key_file, 0o600)
+    except OSError:
+        pass
+    return key
 
 
 def issue_token_pair(master_user_id, email, name, permissions, jti=None, now=None):

@@ -1,4 +1,5 @@
 import time
+import threading
 from flask import Blueprint, request, jsonify, session, render_template, redirect, url_for, current_app, make_response
 from werkzeug.security import check_password_hash
 from functools import wraps
@@ -13,6 +14,30 @@ auth_bp = Blueprint("auth", __name__)
 MAX_LOGIN_ATTEMPTS = 5      # عدد المحاولات الخاطئة المسموح بها قبل القفل
 LOGIN_LOCK_SECONDS = 900    # مدة القفل المؤقت (15 دقيقة)
 _LOGIN_FAILURES = {}        # key -> {"count": int, "lock_until": float}
+_cleanup_lock = threading.Lock()
+
+
+def _cleanup_old_failures():
+    """Remove expired lock entries every 10 minutes to prevent memory leak."""
+    now = time.time()
+    with _cleanup_lock:
+        expired = [k for k, v in _LOGIN_FAILURES.items()
+                   if v.get("lock_until", 0) < now and v.get("lock_until", 0) > 0]
+        for k in expired:
+            _LOGIN_FAILURES.pop(k, None)
+
+
+# Schedule cleanup every 10 minutes
+def _schedule_cleanup():
+    try:
+        t = threading.Timer(600, _schedule_cleanup)
+        t.daemon = True
+        t.start()
+        _cleanup_old_failures()
+    except Exception:
+        pass
+
+_schedule_cleanup()
 
 
 def _login_key(username):
@@ -41,8 +66,9 @@ def _register_login_failure(key):
     rec["count"] += 1
     if rec["count"] >= MAX_LOGIN_ATTEMPTS:
         rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
-    # تأخير متدرّج بعد كل محاولة فاشلة يبطّئ هجمات التخمين
-    time.sleep(0.5)
+    # تأخير متدرّج فقط بعد 3 محاولات فاشلة (يمنع DoS عبر تأخير كل طلب)
+    if rec["count"] >= 3:
+        time.sleep(min(0.3 * (rec["count"] - 2), 2.0))
 
 
 def _reset_login_failures(key):

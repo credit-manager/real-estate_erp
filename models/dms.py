@@ -78,7 +78,6 @@ class Document(db.Model):
             "folder_name": self.folder.name if self.folder else None,
             "title": self.title,
             "description": self.description,
-            "file_path": self.file_path,
             "file_name": self.file_name,
             "file_size": self.file_size,
             "mime_type": self.mime_type,

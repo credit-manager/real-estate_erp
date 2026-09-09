@@ -193,7 +193,7 @@ def create_account():
         return jsonify({"message": str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": str(e)}), 500
+        return jsonify({"message": "internal server error"}), 500
     _log("create", "account", acc.id, f"إنشاء حساب: {acc.code} - {acc.name}")
     return jsonify({"success": True, "account": acc.to_dict()})
 

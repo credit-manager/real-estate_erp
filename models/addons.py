@@ -28,7 +28,6 @@ class UnitDocument(db.Model):
             "unit_code": self.unit.unit_code if self.unit else None,
             "doc_type": self.doc_type,
             "title": self.title,
-            "file_path": self.file_path,
             "file_size": self.file_size,
             "mime_type": self.mime_type,
             "version": self.version,

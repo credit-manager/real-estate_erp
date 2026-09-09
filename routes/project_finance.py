@@ -145,7 +145,7 @@ def create_cost():
         cost.journal_entry_id = entry.id if entry else None
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"خطأ في إنشاء القيد المحاسبي: {str(e)}"}), 400
+        return jsonify({"message": "processing error"}), 400
 
     db.session.add(cost)
     db.session.commit()
@@ -257,7 +257,7 @@ def create_expense():
         expense.journal_entry_id = entry.id if entry else None
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"خطأ في إنشاء القيد: {str(e)}"}), 400
+        return jsonify({"message": "processing error"}), 400
 
     db.session.add(expense)
     db.session.commit()
@@ -342,7 +342,7 @@ def post_sale_revenue():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"خطأ في الترحيل: {str(e)}"}), 400
+        return jsonify({"message": "processing error"}), 400
 
     # Update project revenue
     if unit.project_id:
@@ -400,7 +400,7 @@ def post_installment_payment():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"خطأ في الترحيل: {str(e)}"}), 400
+        return jsonify({"message": "processing error"}), 400
 
     # Update installment
     installment.paid_amount = float(installment.paid_amount or 0) + amount
@@ -459,7 +459,7 @@ def post_rent():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": f"خطأ في الترحيل: {str(e)}"}), 400
+        return jsonify({"message": "processing error"}), 400
 
     if project_id:
         _update_project_totals(project_id)

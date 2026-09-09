@@ -643,7 +643,7 @@ def create_supplier_invoice():
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     _log("create", "invoice", invoice.id, invoice.invoice_number)
@@ -706,7 +706,7 @@ def update_supplier_invoice(invoice_id):
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     _log("update", "invoice", invoice.id, invoice.invoice_number)

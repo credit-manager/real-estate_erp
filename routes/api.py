@@ -65,16 +65,15 @@ def _guard_closed_year(financial_year_id):
 @api_bp.route("/dashboard/stats")
 @require_api("dashboard", "view")
 def dashboard_stats():
-    balance = lambda i: float((i.amount or 0) - (i.paid_amount or 0))
+    from sqlalchemy import func as sqlfunc
 
-    sales = Invoice.query.filter_by(invoice_type="sales").all()
-    purchases = Invoice.query.filter_by(invoice_type="purchase").all()
-    rentals = RentalContract.query.filter_by(status="active").all()
-    installments = Installment.query.all()
-    pending_inst = [
-        i for i in installments
-        if i.status in ("pending", "partial") and balance(i) > 0
-    ]
+    def _sum_inv(inv_type):
+        return float(db.session.query(sqlfunc.coalesce(sqlfunc.sum(Invoice.amount), 0))
+                     .filter_by(invoice_type=inv_type).scalar() or 0)
+
+    def _pending_inv(inv_type):
+        return float(db.session.query(sqlfunc.coalesce(sqlfunc.sum(Invoice.amount - Invoice.paid_amount), 0))
+                     .filter(Invoice.invoice_type == inv_type, Invoice.amount - Invoice.paid_amount > 0).scalar() or 0)
 
     today = datetime.now()
     keys = []
@@ -86,26 +85,50 @@ def dashboard_stats():
             m = 12
             y -= 1
     keys.reverse()
+
     trend = {k: {"revenue": 0.0, "expenses": 0.0} for k in keys}
-    for inv in Invoice.query.all():
-        d = inv.issue_date or (inv.created_at.date() if inv.created_at else None)
-        if not d:
-            continue
-        k = (d.year, d.month)
-        if k not in trend:
-            continue
-        amt = float(inv.amount or 0)
-        if inv.invoice_type == "sales":
-            trend[k]["revenue"] += amt
-        else:
-            trend[k]["expenses"] += amt
+    for row in db.session.query(
+        sqlfunc.extract("year", Invoice.issue_date),
+        sqlfunc.extract("month", Invoice.issue_date),
+        Invoice.invoice_type,
+        sqlfunc.coalesce(sqlfunc.sum(Invoice.amount), 0),
+    ).filter(
+        Invoice.issue_date.isnot(None)
+    ).group_by(
+        sqlfunc.extract("year", Invoice.issue_date),
+        sqlfunc.extract("month", Invoice.issue_date),
+        Invoice.invoice_type,
+    ).all():
+        k = (int(row[0]), int(row[1]))
+        if k in trend:
+            amt = float(row[3])
+            if row[2] == "sales":
+                trend[k]["revenue"] += amt
+            else:
+                trend[k]["expenses"] += amt
+
+    pending_inst_count = db.session.query(sqlfunc.count(Installment.id)).filter(
+        Installment.status.in_(["pending", "partial"]),
+        (Installment.amount - Installment.paid_amount) > 0
+    ).scalar() or 0
+
+    pending_inst_amount = float(db.session.query(
+        sqlfunc.coalesce(sqlfunc.sum(Installment.amount - Installment.paid_amount), 0)
+    ).filter(
+        Installment.status.in_(["pending", "partial"]),
+        (Installment.amount - Installment.paid_amount) > 0
+    ).scalar() or 0)
+
+    active_rentals_count = RentalContract.query.filter_by(status="active").count()
+    active_rentals_revenue = float(db.session.query(
+        sqlfunc.coalesce(sqlfunc.sum(RentalContract.monthly_rent), 0)
+    ).filter_by(status="active").scalar() or 0)
 
     statuses = ["active", "finishing", "completed", "suspended"]
     logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
 
     from models import ApprovalRequest
     from utils.workflow import user_is_approver
-    my_role = session.get("role", "")
     pending_reqs = [r for r in ApprovalRequest.query.filter_by(
         status="pending").all() if user_is_approver(r)]
 
@@ -117,14 +140,14 @@ def dashboard_stats():
         "employees_count": Employee.query.filter_by(status="active").count(),
         "customers_count": Customer.query.count(),
         "suppliers_count": Supplier.query.count(),
-        "total_revenue": sum(float(i.amount or 0) for i in sales),
-        "total_expenses": sum(float(i.amount or 0) for i in purchases),
-        "pending_revenue": sum(balance(i) for i in sales),
-        "pending_expenses": sum(balance(i) for i in purchases),
-        "pending_installments_count": len(pending_inst),
-        "pending_installments_amount": sum(balance(i) for i in pending_inst),
-        "active_rentals_count": len(rentals),
-        "active_rentals_revenue": sum(float(r.monthly_rent or 0) for r in rentals),
+        "total_revenue": _sum_inv("sales"),
+        "total_expenses": _sum_inv("purchase"),
+        "pending_revenue": _pending_inv("sales"),
+        "pending_expenses": _pending_inv("purchase"),
+        "pending_installments_count": pending_inst_count,
+        "pending_installments_amount": pending_inst_amount,
+        "active_rentals_count": active_rentals_count,
+        "active_rentals_revenue": active_rentals_revenue,
         "pending_purchase_orders": PurchaseOrder.query.filter_by(status="pending").count(),
         "pending_approvals_count": len(pending_reqs),
         "revenue_trend": [
@@ -490,7 +513,7 @@ def create_invoice():
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     _log("create", "invoice", invoice.id, invoice.invoice_number)
@@ -544,7 +567,7 @@ def update_invoice(invoice_id):
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     _log("update", "invoice", invoice.id, invoice.invoice_number)
@@ -639,7 +662,7 @@ def create_purchase_order():
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     _log("create", "order", po.id, po.po_number)
     return jsonify(po.to_dict()), 201
 
@@ -682,7 +705,7 @@ def update_purchase_order(po_id):
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     _log("update", "order", po.id, po.po_number)
     return jsonify(po.to_dict())
 
@@ -776,7 +799,7 @@ def create_rental_contract():
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     _log("create", "rental", contract.id, contract.contract_number)
 
     # تحديث حالة الوحدة إلى مؤجرة
@@ -818,7 +841,7 @@ def update_rental_contract(contract_id):
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     _log("update", "rental", contract.id, contract.contract_number)
     return jsonify(contract.to_dict())
 
@@ -1562,7 +1585,7 @@ def pay_installment(installment_id):
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": "internal server error"}), 500
     else:
         acct.delete_source_entries("installment", "installment", inst.id)
     _log("payment", "installment", inst.id, f"inst={inst.id} plan={inst.plan_id} amount={amount}")

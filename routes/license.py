@@ -97,7 +97,7 @@ def list_licenses():
         licenses = License.query.order_by(License.created_at.desc()).all()
         return jsonify({"success": True, "data": [l.to_dict() for l in licenses]})
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"success": False, "message": "internal server error"}), 500
 
 
 @license_bp.route("/api/licenses", methods=["POST"])
@@ -194,7 +194,7 @@ def list_activity():
         activities = q.limit(limit).all()
         return jsonify({"success": True, "data": [a.to_dict() for a in activities]})
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"success": False, "message": "internal server error"}), 500
 
 
 @license_bp.route("/api/activity/login", methods=["POST"])
@@ -229,7 +229,7 @@ def list_notifications():
         unread = OwnerNotification.query.filter_by(is_read=False).count()
         return jsonify({"success": True, "data": [n.to_dict() for n in notifs], "unread": unread})
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"success": False, "message": "internal server error"}), 500
 
 
 @license_bp.route("/api/notifications/read", methods=["POST"])

@@ -258,6 +258,19 @@ def _run_migrations_and_seeds(app, db):
         db.session.add(admin)
         db.session.commit()
 
+    # Seed master admin for licensing panel (desktop mode)
+    from licensing.models import LicMasterUser
+    if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():
+        master = LicMasterUser(
+            email="admin@mokawlat.com",
+            password_hash=generate_password_hash("admin123"),
+            full_name="Super Admin",
+            role="super_admin",
+            is_active=True,
+        )
+        db.session.add(master)
+        db.session.commit()
+
     if not is_sqlite:
         from db_indexes import ensure_indexes
         ensure_indexes(db.engine, db.session)
@@ -635,7 +648,11 @@ def create_app():
             return
         if request.path.startswith("/static"):
             return
-        if not session.get("user_id"):
+        # Skip CSRF for unauthenticated requests
+        is_employee = bool(session.get("user_id"))
+        is_company = bool(session.get("lic_company_id"))
+        is_master = bool(session.get("master_user_id"))
+        if not is_employee and not is_company and not is_master:
             return
         if request.path in ("/login", "/logout"):
             return
@@ -675,10 +692,28 @@ def create_app():
             from utils.errlog import log_exc
             log_exc("app.enforce-license")
 
-    # (تم تعطيل إجبار تغيير كلمة المرور)
     @app.before_request
     def enforce_password_change():
-        pass
+        """Redirect users with must_change_password=True to the password change page."""
+        if current_app.config.get("TESTING"):
+            return
+        if request.path.startswith("/static"):
+            return
+        if request.path in ("/login", "/logout", "/api/language"):
+            return
+        # Check employee session
+        user_id = session.get("user_id")
+        if user_id:
+            try:
+                from models import User
+                user = db.session.get(User, user_id)
+                if user and user.must_change_password:
+                    if request.path != "/change-password" and not request.path.startswith("/api/change-password"):
+                        if request.path.startswith("/api/"):
+                            return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
+                        return redirect(url_for("pages.change_password"))
+            except Exception:
+                pass
 
     return app
 

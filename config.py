@@ -39,7 +39,6 @@ if IS_FROZEN:
     SQLALCHEMY_ENGINE_OPTIONS = {
         "connect_args": {"check_same_thread": False},
     }
-    # Fallback values for modules that reference these (e.g. licensing/db_manager)
     DB_USER = ""
     DB_PASSWORD = ""
     DB_HOST = ""
@@ -97,8 +96,7 @@ else:
     SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-# ── Per-company SECRET_KEY (CRITICAL #1) ──
-# كل شركة لها مفتاح جلسات مستقل لمنع اختراق عناصر الجلسة بين الشركات
+# ── SECRET_KEY (مشترك بين Desktop و Cloud) ──
 if COMPANY_ID:
     _company_key_file = os.path.join(BASE_DIR, f".secret_key_{COMPANY_ID}")
     if os.environ.get("SECRET_KEY"):
@@ -111,10 +109,14 @@ if COMPANY_ID:
         try:
             with open(_company_key_file, "w", encoding="utf-8") as fh:
                 fh.write(SECRET_KEY)
+            try:
+                os.chmod(_company_key_file, 0o600)
+            except OSError:
+                pass
         except OSError:
             pass
 else:
-    _SECRET_FILE = os.path.join(BASE_DIR, ".secret_key")
+    _SECRET_FILE = os.path.join(USER_DATA_DIR if IS_FROZEN else BASE_DIR, ".secret_key")
     if os.environ.get("SECRET_KEY"):
         SECRET_KEY = os.environ["SECRET_KEY"]
     elif os.path.isfile(_SECRET_FILE):
@@ -123,14 +125,19 @@ else:
     else:
         SECRET_KEY = secrets.token_hex(32)
         try:
+            os.makedirs(os.path.dirname(_SECRET_FILE), exist_ok=True)
             with open(_SECRET_FILE, "w", encoding="utf-8") as fh:
                 fh.write(SECRET_KEY)
+            try:
+                os.chmod(_SECRET_FILE, 0o600)
+            except OSError:
+                pass
         except OSError:
             pass
 
 SEND_FILE_MAX_AGE_DEFAULT = 0
 
-# ── Session cookie isolation (HIGH #7) ──
+# ── Session cookie isolation ──
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False

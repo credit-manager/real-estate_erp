@@ -60,11 +60,28 @@ def _register_failure(key):
     rec["count"] += 1
     if rec["count"] >= MAX_LOGIN_ATTEMPTS:
         rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
-    time.sleep(0.3)
+    if rec["count"] >= 3:
+        time.sleep(min(0.3 * (rec["count"] - 2), 2.0))
 
 
 def _reset_failures(key):
     _LOGIN_FAILURES.pop(key, None)
+
+
+# Periodic cleanup to prevent memory leak
+def _cleanup_old():
+    import threading as _t
+    now = time.time()
+    expired = [k for k, v in _LOGIN_FAILURES.items()
+               if 0 < v.get("lock_until", 0) < now]
+    for k in expired:
+        _LOGIN_FAILURES.pop(k, None)
+    _t.Timer(600, _cleanup_old).start()
+
+try:
+    _cleanup_old()
+except Exception:
+    pass
 
 
 # ── Session Keys ────────────────────────────────────────────
@@ -181,6 +198,7 @@ def authenticate_company_user(email, password):
 
     # Step 7: Store in session (mutual exclusion with platform-admin session)
     session.permanent = True
+    session.clear()  # Prevent session fixation: generate new session ID
     clear_master_session()  # a client can never hold admin panel access
     session[SESS_COMPANY_ID] = company.id
     session[SESS_COMPANY_USER_ID] = company_db_user_id or cu.id

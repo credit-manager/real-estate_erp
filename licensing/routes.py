@@ -477,8 +477,8 @@ def reset_company_admin_password(company_id):
         return perm_err
     data = request.get_json(silent=True) or {}
     new_password = (data.get("new_password") or "").strip()
-    if len(new_password) < 6:
-        return jsonify({"success": False, "message": "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
+    if len(new_password) < 8:
+        return jsonify({"success": False, "message": "يجب أن تكون كلمة المرور 8 أحرف على الأقل"}), 400
 
     company = db.session.get(LicCompany, company_id)
     if not company:
@@ -1031,8 +1031,8 @@ def change_master_password():
     new_pw = (data.get("new_password") or "").strip()
     if not old_pw:
         return jsonify({"success": False, "message": "كلمة المرور الحالية مطلوبة"}), 400
-    if len(new_pw) < 6:
-        return jsonify({"success": False, "message": "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل"}), 400
+    if len(new_pw) < 8:
+        return jsonify({"success": False, "message": "يجب أن تكون كلمة المرور 8 أحرف على الأقل"}), 400
     if not check_password_hash(user.password_hash, old_pw):
         return jsonify({"success": False, "message": "كلمة المرور الحالية غير صحيحة"}), 400
     user.password_hash = generate_password_hash(new_pw)
