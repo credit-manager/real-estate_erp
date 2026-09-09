@@ -11,6 +11,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 
 import webview
 
@@ -128,6 +130,20 @@ def _wait_for_server(port, timeout=60):
     return False
 
 
+def _wait_for_health(port, timeout=60):
+    """Wait until the bundled application answers its real health endpoint."""
+    deadline = time.time() + timeout
+    url = f"http://127.0.0.1:{port}/health"
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=2) as response:
+                if response.status == 200:
+                    return True
+        except (OSError, urllib.error.HTTPError, urllib.error.URLError):
+            time.sleep(0.5)
+    return False
+
+
 class JsApi:
     """Python-side API exposed to the webview via window.pywebview.api."""
 
@@ -204,6 +220,18 @@ if __name__ == "__main__":
         name="dynamicpro-server",
     )
     thread.start()
+
+    # CI uses this path to validate the actual frozen executable. It exercises
+    # the bundled Flask server and database initialization without requiring a
+    # desktop session or WebView2 window.
+    if os.environ.get("DYNAMICPRO_SMOKE_TEST") == "1":
+        try:
+            if not _wait_for_health(port):
+                raise RuntimeError(f"Dynamic Pro health check failed on port {port}.")
+            print("DYNAMICPRO FROZEN SMOKE TEST: PASS", flush=True)
+        finally:
+            _stop_server(state, stop_event)
+        sys.exit(0)
 
     if args.background:
         try:
