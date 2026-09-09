@@ -1,8 +1,5 @@
-"""Dynamic Pro ERP - single-file Windows installer.
+"""Dynamic Pro ERP - self-contained Windows installer."""
 
-The PyInstaller build embeds DynamicPro.exe, so the generated setup EXE is
-self-contained and does not require a second client EXE beside it.
-"""
 import os
 import shutil
 import subprocess
@@ -31,7 +28,7 @@ AMBER = "#b45309"
 
 
 def is_frozen():
-    return getattr(sys, "frozen", False)
+    return bool(getattr(sys, "frozen", False))
 
 
 def resource_path(name):
@@ -57,10 +54,9 @@ def desktop_dir():
             r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
         ) as key:
             value, _ = winreg.QueryValueEx(key, "Desktop")
-            if value:
-                value = os.path.expandvars(value)
-                if os.path.isdir(value):
-                    return value
+            value = os.path.expandvars(value)
+            if os.path.isdir(value):
+                return value
     except OSError:
         pass
     return os.path.join(os.path.expanduser("~"), "Desktop")
@@ -69,31 +65,28 @@ def desktop_dir():
 def start_menu_dir():
     base = os.path.join(
         os.environ.get("APPDATA", os.path.expanduser("~")),
-        "Microsoft",
-        "Windows",
-        "Start Menu",
-        "Programs",
+        "Microsoft", "Windows", "Start Menu", "Programs",
     )
     return os.path.join(base, APP_NAME)
 
 
 def make_shortcut(lnk_path, target, icon=None, args=""):
-    """Create a Windows shortcut using the built-in WScript COM object."""
+    """Create a Windows .lnk using the Windows scripting host COM object."""
     if icon is None:
         icon = target
     script = (
-        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%s');"
-        "$s.TargetPath = '%s';"
-        "$s.Arguments = '%s';"
-        "$s.IconLocation = '%s,0';"
-        "$s.WorkingDirectory = '%s';"
-        "$s.Save()"
-        % (
-            lnk_path.replace("'", "''"),
-            target.replace("'", "''"),
-            args.replace("'", "''"),
-            icon.replace("'", "''"),
-            os.path.dirname(target).replace("'", "''"),
+        "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%s');"
+        "$s.TargetPath='%s';$s.Arguments='%s';$s.IconLocation='%s,0';"
+        "$s.WorkingDirectory='%s';$s.Save()"
+        % tuple(
+            value.replace("'", "''")
+            for value in (
+                lnk_path,
+                target,
+                args,
+                icon,
+                os.path.dirname(target),
+            )
         )
     )
     subprocess.run(
@@ -104,9 +97,8 @@ def make_shortcut(lnk_path, target, icon=None, args=""):
 
 
 def enable_autostart(exe_path):
-    cmd = '"%s" --background' % exe_path
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
-        winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, cmd)
+        winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, '"%s" --background' % exe_path)
 
 
 def disable_autostart():
@@ -118,13 +110,13 @@ def disable_autostart():
 
 
 def is_running(exe_name):
-    out = subprocess.run(
+    result = subprocess.run(
         ["tasklist", "/FI", "IMAGENAME eq %s" % exe_name],
         capture_output=True,
         text=True,
         creationflags=subprocess.CREATE_NO_WINDOW,
-    ).stdout
-    return exe_name.lower() in out.lower()
+    )
+    return exe_name.lower() in result.stdout.lower()
 
 
 def taskkill(exe_name):
@@ -136,7 +128,7 @@ def taskkill(exe_name):
 
 
 def run_smoke_test():
-    """Validate the frozen setup contains the embedded desktop application."""
+    """Validate that the frozen setup contains a usable desktop payload."""
     if not is_frozen():
         raise RuntimeError("Setup smoke test must run from a PyInstaller executable.")
     bundled = find_server(default_source_dir())
@@ -153,8 +145,8 @@ class InstallerApp(tk.Tk):
         self.title("Dynamic Pro ERP - Setup")
         self.geometry("680x590")
         self.minsize(660, 570)
-        self.configure(bg=BG)
         self.resizable(False, False)
+        self.configure(bg=BG)
         try:
             self.iconbitmap(resource_path("app.ico"))
         except Exception:
@@ -162,23 +154,18 @@ class InstallerApp(tk.Tk):
 
         self.target = os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
-            "Programs",
-            INSTALL_SUBDIR,
+            "Programs", INSTALL_SUBDIR,
         )
         self.source = default_source_dir()
         self.server_source = find_server(self.source)
         self.src_var = tk.StringVar(value="Embedded application" if is_frozen() else self.source)
         self.dst_var = tk.StringVar(value=self.target)
-
         self._style = ttk.Style(self)
         try:
             self._style.theme_use("clam")
-        except Exception:
+        except tk.TclError:
             pass
-        self._style.configure(
-            "TProgressbar", troughcolor="#e5e7eb", background=PRIMARY,
-            borderwidth=0, thickness=10,
-        )
+        self._style.configure("TProgressbar", troughcolor="#e5e7eb", background=PRIMARY, borderwidth=0, thickness=10)
         self._build_welcome()
 
     def _header(self, parent):
@@ -187,25 +174,12 @@ class InstallerApp(tk.Tk):
         header.pack_propagate(False)
         inner = tk.Frame(header, bg=PRIMARY)
         inner.pack(fill="both", expand=True, padx=28, pady=18)
-        badge = tk.Label(
-            inner, text="DP", bg="#3b82f6", fg="white",
-            font=("Segoe UI", 20, "bold"), width=4, height=2,
-        )
-        badge.pack(side="left", padx=(0, 16))
+        tk.Label(inner, text="DP", bg="#3b82f6", fg="white", font=("Segoe UI", 20, "bold"), width=4, height=2).pack(side="left", padx=(0, 16))
         text = tk.Frame(inner, bg=PRIMARY)
         text.pack(side="left", fill="both", expand=True)
-        tk.Label(
-            text, text=APP_NAME, bg=PRIMARY, fg="white",
-            font=("Segoe UI", 18, "bold"), anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            text, text="Self-contained Windows installer",
-            bg=PRIMARY, fg="#bfdbfe", font=("Segoe UI", 10), anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            header, text="v" + APP_VERSION, bg=PRIMARY_DARK, fg="#93c5fd",
-            font=("Segoe UI", 9, "bold"), padx=10, pady=4,
-        ).place(relx=1.0, rely=0.0, x=-14, y=10, anchor="ne")
+        tk.Label(text, text=APP_NAME, bg=PRIMARY, fg="white", font=("Segoe UI", 18, "bold"), anchor="w").pack(fill="x")
+        tk.Label(text, text="Self-contained Windows installer", bg=PRIMARY, fg="#bfdbfe", font=("Segoe UI", 10), anchor="w").pack(fill="x")
+        tk.Label(header, text="v" + APP_VERSION, bg=PRIMARY_DARK, fg="#93c5fd", font=("Segoe UI", 9, "bold"), padx=10, pady=4).place(relx=1.0, rely=0.0, x=-14, y=10, anchor="ne")
 
     def _card(self, parent):
         card = tk.Frame(parent, bg=CARD, padx=24, pady=20)
@@ -213,108 +187,63 @@ class InstallerApp(tk.Tk):
         return card
 
     def _field_label(self, parent, text):
-        tk.Label(
-            parent, text=text, bg=CARD, fg=TEXT,
-            font=("Segoe UI", 10, "bold"), anchor="w",
-        ).pack(fill="x", pady=(0, 4))
+        tk.Label(parent, text=text, bg=CARD, fg=TEXT, font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x", pady=(0, 4))
 
     def _path_row(self, parent, variable, browse_cmd=None):
         row = tk.Frame(parent, bg=CARD)
         row.pack(fill="x", pady=(0, 14))
-        entry = tk.Entry(
-            row, textvariable=variable, font=("Segoe UI", 10),
-            bg="#f9fafb", fg=TEXT, relief="solid", bd=1,
-            highlightthickness=1, highlightcolor="#d1d5db",
-            highlightbackground="#d1d5db", state="readonly",
-        )
-        entry.pack(side="left", fill="x", expand=True, ipady=6)
+        tk.Entry(row, textvariable=variable, font=("Segoe UI", 10), bg="#f9fafb", fg=TEXT, relief="solid", bd=1, state="readonly").pack(side="left", fill="x", expand=True, ipady=6)
         if browse_cmd:
-            tk.Button(
-                row, text="Browse...", font=("Segoe UI", 10), bg="#f3f4f6",
-                fg=TEXT, relief="solid", bd=1, padx=14,
-                activebackground="#e5e7eb", command=browse_cmd,
-            ).pack(side="left", padx=(8, 0), ipady=3)
+            tk.Button(row, text="Browse...", font=("Segoe UI", 10), bg="#f3f4f6", fg=TEXT, relief="solid", bd=1, padx=14, command=browse_cmd).pack(side="left", padx=(8, 0), ipady=3)
 
     def _primary_btn(self, parent, text, command, state="normal"):
-        btn = tk.Button(
-            parent, text=text, font=("Segoe UI", 11, "bold"), bg=PRIMARY,
-            fg="white", padx=26, pady=6, relief="flat",
-            activebackground=PRIMARY_DARK, activeforeground="white",
-            disabledforeground="#93c5fd", cursor="hand2", command=command,
-        )
-        btn.config(state=state)
-        btn.pack(side="left")
-        return btn
-
-    def _ghost_btn(self, parent, text, command):
-        tk.Button(
-            parent, text=text, font=("Segoe UI", 10), bg=BG, fg=TEXT,
-            padx=18, pady=6, relief="flat", activebackground="#e5e7eb",
-            cursor="hand2", command=command,
-        ).pack(side="left", padx=(0, 10))
+        button = tk.Button(parent, text=text, font=("Segoe UI", 11, "bold"), bg=PRIMARY, fg="white", padx=26, pady=6, relief="flat", activebackground=PRIMARY_DARK, command=command)
+        button.config(state=state)
+        button.pack(side="left")
+        return button
 
     def _build_welcome(self):
         for widget in self.winfo_children():
             widget.destroy()
         self._header(self)
         card = self._card(self)
-
         self._field_label(card, "Application package")
         self._path_row(card, self.src_var, self._browse_source if not is_frozen() else None)
-
         self._field_label(card, "Installation folder")
         self._path_row(card, self.dst_var, self._browse_dest)
 
-        opts = tk.Frame(card, bg=CARD)
-        opts.pack(fill="x", pady=(0, 14))
+        options = tk.Frame(card, bg=CARD)
+        options.pack(fill="x", pady=(0, 14))
         self.opt_desktop = tk.BooleanVar(value=True)
         self.opt_startmenu = tk.BooleanVar(value=True)
         self.opt_autostart = tk.BooleanVar(value=True)
-        for var, text in (
+        for variable, label in (
             (self.opt_desktop, "Create Desktop shortcut"),
             (self.opt_startmenu, "Add to Start Menu"),
             (self.opt_autostart, "Start the ERP automatically with Windows"),
         ):
-            tk.Checkbutton(
-                opts, text=text, variable=var, bg=CARD, fg=TEXT,
-                font=("Segoe UI", 10), activebackground=CARD,
-                activeforeground=TEXT, anchor="w", selectcolor="#e0e7ff",
-                highlightthickness=0, bd=0, cursor="hand2",
-            ).pack(fill="x", pady=2)
+            tk.Checkbutton(options, text=label, variable=variable, bg=CARD, fg=TEXT, font=("Segoe UI", 10), activebackground=CARD, selectcolor="#e0e7ff", anchor="w").pack(fill="x", pady=2)
 
         tk.Frame(card, bg="#e5e7eb", height=1).pack(fill="x", pady=(0, 14))
         info = tk.Frame(card, bg="#eff6ff", padx=14, pady=10)
         info.pack(fill="x")
-        tk.Label(
-            info, text="Included in this setup", bg="#eff6ff", fg=PRIMARY_DARK,
-            font=("Segoe UI", 10, "bold"), anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            info, text="  - Dynamic Pro ERP desktop application (embedded)",
-            bg="#eff6ff", fg=TEXT, font=("Segoe UI", 9), anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            info, text="  - Local SQLite data directory and first-run configuration",
-            bg="#eff6ff", fg=TEXT, font=("Segoe UI", 9), anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            info, text="  - No Python, PostgreSQL, Git, or project source files required",
-            bg="#eff6ff", fg=TEXT, font=("Segoe UI", 9), anchor="w",
-        ).pack(fill="x")
+        tk.Label(info, text="Included in this setup", bg="#eff6ff", fg=PRIMARY_DARK, font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
+        for text in (
+            "  - Dynamic Pro ERP desktop application (embedded)",
+            "  - Local SQLite data directory and first-run configuration",
+            "  - No Python, PostgreSQL, Git, or project source files required",
+        ):
+            tk.Label(info, text=text, bg="#eff6ff", fg=TEXT, font=("Segoe UI", 9), anchor="w").pack(fill="x")
 
-        self.status = tk.Label(
-            card, text="", bg=CARD, fg=GREEN, font=("Segoe UI", 10),
-            justify="left", anchor="w", wraplength=580,
-        )
+        self.status = tk.Label(card, text="", bg=CARD, fg=GREEN, font=("Segoe UI", 10), anchor="w", wraplength=580)
         self.status.pack(fill="x", pady=(12, 8))
         self.progress = ttk.Progressbar(card, style="TProgressbar", maximum=100)
         self.progress.pack(fill="x", pady=(0, 4))
         self.progress.pack_forget()
-
         footer = tk.Frame(self, bg=BG, padx=24, pady=16)
         footer.pack(fill="x")
         self.install_btn = self._primary_btn(footer, "Install", self._install)
-        self._ghost_btn(footer, "Cancel", self.destroy)
+        tk.Button(footer, text="Cancel", font=("Segoe UI", 10), bg=BG, fg=TEXT, padx=18, pady=6, relief="flat", command=self.destroy).pack(side="left")
         self._refresh_status()
 
     def _browse_source(self):
@@ -325,8 +254,7 @@ class InstallerApp(tk.Tk):
             self._refresh_status()
 
     def _browse_dest(self):
-        folder = filedialog.askdirectory(
-            initialdir=self.dst_var.get(), title="Select installation folder")
+        folder = filedialog.askdirectory(initialdir=self.dst_var.get(), title="Select installation folder")
         if folder:
             self.dst_var.set(folder)
 
@@ -336,10 +264,7 @@ class InstallerApp(tk.Tk):
             self.status.config(text="Ready to install. The desktop application is included.", fg=GREEN)
             self.install_btn.config(state="normal")
         else:
-            self.status.config(
-                text="DynamicPro.exe was not found. Build the desktop application first.",
-                fg=AMBER,
-            )
+            self.status.config(text="DynamicPro.exe was not found. Build the desktop application first.", fg=AMBER)
             self.install_btn.config(state="disabled")
 
     def _install(self):
@@ -349,31 +274,26 @@ class InstallerApp(tk.Tk):
             self._refresh_status()
             return
         if is_running(SERVER_EXE):
-            if not messagebox.askyesno(
-                "Application in use",
-                "Dynamic Pro ERP is running and will be closed.\n\nContinue?",
-            ):
+            if not messagebox.askyesno("Application in use", "Dynamic Pro ERP is running and will be closed.\n\nContinue?"):
                 return
             taskkill(SERVER_EXE)
         self.install_btn.config(state="disabled", text="Installing...")
         self.progress.pack(fill="x", pady=(0, 4))
-        self.progress.config(value=0)
         threading.Thread(target=self._do_install, daemon=True).start()
 
     def _do_install(self):
-        def set_status(msg, pct=None):
-            self.after(0, lambda: self.status.config(text=msg, fg=PRIMARY_DARK))
-            if pct is not None:
-                self.after(0, lambda: self.progress.config(value=pct))
+        def status(message, percent):
+            self.after(0, lambda: self.status.config(text=message, fg=PRIMARY_DARK))
+            self.after(0, lambda: self.progress.config(value=percent))
 
         try:
-            set_status("Preparing installation folder...", 10)
+            status("Preparing installation folder...", 10)
             os.makedirs(self.target, exist_ok=True)
-            dst = os.path.join(self.target, SERVER_EXE)
-            set_status("Copying Dynamic Pro ERP...", 35)
+            destination = os.path.join(self.target, SERVER_EXE)
+            status("Copying Dynamic Pro ERP...", 35)
             for _ in range(3):
                 try:
-                    shutil.copy2(self.server_source, dst)
+                    shutil.copy2(self.server_source, destination)
                     break
                 except PermissionError:
                     taskkill(SERVER_EXE)
@@ -381,92 +301,77 @@ class InstallerApp(tk.Tk):
             else:
                 raise RuntimeError("Could not replace DynamicPro.exe because it is in use.")
 
-            shortcuts = []
             if self.opt_desktop.get():
-                set_status("Creating Desktop shortcut...", 60)
-                shortcuts.append((os.path.join(desktop_dir(), "Dynamic Pro ERP.lnk"), dst))
+                status("Creating Desktop shortcut...", 60)
+                make_shortcut(os.path.join(desktop_dir(), "Dynamic Pro ERP.lnk"), destination)
             if self.opt_startmenu.get():
-                set_status("Creating Start Menu shortcut...", 70)
-                sm = start_menu_dir()
-                os.makedirs(sm, exist_ok=True)
-                shortcuts.append((os.path.join(sm, "Dynamic Pro ERP.lnk"), dst))
-            for lnk, target in shortcuts:
-                make_shortcut(lnk, target)
-
-            if self.opt_startmenu.get():
-                set_status("Creating uninstaller shortcut...", 80)
+                status("Creating Start Menu shortcut...", 70)
+                menu = start_menu_dir()
+                os.makedirs(menu, exist_ok=True)
+                make_shortcut(os.path.join(menu, "Dynamic Pro ERP.lnk"), destination)
                 self._write_uninstaller()
-
             if self.opt_autostart.get():
-                set_status("Enabling automatic startup...", 88)
-                enable_autostart(dst)
+                status("Enabling automatic startup...", 88)
+                enable_autostart(destination)
             else:
                 disable_autostart()
-
-            set_status("Installation complete.", 100)
-            self.after(200, self._show_done)
+            status("Installation complete.", 100)
+            self.after(250, self._show_done)
         except Exception as exc:
             self.after(0, lambda: messagebox.showerror("Installation failed", str(exc)))
             self.after(0, lambda: self.install_btn.config(state="normal", text="Install"))
 
     def _write_uninstaller(self):
         target = self.target
-        sm = start_menu_dir()
+        menu = start_menu_dir()
         desktop = desktop_dir()
         bat_path = os.path.join(target, "Uninstall Dynamic Pro ERP.bat")
         lines = [
             "@echo off",
             "title Uninstall Dynamic Pro ERP",
             'taskkill /IM "DynamicPro.exe" /F >nul 2>&1',
-            'del /q "%s\Dynamic Pro ERP.lnk" 2>nul' % desktop,
-            'del /q "%s\Dynamic Pro ERP.lnk" 2>nul' % sm,
-            'del /q "%s\Uninstall Dynamic Pro ERP.lnk" 2>nul' % sm,
-            'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v DynamicProServer /f >nul 2>&1',
-            'rmdir /s /q "%s" 2>nul' % sm,
+            'del /q "%s\\Dynamic Pro ERP.lnk" 2>nul' % desktop,
+            'del /q "%s\\Dynamic Pro ERP.lnk" 2>nul' % menu,
+            'del /q "%s\\Uninstall Dynamic Pro ERP.lnk" 2>nul' % menu,
+            'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v DynamicProServer /f >nul 2>&1',
+            'rmdir /s /q "%s" 2>nul' % menu,
             'cd /d "%TEMP%"',
             'rmdir /s /q "%s" 2>nul' % target.rstrip("\\"),
             'del "%~f0"',
         ]
-        with open(bat_path, "w", encoding="utf-8", newline="\r\n") as fh:
-            fh.write("\n".join(lines))
-        if os.path.isdir(sm):
-            make_shortcut(os.path.join(sm, "Uninstall Dynamic Pro ERP.lnk"), bat_path)
+        with open(bat_path, "w", encoding="utf-8", newline="\r\n") as handle:
+            handle.write("\n".join(lines))
+        make_shortcut(os.path.join(menu, "Uninstall Dynamic Pro ERP.lnk"), bat_path)
 
     def _show_done(self):
         for widget in self.winfo_children():
             widget.destroy()
         self._header(self)
         card = self._card(self)
-        tk.Label(
-            card, text="✓  Installation Complete", bg=CARD, fg=GREEN,
-            font=("Segoe UI", 16, "bold"), anchor="w",
-        ).pack(fill="x", pady=(10, 14))
-        tk.Label(
-            card,
-            text="Dynamic Pro ERP is ready. The application uses its local SQLite data directory.",
-            bg=CARD, fg=MUTED, font=("Segoe UI", 10), anchor="w", wraplength=580,
-        ).pack(fill="x", pady=(0, 12))
-        tk.Label(
-            card, text=self.target, bg="#f9fafb", fg=TEXT,
-            font=("Consolas", 9), anchor="w", padx=12, pady=8,
-            relief="solid", bd=1,
-        ).pack(fill="x")
+        tk.Label(card, text="Installation Complete", bg=CARD, fg=GREEN, font=("Segoe UI", 16, "bold"), anchor="w").pack(fill="x", pady=(10, 14))
+        tk.Label(card, text="Dynamic Pro ERP is ready. The application uses its local SQLite data directory.", bg=CARD, fg=MUTED, font=("Segoe UI", 10), anchor="w", wraplength=580).pack(fill="x", pady=(0, 12))
+        tk.Label(card, text=self.target, bg="#f9fafb", fg=TEXT, font=("Segoe UI", 9), anchor="w").pack(fill="x", ipady=8)
         footer = tk.Frame(self, bg=BG, padx=24, pady=16)
         footer.pack(fill="x")
-        self._primary_btn(footer, "Launch Dynamic Pro ERP", self._launch)
-        self._ghost_btn(footer, "Finish", self.destroy)
+        tk.Button(footer, text="Launch Dynamic Pro ERP", font=("Segoe UI", 11, "bold"), bg=PRIMARY, fg="white", padx=20, pady=7, relief="flat", command=lambda: self._launch_installed()).pack(side="left")
+        tk.Button(footer, text="Close", font=("Segoe UI", 10), bg=BG, fg=TEXT, padx=18, pady=7, relief="flat", command=self.destroy).pack(side="left")
 
-    def _launch(self):
-        subprocess.Popen([os.path.join(self.target, SERVER_EXE)])
+    def _launch_installed(self):
+        subprocess.Popen([os.path.join(self.target, SERVER_EXE)], cwd=self.target)
         self.destroy()
 
 
-if __name__ == "__main__":
+def main():
     if os.environ.get("DYNAMICPRO_SETUP_SMOKE_TEST") == "1":
         try:
             run_smoke_test()
         except Exception as exc:
-            print(f"DYNAMICPRO SETUP SMOKE TEST: FAIL: {exc}", flush=True)
-            raise SystemExit(1)
-        raise SystemExit(0)
+            print("DYNAMICPRO SETUP SMOKE TEST: FAIL: %s" % exc, file=sys.stderr, flush=True)
+            return 1
+        return 0
     InstallerApp().mainloop()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
