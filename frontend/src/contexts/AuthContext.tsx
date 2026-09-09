@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = useCallback(async () => {
     try {
-      const { data } = await api.get<{ authenticated: boolean; user?: User }>("/admin/api/me");
+      const { data } = await api.get<{ authenticated: boolean; user?: User }>("/api/me");
       if (data.authenticated && data.user) {
         setUser(data.user);
       } else {
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
-      const { data } = await api.post("/admin/login", { username: email, email, password });
+      const { data } = await api.post("/login", { username: email, email, password });
       if (data.success) {
         if (data.user) setUser(data.user as User);
         else await loadUser();
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await api.post("/admin/logout");
+      await api.post("/logout");
     } catch {
       // Local state is cleared even when the server is unavailable.
     }
