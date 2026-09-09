@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:1111";
+// Prefer same-origin requests in production/Desktop. An explicit API URL is
+// still supported for split frontend/backend deployments and local development.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 let csrfToken = "";
 
 export function setCsrfToken(token?: string): void {
