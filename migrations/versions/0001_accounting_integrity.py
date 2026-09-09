@@ -1,7 +1,7 @@
 """Add database-level accounting line integrity checks.
 
 Revision ID: 0001_accounting_integrity
-Revises: 
+Revises:
 Create Date: 2026-09-09
 """
 
