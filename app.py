@@ -251,19 +251,40 @@ def _run_migrations_and_seeds(app, db):
         db.session.commit()
 
     if not User.query.filter_by(username="admin").first():
+        import os
+        from werkzeug.security import generate_password_hash
+        from runtime_hardening import secure_bootstrap_admin
+
+        password = secure_bootstrap_admin()
+        if password is None:
+            if os.environ.get("DYNAMICPRO_ENV", "").lower() in {"production", "prod"} and not getattr(sys, "frozen", False):
+                raise RuntimeError(
+                    "Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD; refusing to create a default administrator."
+                )
+            password = secure_bootstrap_admin(generate_random=True)
+
         admin = User(
             username="admin", email="admin@mokawlat.com", full_name="مدير النظام",
-            role="admin", password_hash=generate_password_hash("admin123"), must_change_password=True,
+            role="admin", password_hash=generate_password_hash(password), must_change_password=True,
         )
         db.session.add(admin)
         db.session.commit()
 
-    # Seed master admin for licensing panel (desktop mode)
+    # Seed master admin for the licensing panel without a hard-coded password.
     from licensing.models import LicMasterUser
     if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():
+        from runtime_hardening import secure_bootstrap_admin
+        password = secure_bootstrap_admin()
+        if password is None:
+            import os
+            if os.environ.get("DYNAMICPRO_ENV", "").lower() in {"production", "prod"} and not getattr(sys, "frozen", False):
+                raise RuntimeError(
+                    "Production master bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD."
+                )
+            password = secure_bootstrap_admin(generate_random=True)
         master = LicMasterUser(
             email="admin@mokawlat.com",
-            password_hash=generate_password_hash("admin123"),
+            password_hash=generate_password_hash(password),
             full_name="Super Admin",
             role="super_admin",
             is_active=True,
@@ -369,6 +390,19 @@ def create_app():
         app.config["SESSION_COOKIE_SECURE"] = True
 
     db.init_app(app)
+    @app.get("/health")
+    def health_check():
+        return {"status": "ok", "service": "dynamicpro", "version": os.environ.get("DYNAMICPRO_VERSION", "dev")}, 200
+
+    @app.get("/ready")
+    def readiness_check():
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("SELECT 1"))
+            return {"status": "ready", "service": "dynamicpro"}, 200
+        except Exception:
+            return {"status": "not_ready", "service": "dynamicpro"}, 503
+
 
     # CORS
     _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1111", "http://127.0.0.1:1111"]
@@ -382,11 +416,14 @@ def create_app():
     # تهيئة Rate Limiting
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
+    _rate_storage = config.RATELIMIT_STORAGE_URI or "memory://"
+    if config.IS_PRODUCTION and _rate_storage == "memory://":
+        raise RuntimeError("Distributed rate limiting storage is mandatory in production.")
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute", "50 per second"],
-        storage_uri="memory://",
+        storage_uri=_rate_storage,
         strategy="fixed-window",
         key_prefix="rl:"
     )
