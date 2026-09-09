@@ -89,6 +89,11 @@ class JournalEntry(db.Model):
     reversed_of = db.Column(db.Integer)
     deleted_at = db.Column(db.DateTime, nullable=True, index=True)  # soft-delete
 
+    __table_args__ = (
+        db.UniqueConstraint("entry_number", name="uq_journal_entry_number"),
+        db.CheckConstraint("status IN ('posted', 'draft')", name="ck_journal_entry_status"),
+    )
+
     financial_year = db.relationship("FinancialYear", backref="journal_entries")
     creator = db.relationship("User", foreign_keys=[created_by])
     lines = db.relationship(
@@ -144,6 +149,12 @@ class JournalEntryLine(db.Model):
     description = db.Column(db.Text)
     reconciled = db.Column(db.Boolean, default=False)
     reconciled_at = db.Column(db.DateTime)
+
+    __table_args__ = (
+        db.CheckConstraint("debit >= 0", name="ck_journal_line_debit_nonnegative"),
+        db.CheckConstraint("credit >= 0", name="ck_journal_line_credit_nonnegative"),
+        db.CheckConstraint("debit = 0 OR credit = 0", name="ck_journal_line_one_side_only"),
+    )
 
     account = db.relationship("Account", foreign_keys=[account_id])
     cost_center = db.relationship("CostCenter", foreign_keys=[cost_center_id])
