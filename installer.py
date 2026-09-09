@@ -351,7 +351,8 @@ class InstallerApp(tk.Tk):
             status("Installation complete.", 100)
             self.after(250, self._show_done)
         except Exception as exc:
-            self.after(0, lambda: messagebox.showerror("Installation failed", str(exc)))
+            error_message = str(exc)
+            self.after(0, lambda: messagebox.showerror("Installation failed", error_message))
             self.after(0, lambda: self.install_btn.config(state="normal", text="Install"))
 
     def _write_uninstaller(self):
