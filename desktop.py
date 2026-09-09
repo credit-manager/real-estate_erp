@@ -14,9 +14,6 @@ import time
 import urllib.error
 import urllib.request
 
-import webview
-
-from window_theme import apply_light_titlebar
 import server_config
 
 TITLE = "Dynamic Pro ERP"
@@ -143,7 +140,7 @@ def _wait_for_health(port, timeout=60):
 
 
 def _run_frozen_smoke_test():
-    """Validate the bundled application directly without WebView2 or a server loop."""
+    """Validate the bundled application without importing GUI/WebView2 code."""
     import desktop_sqlite_compat  # noqa: F401
     from app import app
 
@@ -220,12 +217,14 @@ if __name__ == "__main__":
         os.environ["DYNAMICPRO_MODE"] = "production"
         os.environ["DYNAMICPRO_DESKTOP"] = "1"
 
-    # CI validates the actual frozen executable before any server or WebView2
-    # initialization. This makes failures deterministic and prevents a GUI
-    # process from being mistaken for a healthy application.
+    # CI validates the actual frozen executable before any GUI/WebView2 or
+    # window-theme initialization. Keep those imports out of the smoke path.
     if os.environ.get("DYNAMICPRO_SMOKE_TEST") == "1":
         _run_frozen_smoke_test()
         sys.exit(0)
+
+    import webview
+    from window_theme import apply_light_titlebar
 
     port = server_config.get_port()
     webview.settings["ALLOW_DOWNLOADS"] = True
