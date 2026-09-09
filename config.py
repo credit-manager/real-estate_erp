@@ -3,6 +3,8 @@ import secrets
 import sys
 from pathlib import Path
 
+from runtime_hardening import install as _install_runtime_hardening
+
 # Load optional local development environment. Production deployments must use
 # the process environment / secret manager and never persist credentials in git.
 try:
@@ -73,9 +75,7 @@ else:
 
             if not DB_PASSWORD:
                 raise RuntimeError("A database password is required before company database discovery.")
-            _admin_uri = (
-                f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
-            )
+            _admin_uri = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
             _eng = create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
             with _eng.connect() as _conn:
                 _row = _conn.execute(
@@ -94,9 +94,7 @@ else:
                 raise RuntimeError("Unable to resolve the active company database.") from exc
             print(f"[config] WARNING: company database lookup failed: {exc}")
 
-    SQLALCHEMY_DATABASE_URI = (
-        f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    )
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Session signing secret: explicit in Cloud production, durable local secret for
@@ -136,8 +134,5 @@ if IS_PRODUCTION and not RATELIMIT_STORAGE_URI:
     )
 
 IS_MASTER_INSTANCE = not COMPANY_ID
-
-# Install compatibility/runtime hardening before application models and factories load.
-from runtime_hardening import install as _install_runtime_hardening
 
 _install_runtime_hardening()
