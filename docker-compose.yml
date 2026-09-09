@@ -104,6 +104,7 @@ services:
       DB_NAME: ${DB_NAME:-dynamicpro}
       DB_HOST: postgres
       BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +112,11 @@ services:
       - ./backups:/backups
       - ./deployment/backup/backup.sh:/backup.sh:ro
     entrypoint: ["/bin/sh", "/backup.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -n \"$(find /backups -maxdepth 1 -type f -name 'dp_*.sql.gz' -mmin -1440 -print -quit)\""]
+      interval: 1h
+      timeout: 10s
+      retries: 3
     networks: [dp-network]
 
 volumes:
