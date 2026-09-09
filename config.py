@@ -2,8 +2,6 @@ import os
 import secrets
 import sys
 
-# Optional local development configuration. Never use .env as the source of
-# production secrets; production must provide secrets through the environment.
 try:
     from dotenv import load_dotenv
 
@@ -14,13 +12,11 @@ except Exception:
     pass
 
 IS_FROZEN = bool(getattr(sys, "frozen", False))
-RUNTIME_ENV = os.environ.get("DYNAMICPRO_ENV", "development").strip().lower()
+RUNTIME_ENV = os.environ.get("DYNAMICPRO_ENV", "production" if IS_FROZEN else "development").strip().lower()
 IS_PRODUCTION = RUNTIME_ENV in {"production", "prod"}
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# Frozen desktop data must live outside the executable directory so upgrades
-# and reinstalls cannot overwrite customer data or runtime-generated secrets.
 if IS_FROZEN:
     USER_DATA_DIR = os.path.join(
         os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.expanduser("~"),
@@ -43,20 +39,13 @@ if IS_FROZEN:
     DB_PATH = os.path.join(USER_DATA_DIR, "dynamicpro.db")
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_PATH.replace(chr(92), '/') }"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "connect_args": {"check_same_thread": False},
-    }
-    DB_USER = ""
-    DB_PASSWORD = ""
-    DB_HOST = ""
-    DB_PORT = ""
-    DB_NAME = ""
+    SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"check_same_thread": False}}
+    DB_USER = DB_PASSWORD = DB_HOST = DB_PORT = DB_NAME = ""
 else:
     DB_USER = os.environ.get("DB_USER", "mokawlat_user")
     DB_HOST = os.environ.get("DB_HOST", "localhost")
     DB_PORT = os.environ.get("DB_PORT", "5432")
     DB_NAME = os.environ.get("DB_NAME", "dynamicpro")
-
     _DB_PW_FILE = os.path.join(USER_DATA_DIR, ".db_password")
     DB_PASSWORD = os.environ.get("DB_PASSWORD", "").strip()
 
@@ -69,9 +58,7 @@ else:
 
     if not DB_PASSWORD:
         if IS_PRODUCTION:
-            raise RuntimeError(
-                "DB_PASSWORD must be supplied explicitly when DYNAMICPRO_ENV=production."
-            )
+            raise RuntimeError("DB_PASSWORD must be supplied explicitly in production.")
         DB_PASSWORD = secrets.token_urlsafe(32)
         try:
             with open(_DB_PW_FILE, "w", encoding="utf-8") as fh:
@@ -87,15 +74,12 @@ else:
         try:
             from sqlalchemy import create_engine, text
 
-            _admin_uri = (
-                f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
-            )
+            _admin_uri = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
             _eng = create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
             with _eng.connect() as _conn:
                 _row = _conn.execute(
                     text(
-                        "SELECT db_name, db_host, db_port "
-                        "FROM lic_database_registry "
+                        "SELECT db_name, db_host, db_port FROM lic_database_registry "
                         "WHERE company_id = :cid AND status = 'active' LIMIT 1"
                     ),
                     {"cid": int(COMPANY_ID)},
@@ -105,28 +89,17 @@ else:
                     DB_HOST = _row[1] or DB_HOST
                     DB_PORT = str(_row[2]) if _row[2] else DB_PORT
                 elif IS_PRODUCTION:
-                    raise RuntimeError(
-                        f"No active database registry entry exists for company {COMPANY_ID}."
-                    )
+                    raise RuntimeError(f"No active database registry entry for company {COMPANY_ID}.")
         except RuntimeError:
             raise
         except Exception as exc:
             if IS_PRODUCTION:
-                raise RuntimeError(
-                    f"Unable to resolve the production database for company {COMPANY_ID}."
-                ) from exc
+                raise RuntimeError(f"Unable to resolve production database for company {COMPANY_ID}.") from exc
 
-    SQLALCHEMY_DATABASE_URI = (
-        f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    )
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 1800,
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 1800}
 
-# Instance/session signing key. In production this must be externally managed;
-# never silently generate a new key because that would invalidate all sessions.
 _SECRET_FILE = os.path.join(USER_DATA_DIR, ".secret_key")
 SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
 
@@ -138,10 +111,8 @@ if not SECRET_KEY and not IS_PRODUCTION and os.path.isfile(_SECRET_FILE):
         SECRET_KEY = ""
 
 if not SECRET_KEY:
-    if IS_PRODUCTION:
-        raise RuntimeError(
-            "SECRET_KEY must be supplied explicitly when DYNAMICPRO_ENV=production."
-        )
+    if IS_PRODUCTION and not IS_FROZEN:
+        raise RuntimeError("SECRET_KEY must be supplied explicitly in production.")
     SECRET_KEY = secrets.token_hex(32)
     try:
         with open(_SECRET_FILE, "w", encoding="utf-8") as fh:
