@@ -1,7 +1,7 @@
 """Add database-level accounting line integrity checks.
 
 Revision ID: 0001_accounting_integrity
-Revises:
+Revises: 0000_initial_schema
 Create Date: 2026-09-09
 """
 
@@ -10,7 +10,7 @@ from sqlalchemy import inspect
 
 
 revision = "0001_accounting_integrity"
-down_revision = None
+down_revision = "0000_initial_schema"
 branch_labels = None
 depends_on = None
 
@@ -20,8 +20,8 @@ def upgrade() -> None:
     inspector = inspect(bind)
     if "journal_entry_lines" not in inspector.get_table_names():
         raise RuntimeError(
-            "journal_entry_lines table is missing; initialize the application schema "
-            "before applying accounting integrity migrations."
+            "journal_entry_lines table is missing; the initial schema must be applied "
+            "before accounting integrity migrations."
         )
 
     existing = {
