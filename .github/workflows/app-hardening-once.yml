@@ -1,17 +1,81 @@
-name: Apply App Production Hardening
+name: Restore And Harden App Entrypoint
 
 on:
+  push:
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  harden:
+  repair:
+    if: "!contains(github.event.head_commit.message, '[app-entrypoint-repaired]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply production hardening repair
-        run: python tools/post_hardening_repair.py
-      - name: Validate production modules
+      - name: Restore full app entrypoint from verified commit
+        shell: bash
+        run: |
+          git show 99fe6217155a7ffaeb0f6e69434569efefc23381:app.py > app.py
+      - name: Apply production hardening
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app.py')
+          s = p.read_text(encoding='utf-8')
+
+          old_user = '''    if not User.query.filter_by(username="admin").first():\n        admin = User(\n            username="admin", email="admin@mokawlat.com", full_name="مدير النظام",\n            role="admin", password_hash=generate_password_hash("admin123"), must_change_password=True,\n        )\n        db.session.add(admin)\n        db.session.commit()\n'''
+          new_user = '''    if not User.query.filter_by(username="admin").first():\n        from runtime_hardening import secure_bootstrap_admin\n        bootstrap_password = secure_bootstrap_admin(generate_random=getattr(config, "IS_FROZEN", False))\n        if bootstrap_password is None:\n            if getattr(config, "IS_PRODUCTION", False):\n                raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")\n        else:\n            admin = User(\n                username="admin", email="admin@mokawlat.com", full_name="مدير النظام",\n                role="admin", password_hash=generate_password_hash(bootstrap_password), must_change_password=True,\n            )\n            db.session.add(admin)\n            db.session.commit()\n'''
+          if old_user not in s:
+              raise SystemExit('expected admin seed block not found')
+          s = s.replace(old_user, new_user, 1)
+
+          old_master = '''    if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():\n        master = LicMasterUser(\n            email="admin@mokawlat.com",\n            password_hash=generate_password_hash("admin123"),\n            full_name="Super Admin",\n            role="super_admin",\n            is_active=True,\n        )\n        db.session.add(master)\n        db.session.commit()\n'''
+          new_master = '''    if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():\n        from runtime_hardening import secure_bootstrap_admin\n        bootstrap_password = secure_bootstrap_admin(generate_random=getattr(config, "IS_FROZEN", False))\n        if bootstrap_password is None:\n            if getattr(config, "IS_PRODUCTION", False):\n                raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")\n        else:\n            master = LicMasterUser(\n                email="admin@mokawlat.com",\n                password_hash=generate_password_hash(bootstrap_password),\n                full_name="Super Admin",\n                role="super_admin",\n                is_active=True,\n            )\n            db.session.add(master)\n            db.session.commit()\n'''
+          if old_master not in s:
+              raise SystemExit('expected master seed block not found')
+          s = s.replace(old_master, new_master, 1)
+
+          old_limiter = '''    limiter = Limiter(\n        get_remote_address,\n        app=app,\n        default_limits=["200 per minute", "50 per second"],\n        storage_uri="memory://",\n        strategy="fixed-window",\n        key_prefix="rl:"\n    )\n'''
+          new_limiter = '''    _rate_storage = getattr(config, "RATELIMIT_STORAGE_URI", "") or "memory://"\n    if getattr(config, "IS_PRODUCTION", False) and _rate_storage == "memory://":\n        raise RuntimeError("Distributed production rate limiting requires Redis storage.")\n    limiter = Limiter(\n        get_remote_address,\n        app=app,\n        default_limits=["200 per minute", "50 per second"],\n        storage_uri=_rate_storage,\n        strategy="fixed-window",\n        key_prefix="rl:"\n    )\n'''
+          if old_limiter not in s:
+              raise SystemExit('expected limiter block not found')
+          s = s.replace(old_limiter, new_limiter, 1)
+
+          old_license = '''            except Exception:\n                pass\n            return\n'''
+          new_license = '''            except Exception:\n                from utils.errlog import log_exc\n                log_exc("app.enforce-company-license")\n                if _is_api_path():\n                    return jsonify({"success": False, "message": "Subscription validation unavailable"}), 503\n                return redirect(url_for("auth.login"))\n            return\n'''
+          if old_license not in s:
+              raise SystemExit('expected company license guard not found')
+          s = s.replace(old_license, new_license, 1)
+
+          old_validate = '''        except Exception:\n            from utils.errlog import log_exc\n            log_exc("app.enforce-license")\n'''
+          new_validate = '''        except Exception:\n            from utils.errlog import log_exc\n            log_exc("app.enforce-license")\n            if _is_api_path():\n                return jsonify({"success": False, "message": "License validation unavailable"}), 503\n            return redirect(url_for("auth.login"))\n'''
+          if old_validate not in s:
+              raise SystemExit('expected license validation guard not found')
+          s = s.replace(old_validate, new_validate, 1)
+
+          old_health = '''    @app.route("/health")\n    def health():\n        """Health check endpoint for Docker / Nginx."""\n        from sqlalchemy import text\n        try:\n            db.session.execute(text("SELECT 1"))\n            db_ok = True\n        except Exception:\n            db_ok = False\n        return jsonify({\n            "status": "healthy" if db_ok else "degraded",\n            "database": "connected" if db_ok else "disconnected",\n        }), 200 if db_ok else 503\n'''
+          new_health = '''    @app.route("/health")\n    def health():\n        """Liveness/health endpoint with a real database probe."""\n        from sqlalchemy import text\n        try:\n            db.session.execute(text("SELECT 1"))\n        except Exception:\n            return jsonify({"status": "unhealthy", "database": "disconnected"}), 503\n        return jsonify({"status": "healthy", "database": "connected"}), 200\n\n    @app.route("/ready")\n    def ready():\n        """Readiness endpoint: the process is ready only when the database is reachable."""\n        from sqlalchemy import text\n        try:\n            db.session.execute(text("SELECT 1"))\n        except Exception:\n            return jsonify({"ready": False}), 503\n        return jsonify({"ready": True}), 200\n'''
+          if old_health not in s:
+              raise SystemExit('expected health endpoint not found')
+          s = s.replace(old_health, new_health, 1)
+
+          p.write_text(s, encoding='utf-8')
+      - name: Validate repaired entrypoint
         run: python -m py_compile app.py runtime_hardening.py config.py
+      - name: Verify no hard-coded bootstrap password remains in app.py
+        shell: bash
+        run: |
+          if grep -nE 'generate_password_hash\("admin123"\)|password_hash=.*admin123' app.py; then
+            echo 'Hard-coded bootstrap credential still present in app.py' >&2
+            exit 1
+          fi
+          test "$(wc -c < app.py)" -gt 10000
+      - name: Commit repaired entrypoint
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.py
+          git commit -m "security: restore and harden application entrypoint [app-entrypoint-repaired]"
+          git push
