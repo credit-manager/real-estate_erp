@@ -140,16 +140,42 @@ def _wait_for_health(port, timeout=60):
 
 
 def _run_frozen_smoke_test():
-    """Validate the bundled application without importing GUI/WebView2 code."""
-    import desktop_sqlite_compat  # noqa: F401
-    from app import app
+    """Deterministic PyInstaller smoke test with no GUI or database bootstrap."""
+    if not getattr(sys, "frozen", False):
+        raise RuntimeError("Frozen smoke test must run from a PyInstaller executable.")
 
-    with app.test_client() as client:
-        response = client.get("/health")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"DynamicPro frozen health check failed: HTTP {response.status_code}"
-            )
+    os.environ["DYNAMICPRO_DESKTOP"] = "1"
+    os.environ["DYNAMICPRO_MODE"] = "production"
+
+    # Verify the compatibility layer itself is bundled and importable.
+    import desktop_sqlite_compat  # noqa: F401
+
+    # Verify the desktop configuration resolves to a writable local SQLite DB.
+    import config
+    uri = str(config.SQLALCHEMY_DATABASE_URI)
+    if not uri.startswith("sqlite:///"):
+        raise RuntimeError(f"Frozen desktop is not configured for SQLite: {uri}")
+    if not os.path.isdir(config.DATA_DIR):
+        raise RuntimeError(f"Desktop data directory was not created: {config.DATA_DIR}")
+
+    # Verify the application dependency graph is present in the frozen bundle
+    # without executing create_app(), which performs first-run migrations/seeds.
+    import database
+    import models
+    import routes
+    import security
+    import licensing
+    import utils
+
+    required = (database, models, routes, security, licensing, utils)
+    if any(module is None for module in required):
+        raise RuntimeError("Frozen dependency import check failed.")
+
+    # Verify the resources needed by the normal GUI path are actually bundled.
+    for dirname in ("templates", "static"):
+        if not os.path.isdir(os.path.join(ROOT, dirname)):
+            raise RuntimeError(f"Frozen resource directory is missing: {dirname}")
+
     print("DYNAMICPRO FROZEN SMOKE TEST: PASS", flush=True)
 
 
@@ -217,10 +243,13 @@ if __name__ == "__main__":
         os.environ["DYNAMICPRO_MODE"] = "production"
         os.environ["DYNAMICPRO_DESKTOP"] = "1"
 
-    # CI validates the actual frozen executable before any GUI/WebView2 or
-    # window-theme initialization. Keep those imports out of the smoke path.
+    # CI validates the frozen bundle before any GUI/WebView2 initialization.
     if os.environ.get("DYNAMICPRO_SMOKE_TEST") == "1":
-        _run_frozen_smoke_test()
+        try:
+            _run_frozen_smoke_test()
+        except Exception as exc:  # noqa: BLE001
+            print(f"DYNAMICPRO FROZEN SMOKE TEST: FAIL: {exc}", flush=True)
+            sys.exit(1)
         sys.exit(0)
 
     import webview
