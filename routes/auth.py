@@ -1,12 +1,15 @@
 import hashlib
-import time
+import os
 import threading
-from flask import Blueprint, request, jsonify, session, render_template, redirect, url_for, current_app, make_response
-from werkzeug.security import check_password_hash
+import time
 from functools import wraps
+
+from flask import Blueprint, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash
+
 from database import db
+from i18n import DEFAULT_LANG, make_t
 from models import User
-from i18n import make_t, DEFAULT_LANG
 import server_config
 
 auth_bp = Blueprint("auth", __name__)
@@ -21,23 +24,32 @@ _REDIS_UNAVAILABLE = False
 
 
 def _redis_login_store():
+    """Return the distributed login store; production never falls back silently."""
     global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    env = str(os.environ.get("DYNAMICPRO_ENV", "")).strip().lower()
+    if env not in {"production", "prod"}:
+        return None
     if _REDIS_CLIENT is not None:
         return _REDIS_CLIENT
     if _REDIS_UNAVAILABLE:
-        return None
-    env = str(os.environ.get("DYNAMICPRO_ENV", "")).lower()
-    if env not in {"production", "prod"}:
-        return None
+        raise RuntimeError("Production login protection cannot connect to Redis.")
     uri = os.environ.get("REDIS_URL") or os.environ.get("RATELIMIT_STORAGE_URI")
     if not uri:
         raise RuntimeError("Production login protection requires REDIS_URL or RATELIMIT_STORAGE_URI.")
+    if not uri.lower().startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production login protection requires a redis:// or rediss:// storage URI.")
     try:
         import redis
-        _REDIS_CLIENT = redis.Redis.from_url(uri, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
+        _REDIS_CLIENT = redis.Redis.from_url(
+            uri,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
         _REDIS_CLIENT.ping()
         return _REDIS_CLIENT
     except Exception as exc:
+        _REDIS_CLIENT = None
         _REDIS_UNAVAILABLE = True
         raise RuntimeError("Production login protection cannot connect to Redis.") from exc
 
@@ -51,8 +63,10 @@ def _cleanup_old_failures():
     """Remove expired lock entries every 10 minutes to prevent memory leak."""
     now = time.time()
     with _cleanup_lock:
-        expired = [k for k, v in _LOGIN_FAILURES.items()
-                   if v.get("lock_until", 0) < now and v.get("lock_until", 0) > 0]
+        expired = [
+            k for k, v in _LOGIN_FAILURES.items()
+            if v.get("lock_until", 0) < now and v.get("lock_until", 0) > 0
+        ]
         for k in expired:
             _LOGIN_FAILURES.pop(k, None)
 
@@ -67,11 +81,12 @@ def _schedule_cleanup():
     except Exception:
         pass
 
+
 _schedule_cleanup()
 
 
 def _login_key(username):
-    """مفتاح للتتبّع: عنوان IP + اسم المستخدم (يمنع تخمين كلمة مرور لنفس الحساب)."""
+    """مفتاح للتتبّع: عنوان IP + اسم المستخدم."""
     ip = request.remote_addr or "unknown"
     return f"{ip}:{str(username or '').lower()}"
 
@@ -127,15 +142,11 @@ def _reset_login_failures(key):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Check standard employee login
         if "user_id" in session:
             return f(*args, **kwargs)
-        # Check company user login (CRITICAL #4)
         try:
-            from licensing.auth import is_company_user_logged_in, can_access as lic_can_access
+            from licensing.auth import is_company_user_logged_in
             if is_company_user_logged_in():
-                from licensing.models import LicCompanyUser, LicCompany
-                from database import db as _db
                 company_id = session.get("lic_company_id")
                 if company_id:
                     from licensing.engine import can_access
@@ -143,7 +154,7 @@ def login_required(f):
                     if not access["allowed"]:
                         return redirect(url_for("auth.login"))
                     return f(*args, **kwargs)
-        except (ImportError, Exception):
+        except ImportError:
             pass
         return redirect(url_for("auth.login"))
     return decorated
@@ -163,12 +174,10 @@ def login():
             resp.set_cookie("lang", default_lang, max_age=60 * 60 * 24 * 365)
         return resp
 
-    # تسجيل دخول من الـ API
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")
     password = data.get("password", "")
 
-    # كلمة مرور الوصول للخادم (إن كانت مفعّلة)
     access_password = data.get("access_password", "")
     required = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
     if required and not server_config.check_access_password(required, access_password):
@@ -181,7 +190,6 @@ def login():
             "message": make_t(lang)("login.badAccess"),
         }), 401
 
-    # ── فحص: هل هذا مستخدم شركة (LicCompanyUser)؟ ──
     email_lower = (username or "").strip().lower()
     if "@" in email_lower:
         try:
@@ -192,7 +200,8 @@ def login():
                 lock_key = f"{request.remote_addr}:{email_lower}"
                 if lic_check_lock(lock_key):
                     return jsonify({
-                        "success": False, "code": "locked",
+                        "success": False,
+                        "code": "locked",
                         "message": "تم قفل محاولات الدخول مؤقتاً.",
                     }), 429
                 result = authenticate_company_user(email_lower, password)
@@ -203,7 +212,6 @@ def login():
         except ImportError:
             pass
 
-    # حد محاولات الدخول: قفل مؤقت بعد 5 محاولات خاطئة
     key = _login_key(username)
     lock_remaining = _check_login_lock(key)
     if lock_remaining:
@@ -218,7 +226,7 @@ def login():
     user = User.query.filter_by(username=username).first()
     if user and user.is_active and check_password_hash(user.password_hash, password):
         _reset_login_failures(key)
-        # تدوير الجلسة: جلسة جديدة بالكامل بعد تسجيل الدخول (حماية من session fixation)
+        # تدوير الجلسة بعد تسجيل الدخول (حماية من session fixation)
         session.clear()
         session["user_id"] = user.id
         session["username"] = user.username
@@ -226,9 +234,8 @@ def login():
         session["role"] = user.role
         from auditlog import log_action
         log_action("login", "user", user.id, user.username)
-        # Log license activity & notify owner
         try:
-            from routes.license import log_license_activity, create_owner_notification
+            from routes.license import create_owner_notification, log_license_activity
             log_license_activity("login", f"user={user.username}", user.id, user.username)
             if user.username != "admin":
                 create_owner_notification(
@@ -237,14 +244,23 @@ def login():
                     notif_type="login",
                     related_user=user.username,
                 )
-        except Exception as e:
-            #	Log license activity/failure notification error (لا يمنع دخول المستخدم)
+        except Exception as exc:
             from auditlog import log_action
-            log_action("login_notif_error", "system", user.id, f"خطأ في تنبيه الدخول: {str(e)[:100]}")
+            log_action(
+                "login_notif_error",
+                "system",
+                user.id,
+                f"خطأ في تنبيه الدخول: {str(exc)[:100]}",
+            )
         return jsonify({"success": True, "user": user.to_dict()})
 
     from auditlog import log_action
-    log_action("login_failed", "user", getattr(user, "id", None), f"محاولة دخول خاطئة ({username})")
+    log_action(
+        "login_failed",
+        "user",
+        getattr(user, "id", None),
+        f"محاولة دخول خاطئة ({username})",
+    )
     _register_login_failure(key)
     if _check_login_lock(key):
         return jsonify({
@@ -290,4 +306,7 @@ def me():
     if "user_id" not in session:
         return jsonify({"authenticated": False}), 401
     user = db.session.get(User, session["user_id"])
+    if not user:
+        session.clear()
+        return jsonify({"authenticated": False}), 401
     return jsonify({"authenticated": True, "type": "employee", "user": user.to_dict()})
