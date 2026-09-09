@@ -19,6 +19,7 @@ interface LoginResult {
   success: boolean;
   message?: string;
   two_factor_required?: boolean;
+  mfa_setup_required?: boolean;
 }
 
 interface VerifyResult {
@@ -26,10 +27,18 @@ interface VerifyResult {
   message?: string;
 }
 
+interface EnrollResult {
+  success: boolean;
+  secret?: string;
+  otpauth_uri?: string;
+  message?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
+  enroll2FA: () => Promise<EnrollResult>;
   verify2FA: (code: string) => Promise<VerifyResult>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -54,11 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.get<{ authenticated: boolean; user?: User; csrf_token?: string }>("/api/me");
       if (data.csrf_token) setCsrfToken(data.csrf_token);
-      if (data.authenticated && data.user) {
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
+      if (data.authenticated && data.user) setUser(data.user);
+      else setUser(null);
     } catch {
       setUser(null);
     }
@@ -72,7 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
-      const { data } = await api.post<{ success?: boolean; user?: User; csrf_token?: string; requires_2fa?: boolean; two_factor_required?: boolean; message?: string }>("/login", { username: email, email, password });
+      const { data } = await api.post<{
+        success?: boolean;
+        user?: User;
+        csrf_token?: string;
+        requires_2fa?: boolean;
+        two_factor_required?: boolean;
+        mfa_setup_required?: boolean;
+        message?: string;
+      }>("/login", { username: email, email, password });
       if (data.csrf_token) setCsrfToken(data.csrf_token);
       if (data.success) {
         if (data.user) setUser(data.user);
@@ -80,11 +94,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: true };
       }
       if (data.requires_2fa || data.two_factor_required) {
-        return { success: false, two_factor_required: true, message: data.message };
+        return {
+          success: false,
+          two_factor_required: true,
+          mfa_setup_required: !!data.mfa_setup_required,
+          message: data.message,
+        };
       }
       return { success: false, message: data.message };
     } catch (error: unknown) {
+      const response = axios.isAxiosError(error) ? error.response?.data : undefined;
+      if (response?.requires_2fa || response?.two_factor_required) {
+        if (response.csrf_token) setCsrfToken(response.csrf_token);
+        return {
+          success: false,
+          two_factor_required: true,
+          mfa_setup_required: !!response.mfa_setup_required,
+          message: response.message,
+        };
+      }
       return { success: false, message: apiErrorMessage(error, "Connection error") };
+    }
+  };
+
+  const enroll2FA = async (): Promise<EnrollResult> => {
+    try {
+      const { data } = await api.post<{ success?: boolean; secret?: string; otpauth_uri?: string; message?: string }>("/admin/security/2fa/enroll", {});
+      return {
+        success: !!data.success,
+        secret: data.secret,
+        otpauth_uri: data.otpauth_uri,
+        message: data.message,
+      };
+    } catch (error: unknown) {
+      return { success: false, message: apiErrorMessage(error, "تعذر بدء إعداد المصادقة الثنائية") };
     }
   };
 
@@ -113,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, verify2FA, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, enroll2FA, verify2FA, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
