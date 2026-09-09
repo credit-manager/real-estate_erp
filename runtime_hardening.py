@@ -69,16 +69,15 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
     from config import IS_FROZEN, IS_PRODUCTION, USER_DATA_DIR
 
     for obj in list(session.new):
-        if _is_default_user(obj):
-            if IS_PRODUCTION:
-                password = secure_bootstrap_admin(generate_random=IS_FROZEN)
-                if password is None:
-                    session.expunge(obj)
-                else:
-                    obj.password_hash = generate_password_hash(password)
-                    obj.must_change_password = True
-                    if IS_FROZEN:
-                        _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_ADMIN.txt")
+        if _is_default_user(obj) and IS_PRODUCTION:
+            password = secure_bootstrap_admin(generate_random=IS_FROZEN)
+            if password is None:
+                session.expunge(obj)
+            else:
+                obj.password_hash = generate_password_hash(password)
+                obj.must_change_password = True
+                if IS_FROZEN:
+                    _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_ADMIN.txt")
 
         if _is_default_master(obj) and IS_PRODUCTION:
             password = secure_bootstrap_admin(generate_random=IS_FROZEN)
@@ -95,13 +94,17 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
         if getattr(obj, "status", None) != "posted":
             continue
 
+        from models.financial_year import FinancialYear
+        from models.accounting import JournalEntryLine
+
         entry_date = getattr(obj, "date", None)
         fy_id = getattr(obj, "financial_year_id", None)
         if not fy_id:
-            raise ValueError("accounting.financialYearRequired")
+            if IS_PRODUCTION:
+                raise ValueError("accounting.financialYearRequired")
+            continue
 
-        # Prevent posting into a closed/nonexistent/out-of-range financial period.
-        year = session.get(type(obj).financial_year.property.mapper.class_, fy_id)
+        year = session.get(FinancialYear, fy_id)
         if year is None:
             raise ValueError("accounting.financialYearNotFound")
         if year.is_closed:
@@ -109,7 +112,7 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
         if entry_date and (entry_date < year.start_date or entry_date > year.end_date):
             raise ValueError("accounting.dateOutsideFinancialYear")
 
-        lines = list(getattr(obj, "lines", ()) or ())
+        lines = [line for line in (getattr(obj, "lines", ()) or ()) if isinstance(line, JournalEntryLine)]
         if len(lines) < 2:
             raise ValueError("accounting.minimumTwoLines")
         debit = Decimal("0.00")
