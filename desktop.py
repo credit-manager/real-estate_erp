@@ -60,8 +60,7 @@ def _bundled_server_loop(port, state, stop_event):
     state["server"] = server
     state["proc"] = None
     try:
-        while not stop_event.is_set():
-            server.handle_request()
+        server.serve_forever()
     finally:
         try:
             server.server_close()
@@ -133,12 +132,32 @@ class JsApi:
         self._window = window
 
     def save_pdf(self, doc_type, doc_id, lang="ar"):
-        """Generate a PDF through the application's own code when frozen."""
+        """Build the PDF directly from the bundled application."""
         try:
-            from live_pdf_builder import build_pdf_bytes
-            data = build_pdf_bytes(doc_type, int(doc_id), lang)
-        except ImportError:
-            return {"ok": False, "cancelled": False, "error": "PDF builder is not available in this build."}
+            from app import app
+            from database import db
+            from models import Invoice, PurchaseOrder, RentalContract, FinancialYear
+            from utils.pdf import (
+                build_invoice_pdf,
+                build_po_pdf,
+                build_contract_pdf,
+                build_financial_year_report_pdf,
+            )
+
+            builders = {
+                "invoice": (Invoice, build_invoice_pdf),
+                "po": (PurchaseOrder, build_po_pdf),
+                "contract": (RentalContract, build_contract_pdf),
+                "financial-year": (FinancialYear, build_financial_year_report_pdf),
+            }
+            if doc_type not in builders:
+                return {"ok": False, "cancelled": False, "error": "Unsupported document type."}
+            model, builder = builders[doc_type]
+            with app.app_context():
+                doc = db.session.get(model, int(doc_id))
+                if doc is None:
+                    return {"ok": False, "cancelled": False, "error": "Document not found."}
+                data = builder(doc, lang)
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "cancelled": False, "error": str(exc)}
 
