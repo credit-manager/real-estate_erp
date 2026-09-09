@@ -1,43 +1,15 @@
 name: Repair Backup Module Once
 
 on:
-  push:
-    branches: [master, main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair:
-    if: "!contains(github.event.head_commit.message, '[backup-hardened]')"
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Restore full backup module and apply precision/atomicity hardening
-        run: |
-          git show c3dcbb4b3897340069b02ea08d7d505438c73de1:routes/backup.py > routes/backup.py
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('routes/backup.py')
-          text = p.read_text(encoding='utf-8')
-          text = text.replace('from sqlalchemy import Date, DateTime', 'from sqlalchemy import Date, DateTime, Numeric, text')
-          text = text.replace('''                elif isinstance(val, Decimal):\n                    val = float(val)\n''', '''                elif isinstance(val, Decimal):\n                    # Preserve exact financial precision; JSON restores it as Decimal.\n                    val = format(val, "f")\n''')
-          old = '''def _restore(data):\n    for key, model in _TABLES:\n        db.session.query(model).delete()\n    db.session.commit()\n\n    for key, model in reversed(_TABLES):\n        for row in _sorted_rows(model, data.get(key, [])):\n            obj = model()\n            for col in model.__table__.columns:\n                name = col.name\n                if name not in row or row[name] is None:\n                    continue\n                val = row[name]\n                if isinstance(col.type, DateTime):\n                    val = datetime.fromisoformat(val)\n                elif isinstance(col.type, Date):\n                    val = date.fromisoformat(val)\n                setattr(obj, name, val)\n            db.session.add(obj)\n        db.session.commit()\n\n    # إعادة تعيين تسلسل المعرفات (PostgreSQL sequences)\n    try:\n        for key, model in _TABLES:\n            pk = model.__table__.primary_key.columns.keys()[0]\n            max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()\n            if max_id:\n                seq_name = f"{model.__tablename__}_{pk}_seq"\n                db.session.execute(\n                    db.text(\n                        "SELECT setval(:seq, :n, true)"\n                    ),\n                    {"seq": seq_name, "n": int(max_id)},\n                )\n        db.session.commit()\n    except Exception:\n        db.session.rollback()\n'''
-          new = '''def _restore(data):\n    """Restore the complete dataset in one transaction."""\n    try:\n        for _, model in _TABLES:\n            db.session.query(model).delete()\n\n        for key, model in reversed(_TABLES):\n            for row in _sorted_rows(model, data.get(key, [])):\n                obj = model()\n                for col in model.__table__.columns:\n                    name = col.name\n                    if name not in row or row[name] is None:\n                        continue\n                    val = row[name]\n                    if isinstance(col.type, DateTime):\n                        val = datetime.fromisoformat(val)\n                    elif isinstance(col.type, Date):\n                        val = date.fromisoformat(val)\n                    elif isinstance(col.type, Numeric):\n                        val = Decimal(str(val))\n                    setattr(obj, name, val)\n                db.session.add(obj)\n\n        # Re-align PostgreSQL sequences after explicit primary-key restoration.\n        if db.engine.dialect.name == "postgresql":\n            for _, model in _TABLES:\n                pk_columns = list(model.__table__.primary_key.columns)\n                if not pk_columns:\n                    continue\n                pk = pk_columns[0].name\n                max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()\n                if max_id:\n                    seq_name = f"{model.__tablename__}_{pk}_seq"\n                    db.session.execute(\n                        text("SELECT setval(:seq, :n, true)"),\n                        {"seq": seq_name, "n": int(max_id)},\n                    )\n        db.session.commit()\n    except Exception:\n        db.session.rollback()\n        raise\n'''
-          if old not in text:
-              raise SystemExit('restore block not found in historical backup.py')
-          text = text.replace(old, new, 1)
-          p.write_text(text, encoding='utf-8')
-          PY
-      - name: Validate backup module
+      - name: Validate repaired backup module
         run: python -m py_compile routes/backup.py
-      - name: Commit repaired module
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add routes/backup.py
-          git diff --cached --quiet && exit 0
-          git commit -m "security: preserve financial precision and make backup restore atomic [backup-hardened]"
-          git push
