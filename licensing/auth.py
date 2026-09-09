@@ -7,6 +7,7 @@ password verification alone; they receive a narrowly scoped pending-MFA session
 that can be used only for enrollment or verification.
 """
 import logging
+import secrets
 import time
 from datetime import datetime, timedelta
 
@@ -20,7 +21,6 @@ from licensing.engine import can_access
 from licensing.db_manager import get_company_engine
 
 log = logging.getLogger(__name__)
-
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 900
 _LOGIN_FAILURES = {}
@@ -75,7 +75,6 @@ SESS_COMPANY_DB_NAME = "lic_company_db_name"
 SESS_COMPANY_ROLE = "lic_company_role"
 SESS_COMPANY_USER_EMAIL = "lic_company_user_email"
 SESS_COMPANY_FULL_NAME = "lic_company_full_name"
-
 SESS_MASTER_USER_ID = "master_user_id"
 SESS_MASTER_EMAIL = "master_user_email"
 SESS_MASTER_NAME = "master_user_name"
@@ -150,6 +149,14 @@ def _mfa_enabled(user_id):
         return False
 
 
+def _csrf_for_session():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["_csrf_token"] = token
+    return token
+
+
 def _establish_master_session(user):
     clear_pending_mfa_session()
     clear_company_session()
@@ -164,6 +171,7 @@ def _establish_master_session(user):
         session.clear()
         raise RuntimeError("Unable to create revocable master session")
     session[SESS_MASTER_JTI] = jti
+    session["_csrf_token"] = secrets.token_hex(32)
 
 
 def complete_pending_master_mfa(user_id):
@@ -251,12 +259,6 @@ def authenticate_master_user(email, password):
     if not user or not user.is_active or not check_password_hash(user.password_hash, password):
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
 
-    try:
-        from security.security_events import record_event
-        record_event("login_success", master_user_id=user.id, master_user_email=email, ip=getattr(request, "remote_addr", None), details={"role": user.role}, severity="info")
-    except Exception:
-        log.exception("Unable to record master login event")
-
     if _mfa_required(user.id) or _mfa_enabled(user.id):
         clear_company_session()
         clear_master_session()
@@ -266,6 +268,7 @@ def authenticate_master_user(email, password):
         session[SESS_MASTER_EMAIL] = user.email
         session[SESS_MASTER_MFA_PENDING] = True
         session[SESS_MASTER_MFA_ISSUED_AT] = time.time()
+        csrf_token = _csrf_for_session()
         db.session.commit()
         enabled = _mfa_enabled(user.id)
         return {
@@ -273,6 +276,7 @@ def authenticate_master_user(email, password):
             "requires_2fa": True,
             "two_factor_required": True,
             "mfa_setup_required": not enabled,
+            "csrf_token": csrf_token,
             "user": {"id": user.id, "email": user.email, "full_name": user.full_name or user.email, "role": user.role},
             "message": "مطلوب التحقق بالمصادقة الثنائية" if enabled else "يجب إعداد المصادقة الثنائية لهذا الحساب",
         }
@@ -285,7 +289,7 @@ def authenticate_master_user(email, password):
     except Exception:
         log.exception("Unable to ensure master role link")
     db.session.commit()
-    return {"success": True, "user": user.to_dict(), "mfa_enabled": False}
+    return {"success": True, "user": user.to_dict(), "mfa_enabled": False, "csrf_token": session.get("_csrf_token")}
 
 
 def logout_master_user():
