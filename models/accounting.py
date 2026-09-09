@@ -82,7 +82,7 @@ class JournalEntry(db.Model):
     source = db.Column(db.String(30), default="manual")  # manual | invoice | installment | cash | bank | asset | depreciation | reconcile | opening
     ref_type = db.Column(db.String(40))
     ref_id = db.Column(db.Integer, index=True)
-    status = db.Column(db.String(20), default="posted", index=True)  # posted | draft
+    status = db.Column(db.String(20), default="posted", index=True)  # posted | draft | cancelled
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
     created_at = db.Column(db.DateTime, server_default=db.func.now(), index=True)
     posted_at = db.Column(db.DateTime)
@@ -91,7 +91,10 @@ class JournalEntry(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("entry_number", name="uq_journal_entry_number"),
-        db.CheckConstraint("status IN ('posted', 'draft')", name="ck_journal_entry_status"),
+        db.CheckConstraint(
+            "status IN ('posted', 'draft', 'cancelled')",
+            name="ck_journal_entry_status",
+        ),
     )
 
     financial_year = db.relationship("FinancialYear", backref="journal_entries")
