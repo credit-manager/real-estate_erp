@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -64,25 +65,22 @@ def _persist_first_run_password(user_data_dir: str, password: str, filename: str
 
 
 def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) -> None:
-    """Remove or harden legacy hard-coded bootstrap accounts before INSERT."""
+    """Remove/harden legacy bootstrap users and enforce critical finance invariants."""
     from config import IS_FROZEN, IS_PRODUCTION, USER_DATA_DIR
 
     for obj in list(session.new):
         if _is_default_user(obj):
-            if not IS_PRODUCTION:
-                continue
-            password = secure_bootstrap_admin(generate_random=IS_FROZEN)
-            if password is None:
-                session.expunge(obj)
-            else:
-                obj.password_hash = generate_password_hash(password)
-                obj.must_change_password = True
-                if IS_FROZEN:
-                    _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_ADMIN.txt")
+            if IS_PRODUCTION:
+                password = secure_bootstrap_admin(generate_random=IS_FROZEN)
+                if password is None:
+                    session.expunge(obj)
+                else:
+                    obj.password_hash = generate_password_hash(password)
+                    obj.must_change_password = True
+                    if IS_FROZEN:
+                        _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_ADMIN.txt")
 
-        if _is_default_master(obj):
-            if not IS_PRODUCTION:
-                continue
+        if _is_default_master(obj) and IS_PRODUCTION:
             password = secure_bootstrap_admin(generate_random=IS_FROZEN)
             if password is None:
                 session.expunge(obj)
@@ -90,6 +88,43 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
                 obj.password_hash = generate_password_hash(password)
                 if IS_FROZEN:
                     _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_MASTER.txt")
+
+    for obj in list(session.new) + list(session.dirty):
+        if obj.__class__.__name__ != "JournalEntry":
+            continue
+        if getattr(obj, "status", None) != "posted":
+            continue
+
+        entry_date = getattr(obj, "date", None)
+        fy_id = getattr(obj, "financial_year_id", None)
+        if not fy_id:
+            raise ValueError("accounting.financialYearRequired")
+
+        # Prevent posting into a closed/nonexistent/out-of-range financial period.
+        year = session.get(type(obj).financial_year.property.mapper.class_, fy_id)
+        if year is None:
+            raise ValueError("accounting.financialYearNotFound")
+        if year.is_closed:
+            raise ValueError("accounting.financialYearClosed")
+        if entry_date and (entry_date < year.start_date or entry_date > year.end_date):
+            raise ValueError("accounting.dateOutsideFinancialYear")
+
+        lines = list(getattr(obj, "lines", ()) or ())
+        if len(lines) < 2:
+            raise ValueError("accounting.minimumTwoLines")
+        debit = Decimal("0.00")
+        credit = Decimal("0.00")
+        for line in lines:
+            dr = Decimal(str(getattr(line, "debit", 0) or 0)).quantize(Decimal("0.01"))
+            cr = Decimal(str(getattr(line, "credit", 0) or 0)).quantize(Decimal("0.01"))
+            if dr < 0 or cr < 0 or (dr > 0 and cr > 0):
+                raise ValueError("accounting.invalidLine")
+            if not getattr(line, "account_id", None):
+                raise ValueError("accounting.accountRequired")
+            debit += dr
+            credit += cr
+        if debit <= 0 or credit <= 0 or debit != credit:
+            raise ValueError("accounting.notBalanced")
 
 
 def _patch_rate_limiter() -> None:
