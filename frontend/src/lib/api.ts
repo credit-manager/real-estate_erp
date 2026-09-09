@@ -1,11 +1,23 @@
 import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:1111";
+let csrfToken = "";
+
+export function setCsrfToken(token?: string): void {
+  csrfToken = typeof token === "string" ? token : "";
+}
 
 const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
+});
+
+api.interceptors.request.use((request) => {
+  if (csrfToken && request.method && !["get", "head", "options"].includes(request.method.toLowerCase())) {
+    request.headers.set("X-CSRF-Token", csrfToken);
+  }
+  return request;
 });
 
 api.interceptors.response.use(
