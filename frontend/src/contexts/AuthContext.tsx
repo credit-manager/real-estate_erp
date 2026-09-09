@@ -1,6 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
 import api from "@/lib/api";
 
 interface User {
@@ -33,29 +35,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const loadUser = useCallback(async () => {
     try {
       const token = localStorage.getItem("access_token");
-      if (!token) { setLoading(false); return; }
-      const { data } = await api.get("/admin/security/me");
-      if (data.success) {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      const { data } = await api.get<{ success: boolean; user?: User }>("/admin/security/me");
+      if (data.success && data.user) {
         setUser(data.user);
       } else {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
       }
-    } catch (err) {
+    } catch {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
     }
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadUser(); }, [loadUser]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadUser(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadUser]);
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
@@ -65,17 +82,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("access_token", data.tokens.access_token);
           localStorage.setItem("refresh_token", data.tokens.refresh_token);
         }
-        if (data.user) {
-          setUser(data.user);
-        }
+        if (data.user) setUser(data.user as User);
         return { success: true };
       }
       if (data.requires_2fa) {
         return { success: false, two_factor_required: true, message: data.message };
       }
       return { success: false, message: data.message };
-    } catch (err: any) {
-      return { success: false, message: err.response?.data?.message || "Connection error" };
+    } catch (error: unknown) {
+      return { success: false, message: apiErrorMessage(error, "Connection error") };
     }
   };
 
@@ -91,17 +106,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: true };
       }
       return { success: false, message: data.message };
-    } catch (err: any) {
-      return { success: false, message: err.response?.data?.message || "Error" };
+    } catch (error: unknown) {
+      return { success: false, message: apiErrorMessage(error, "Error") };
     }
   };
 
   const logout = async () => {
-    try { await api.post("/admin/logout"); } catch (err) { void err; }
+    try {
+      await api.post("/admin/logout");
+    } catch {
+      // Local logout remains authoritative if the server is unavailable.
+    }
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     setUser(null);
-    window.location.href = "/login";
+    router.push("/login");
   };
 
   return (
