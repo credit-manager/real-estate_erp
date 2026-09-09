@@ -8,7 +8,7 @@ venv/
 env/
 
 # Secrets — لا ترفع المفاتيح أو الشهادات أبداً
-a.secret
+audit.secret
 .secret_key
 .secret_key_*
 .db_password
