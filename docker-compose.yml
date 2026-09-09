@@ -1,14 +1,11 @@
-# ─────────────────────────────────────────────────────────────
 # DynamicPro ERP Control Center — Production Docker Compose
-# ─────────────────────────────────────────────────────────────
 services:
-  # ── PostgreSQL ─────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: dp-master-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-mokawlat_user}
+      POSTGRES_USER: ${DB_USER:-dynamicpro}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: ${DB_NAME:-dynamicpro}
     ports:
@@ -17,29 +14,43 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mokawlat_user} -d ${DB_NAME:-dynamicpro}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dynamicpro} -d ${DB_NAME:-dynamicpro}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - dp-network
+    networks: [dp-network]
 
-  # ── Flask Backend ──────────────────────────────────────────
+  redis:
+    image: redis:8-alpine
+    container_name: dp-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [dp-network]
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: dp-app
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
-      - APP_ENV=production
-      - DYNAMICPRO_MODE=production
-      - DB_HOST=postgres
-      - DB_PORT=5432
+      DYNAMICPRO_ENV: production
+      DYNAMICPRO_MODE: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      RATELIMIT_STORAGE_URI: redis://redis:6379/0
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "127.0.0.1:5000:5000"
@@ -47,27 +58,22 @@ services:
       - ./logs:/app/logs
       - app_uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
       interval: 30s
       timeout: 10s
-      start_period: 15s
+      start_period: 20s
       retries: 3
-    networks:
-      - dp-network
+    networks: [dp-network]
 
-  # ── Next.js Frontend ───────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: dp-frontend
     restart: unless-stopped
-    depends_on:
-      - app
-    networks:
-      - dp-network
+    depends_on: [app]
+    networks: [dp-network]
 
-  # ── Nginx Reverse Proxy ────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
     container_name: dp-nginx
@@ -75,9 +81,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    depends_on:
-      - app
-      - frontend
+    depends_on: [app, frontend]
     volumes:
       - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deployment/nginx/ssl:/etc/nginx/ssl:ro
@@ -87,22 +91,19 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    networks:
-      - dp-network
+    networks: [dp-network]
 
-  # ── Backup Cron ────────────────────────────────────────────
   backup:
     image: postgres:16-alpine
     container_name: dp-backup
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
-      - PGPASSWORD=${DB_PASSWORD}
-      - DB_USER=${DB_USER:-mokawlat_user}
-      - DB_NAME=${DB_NAME:-dynamicpro}
-      - DB_HOST=postgres
-      - BACKUP_RETENTION=${BACKUP_RETENTION:-30}
+      PGPASSWORD: ${DB_PASSWORD}
+      DB_USER: ${DB_USER:-dynamicpro}
+      DB_NAME: ${DB_NAME:-dynamicpro}
+      DB_HOST: postgres
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,11 +111,11 @@ services:
       - ./backups:/backups
       - ./deployment/backup/backup.sh:/backup.sh:ro
     entrypoint: ["/bin/sh", "/backup.sh"]
-    networks:
-      - dp-network
+    networks: [dp-network]
 
 volumes:
   postgres_data:
+  redis_data:
   app_uploads:
 
 networks:
