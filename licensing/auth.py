@@ -2,10 +2,11 @@
 """Company and Control Center authentication for DynamicPro ERP.
 
 Browser authentication uses revocable Flask sessions plus CSRF protection.
-Master users who require MFA never receive an authenticated master session after
-password verification alone; they receive a narrowly scoped pending-MFA session
-that can be used only for enrollment or verification.
+Master users who require MFA receive a narrowly scoped pending-MFA session;
+no authenticated master session exists until OTP/recovery verification succeeds.
+Production login throttling uses Redis so limits remain effective across workers.
 """
+import hashlib
 import logging
 import secrets
 import time
@@ -24,14 +25,47 @@ log = logging.getLogger(__name__)
 MAX_LOGIN_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 900
 _LOGIN_FAILURES = {}
+_REDIS_CLIENT = None
+_REDIS_UNAVAILABLE = False
+
+
+def _redis_login_store():
+    global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    env = str(__import__("os").environ.get("DYNAMICPRO_ENV", "")).strip().lower()
+    if env not in {"production", "prod"}:
+        return None
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    if _REDIS_UNAVAILABLE:
+        raise RuntimeError("Production master-login protection cannot connect to Redis.")
+    uri = __import__("os").environ.get("REDIS_URL") or __import__("os").environ.get("RATELIMIT_STORAGE_URI")
+    if not uri or not uri.lower().startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production master-login protection requires Redis storage.")
+    try:
+        import redis
+        _REDIS_CLIENT = redis.Redis.from_url(uri, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
+        _REDIS_CLIENT.ping()
+        return _REDIS_CLIENT
+    except Exception as exc:
+        _REDIS_CLIENT = None
+        _REDIS_UNAVAILABLE = True
+        raise RuntimeError("Production master-login protection cannot connect to Redis.") from exc
+
+
+def _redis_key(prefix, key):
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return f"dynamicpro:master-login:{prefix}:{digest}"
 
 
 def _check_lock(key):
+    store = _redis_login_store()
+    if store is not None:
+        remaining = store.ttl(_redis_key("lock", key))
+        return max(int(remaining), 0)
     rec = _LOGIN_FAILURES.get(key)
     if not rec:
         return 0
-    lock_until = rec.get("lock_until", 0)
-    remaining = int(lock_until - time.time())
+    remaining = int((rec.get("lock_until") or 0) - time.time())
     if remaining > 0:
         return remaining
     _LOGIN_FAILURES.pop(key, None)
@@ -39,6 +73,17 @@ def _check_lock(key):
 
 
 def _register_failure(key):
+    store = _redis_login_store()
+    if store is not None:
+        count_key = _redis_key("count", key)
+        count = store.incr(count_key)
+        if count == 1:
+            store.expire(count_key, LOGIN_LOCK_SECONDS)
+        if count >= MAX_LOGIN_ATTEMPTS:
+            store.set(_redis_key("lock", key), "1", ex=LOGIN_LOCK_SECONDS)
+        if count >= 3:
+            time.sleep(min(0.3 * (count - 2), 2.0))
+        return
     rec = _LOGIN_FAILURES.setdefault(key, {"count": 0, "lock_until": 0})
     rec["count"] += 1
     if rec["count"] >= MAX_LOGIN_ATTEMPTS:
@@ -48,6 +93,10 @@ def _register_failure(key):
 
 
 def _reset_failures(key):
+    store = _redis_login_store()
+    if store is not None:
+        store.delete(_redis_key("count", key), _redis_key("lock", key))
+        return
     _LOGIN_FAILURES.pop(key, None)
 
 
@@ -83,18 +132,11 @@ SESS_MASTER_JTI = "master_jti"
 SESS_MASTER_MFA_PENDING = "master_mfa_pending"
 SESS_MASTER_MFA_ISSUED_AT = "master_mfa_issued_at"
 
-COMPANY_SESSION_KEYS = [
-    SESS_COMPANY_ID, SESS_COMPANY_USER_ID, SESS_COMPANY_NAME,
-    SESS_COMPANY_DB_NAME, SESS_COMPANY_ROLE, SESS_COMPANY_USER_EMAIL,
-    SESS_COMPANY_FULL_NAME,
-]
-MASTER_SESSION_KEYS = [
-    SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_NAME,
-    SESS_MASTER_ROLE, SESS_MASTER_JTI,
-]
+COMPANY_SESSION_KEYS = [SESS_COMPANY_ID, SESS_COMPANY_USER_ID, SESS_COMPANY_NAME, SESS_COMPANY_DB_NAME, SESS_COMPANY_ROLE, SESS_COMPANY_USER_EMAIL, SESS_COMPANY_FULL_NAME]
+MASTER_SESSION_KEYS = [SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_NAME, SESS_MASTER_ROLE, SESS_MASTER_JTI]
 PENDING_MFA_KEYS = [SESS_MASTER_USER_ID, SESS_MASTER_EMAIL, SESS_MASTER_MFA_PENDING, SESS_MASTER_MFA_ISSUED_AT]
 MFA_PENDING_TTL_SECONDS = 300
-MFA_PENDING_PATHS = {"/admin/security/2fa/enroll", "/admin/security/2fa/verify"}
+MFA_PENDING_PATHS = {"/admin/security/2fa/enroll", "/admin/security/2fa/verify", "/admin/security/2fa/verify-recovery"}
 
 
 def clear_company_session():
@@ -167,15 +209,11 @@ def _establish_master_session(user):
     session[SESS_MASTER_NAME] = user.full_name or user.email
     session[SESS_MASTER_ROLE] = user.role
     jti = _start_master_session(user)
-    if not jti:
-        session.clear()
-        raise RuntimeError("Unable to create revocable master session")
     session[SESS_MASTER_JTI] = jti
     session["_csrf_token"] = secrets.token_hex(32)
 
 
 def complete_pending_master_mfa(user_id):
-    """Upgrade a valid pending-MFA session to a full revocable master session."""
     if not is_pending_mfa_session() or session.get(SESS_MASTER_USER_ID) != user_id:
         return False
     user = db.session.get(LicMasterUser, user_id)
@@ -215,10 +253,7 @@ def authenticate_company_user(email, password):
     try:
         engine = get_company_engine(company)
         with engine.connect() as conn:
-            row = conn.execute(
-                text("SELECT id, username, email, full_name, role, is_active FROM users WHERE email = :email AND is_active = true"),
-                {"email": email},
-            ).fetchone()
+            row = conn.execute(text("SELECT id, username, email, full_name, role, is_active FROM users WHERE email = :email AND is_active = true"), {"email": email}).fetchone()
             if row:
                 company_db_user_id = row[0]
                 user_role = row[4] or cu.role
@@ -236,13 +271,8 @@ def authenticate_company_user(email, password):
     session[SESS_COMPANY_ROLE] = user_role
     session[SESS_COMPANY_USER_EMAIL] = email
     session[SESS_COMPANY_FULL_NAME] = user_full_name
-    return {
-        "success": True,
-        "message": f"مرحباً {user_full_name}",
-        "company": {"id": company.id, "name": company.name_ar or company.name, "db_name": company.db_name},
-        "user": {"id": company_db_user_id or cu.id, "email": email, "full_name": user_full_name, "role": user_role},
-        "access": access,
-    }
+    session["_csrf_token"] = secrets.token_hex(32)
+    return {"success": True, "message": f"مرحباً {user_full_name}", "company": {"id": company.id, "name": company.name_ar or company.name, "db_name": company.db_name}, "user": {"id": company_db_user_id or cu.id, "email": email, "full_name": user_full_name, "role": user_role}, "access": access}
 
 
 def logout_company_user():
@@ -250,7 +280,7 @@ def logout_company_user():
 
 
 def authenticate_master_user(email, password):
-    """Verify password and create either a pending-MFA session or full session."""
+    """Verify password and create either a pending-MFA or authenticated session."""
     email = (email or "").strip().lower()
     password = (password or "").strip()
     if not email or not password:
@@ -258,6 +288,9 @@ def authenticate_master_user(email, password):
     user = LicMasterUser.query.filter_by(email=email).first()
     if not user or not user.is_active or not check_password_hash(user.password_hash, password):
         return {"success": False, "message": "بيانات الدخول غير صحيحة"}
+
+    lock_key = f"{request.remote_addr or 'unknown'}:{email}"
+    _reset_failures(lock_key)
 
     if _mfa_required(user.id) or _mfa_enabled(user.id):
         clear_company_session()
@@ -271,15 +304,7 @@ def authenticate_master_user(email, password):
         csrf_token = _csrf_for_session()
         db.session.commit()
         enabled = _mfa_enabled(user.id)
-        return {
-            "success": False,
-            "requires_2fa": True,
-            "two_factor_required": True,
-            "mfa_setup_required": not enabled,
-            "csrf_token": csrf_token,
-            "user": {"id": user.id, "email": user.email, "full_name": user.full_name or user.email, "role": user.role},
-            "message": "مطلوب التحقق بالمصادقة الثنائية" if enabled else "يجب إعداد المصادقة الثنائية لهذا الحساب",
-        }
+        return {"success": False, "requires_2fa": True, "two_factor_required": True, "mfa_setup_required": not enabled, "csrf_token": csrf_token, "user": {"id": user.id, "email": user.email, "full_name": user.full_name or user.email, "role": user.role}, "message": "مطلوب التحقق بالمصادقة الثنائية" if enabled else "يجب إعداد المصادقة الثنائية لهذا الحساب"}
 
     user.last_login = datetime.utcnow()
     _establish_master_session(user)
@@ -301,15 +326,7 @@ def logout_master_user():
 def _start_master_session(user, is_company_user=False, extra=None):
     from security.models import MasterSession
     jti = __import__("uuid").uuid4().hex
-    sess = MasterSession(
-        master_user_id=user.id,
-        jti=jti,
-        refresh_token_hash=None,
-        ip=request.remote_addr,
-        user_agent=(request.user_agent.string[:250] if request.user_agent else None),
-        expires_at=datetime.utcnow() + timedelta(days=7),
-        last_seen=datetime.utcnow(),
-    )
+    sess = MasterSession(master_user_id=user.id, jti=jti, refresh_token_hash=None, ip=request.remote_addr, user_agent=(request.user_agent.string[:250] if request.user_agent else None), expires_at=datetime.utcnow() + timedelta(days=7), last_seen=datetime.utcnow())
     db.session.add(sess)
     return jti
 
@@ -329,7 +346,6 @@ def _end_master_session():
 
 
 def get_master_session_data():
-    """Return an authenticated master identity only after MFA when required."""
     uid = session.get(SESS_MASTER_USER_ID)
     if not uid:
         return None
