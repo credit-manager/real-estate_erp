@@ -1836,7 +1836,10 @@ def _ai_search(table, columns, query, limit):
     except (TypeError, ValueError):
         limit = 10
     col_str = ", ".join(cols)
-    conditions = " OR ".join([f"{c} ILIKE :q" for c in cols])
+    if "sqlite" in str(db.engine.url).lower():
+        conditions = " OR ".join([f"LOWER({c}) LIKE LOWER(:q)" for c in cols])
+    else:
+        conditions = " OR ".join([f"{c} ILIKE :q" for c in cols])
     sql = f"SELECT {col_str} FROM {real} WHERE {conditions} LIMIT :lim"
     rows = db.session.execute(text(sql), {"q": f"%{query}%", "lim": limit}).fetchall()
     return [dict(zip(cols, row)) for row in rows]

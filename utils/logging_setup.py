@@ -25,7 +25,15 @@ _FMT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 
 
 def _log_dir():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    import sys
+    if getattr(sys, "frozen", False):
+        # In frozen mode, write logs to %APPDATA%\DynamicPro\logs
+        base = os.path.join(
+            os.environ.get("APPDATA") or os.path.expanduser("~"),
+            "DynamicPro"
+        )
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     log_dir = os.path.join(base, "logs")
     os.makedirs(log_dir, exist_ok=True)
     return log_dir

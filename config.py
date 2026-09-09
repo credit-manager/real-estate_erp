@@ -1,5 +1,6 @@
 import os
 import secrets
+import sys
 
 # تحميل متغيرات البيئة من ملف .env إن وُجد (اختياري — لا يُرفع .env إلى Git)
 try:
@@ -10,6 +11,18 @@ try:
 except Exception:
     pass
 
+# ── كشف وضع التشغيل: مجمّع (Desktop) أم سحابي (Cloud) ──
+IS_FROZEN = getattr(sys, "frozen", False)
+
+# ── مجلد بيانات المستخدم (خارج مجلد البرنامج) ──
+if IS_FROZEN:
+    USER_DATA_DIR = os.path.join(
+        os.environ.get("APPDATA") or os.path.expanduser("~"),
+        "DynamicPro"
+    )
+else:
+    USER_DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ── وضع التشغيل ──
@@ -17,56 +30,72 @@ COMPANY_ID = os.environ.get("COMPANY_ID", "")
 COMPANY_PORT = os.environ.get("COMPANY_PORT", "")
 IS_COMPANY_INSTANCE = bool(COMPANY_ID)
 
-# إعداد قاعدة البيانات
-DB_USER = os.environ.get("DB_USER", "mokawlat_user")
-DB_HOST = os.environ.get("DB_HOST", "localhost")
-DB_PORT = os.environ.get("DB_PORT", "5432")
-DB_NAME = os.environ.get("DB_NAME", "dynamicpro")
+if IS_FROZEN:
+    # ── وضع Desktop: SQLite في مجلد بيانات المستخدم ──
+    os.makedirs(USER_DATA_DIR, exist_ok=True)
+    DB_PATH = os.path.join(USER_DATA_DIR, "dynamicpro.db")
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_PATH}"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "connect_args": {"check_same_thread": False},
+    }
+    # Fallback values for modules that reference these (e.g. licensing/db_manager)
+    DB_USER = ""
+    DB_PASSWORD = ""
+    DB_HOST = ""
+    DB_PORT = ""
+    DB_NAME = ""
+else:
+    # ── وضع Cloud: PostgreSQL ──
+    DB_USER = os.environ.get("DB_USER", "mokawlat_user")
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_PORT = os.environ.get("DB_PORT", "5432")
+    DB_NAME = os.environ.get("DB_NAME", "dynamicpro")
 
-_DB_PW_FILE = os.path.join(BASE_DIR, ".db_password")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
-if not DB_PASSWORD and os.path.isfile(_DB_PW_FILE):
-    try:
-        with open(_DB_PW_FILE, "r", encoding="utf-8") as fh:
-            DB_PASSWORD = fh.read().strip()
-    except OSError:
-        DB_PASSWORD = ""
-if not DB_PASSWORD:
-    DB_PASSWORD = secrets.token_urlsafe(24)
-    try:
-        with open(_DB_PW_FILE, "w", encoding="utf-8") as fh:
-            fh.write(DB_PASSWORD)
+    _DB_PW_FILE = os.path.join(BASE_DIR, ".db_password")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+    if not DB_PASSWORD and os.path.isfile(_DB_PW_FILE):
         try:
-            os.chmod(_DB_PW_FILE, 0o600)
+            with open(_DB_PW_FILE, "r", encoding="utf-8") as fh:
+                DB_PASSWORD = fh.read().strip()
+        except OSError:
+            DB_PASSWORD = ""
+    if not DB_PASSWORD:
+        DB_PASSWORD = secrets.token_urlsafe(24)
+        try:
+            with open(_DB_PW_FILE, "w", encoding="utf-8") as fh:
+                fh.write(DB_PASSWORD)
+            try:
+                os.chmod(_DB_PW_FILE, 0o600)
+            except OSError:
+                pass
+            print("[config] DB password generated and saved to .db_password")
         except OSError:
             pass
-        print("[config] DB password generated and saved to .db_password")
-    except OSError:
-        pass
 
-# ── إذا كان هناك COMPANY_ID، نبحث عن قاعدة بيانات الشركة ──
-if COMPANY_ID:
-    try:
-        from sqlalchemy import create_engine, text
-        _admin_uri = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
-        _eng = create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
-        with _eng.connect() as _conn:
-            _row = _conn.execute(text(
-                "SELECT db_name, db_host, db_port FROM lic_database_registry "
-                "WHERE company_id = :cid AND status = 'active' LIMIT 1"
-            ), {"cid": int(COMPANY_ID)}).fetchone()
-            if _row:
-                DB_NAME = _row[0]
-                DB_HOST = _row[1] or DB_HOST
-                DB_PORT = str(_row[2]) if _row[2] else DB_PORT
-                print(f"[config] Company {COMPANY_ID}: DB={DB_NAME} @ {DB_HOST}:{DB_PORT}")
-            else:
-                print(f"[config] WARNING: No active DB found for company {COMPANY_ID}, using default")
-    except Exception as e:
-        print(f"[config] WARNING: Could not lookup company DB: {e}")
+    # ── إذا كان هناك COMPANY_ID، نبحث عن قاعدة بيانات الشركة ──
+    if COMPANY_ID:
+        try:
+            from sqlalchemy import create_engine, text
+            _admin_uri = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
+            _eng = create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
+            with _eng.connect() as _conn:
+                _row = _conn.execute(text(
+                    "SELECT db_name, db_host, db_port FROM lic_database_registry "
+                    "WHERE company_id = :cid AND status = 'active' LIMIT 1"
+                ), {"cid": int(COMPANY_ID)}).fetchone()
+                if _row:
+                    DB_NAME = _row[0]
+                    DB_HOST = _row[1] or DB_HOST
+                    DB_PORT = str(_row[2]) if _row[2] else DB_PORT
+                    print(f"[config] Company {COMPANY_ID}: DB={DB_NAME} @ {DB_HOST}:{DB_PORT}")
+                else:
+                    print(f"[config] WARNING: No active DB found for company {COMPANY_ID}, using default")
+        except Exception as e:
+            print(f"[config] WARNING: Could not lookup company DB: {e}")
 
-SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # ── Per-company SECRET_KEY (CRITICAL #1) ──
 # كل شركة لها مفتاح جلسات مستقل لمنع اختراق عناصر الجلسة بين الشركات

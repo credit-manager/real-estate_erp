@@ -3,9 +3,10 @@
 
 Deletes ALL transactional data while preserving schema, admin user,
 system settings, and core reference data. Optionally seeds demo data.
-Uses raw psycopg2 to avoid SQLAlchemy session state issues.
+Supports both PostgreSQL (raw psycopg2) and SQLite.
 """
 import logging
+import config
 from datetime import date, timedelta
 
 from database import db
@@ -243,13 +244,21 @@ def _get_raw_conn():
 
 
 def _table_exists(raw_conn, table_name):
+    is_sqlite = config.IS_FROZEN
     try:
         cur = raw_conn.cursor()
-        cur.execute(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
-            "WHERE table_schema = 'public' AND table_name = %s)",
-            (table_name,),
-        )
+        if is_sqlite:
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name=?)",
+                (table_name,),
+            )
+        else:
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = %s)",
+                (table_name,),
+            )
         result = cur.fetchone()[0]
         cur.close()
         return result
@@ -321,9 +330,13 @@ def get_reset_preview():
 def _seed_demo_data(raw_conn):
     cur = raw_conn.cursor()
     today = date.today()
+    is_sqlite = config.IS_FROZEN
 
     def _exec(sql, params=None):
         try:
+            if is_sqlite and params:
+                # SQLite uses ? for parameters
+                sql = sql.replace("%s", "?")
             cur.execute(sql, params or ())
         except Exception:
             try:
@@ -407,6 +420,7 @@ def _seed_demo_data(raw_conn):
 def factory_reset(seed_demo=True):
     deleted = []
     total_deleted = 0
+    is_sqlite = config.IS_FROZEN
 
     try:
         db.session.rollback()
@@ -417,13 +431,18 @@ def factory_reset(seed_demo=True):
     try:
         cur = raw_conn.cursor()
 
-        # Get ALL public tables not in PRESERVE_TABLES
-        cur.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
-        )
-        all_tables = [r[0] for r in cur.fetchall()]
+        if is_sqlite:
+            # ── SQLite: get all tables from sqlite_master ──
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            all_tables = [r[0] for r in cur.fetchall()]
+        else:
+            # ── PostgreSQL: get all public tables ──
+            cur.execute(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+            )
+            all_tables = [r[0] for r in cur.fetchall()]
 
-        # Delete from all tables using TRUNCATE CASCADE to bypass FK constraints
+        # Delete from all tables
         for table_name in all_tables:
             if table_name in PRESERVE_TABLES:
                 continue
@@ -432,11 +451,18 @@ def factory_reset(seed_demo=True):
                 continue
             try:
                 cur2 = raw_conn.cursor()
-                cur2.execute(f'TRUNCATE TABLE "{table_name}" CASCADE')
+                if is_sqlite:
+                    # SQLite: disable foreign keys temporarily, then DELETE
+                    cur2.execute("PRAGMA foreign_keys = OFF")
+                    cur2.execute(f'DELETE FROM "{table_name}"')
+                    cur2.execute("PRAGMA foreign_keys = ON")
+                else:
+                    # PostgreSQL: TRUNCATE CASCADE
+                    cur2.execute(f'TRUNCATE TABLE "{table_name}" CASCADE')
                 cur2.close()
                 deleted.append({"table": table_name, "count": count_before})
                 total_deleted += count_before
-                log.info("Truncated %s (%d rows)", table_name, count_before)
+                log.info("Cleared %s (%d rows)", table_name, count_before)
             except Exception:
                 raw_conn.rollback()
                 # Fallback to DELETE
@@ -448,19 +474,29 @@ def factory_reset(seed_demo=True):
         cur.close()
         raw_conn.commit()
 
-        # Reset sequences for key tables
-        for seq_table in ["customers", "suppliers", "employees", "invoices",
-                          "purchase_orders", "rental_contracts", "projects",
-                          "real_estate_units", "journal_entries", "accounts"]:
+        if not is_sqlite:
+            # Reset sequences for key tables (PostgreSQL only)
+            for seq_table in ["customers", "suppliers", "employees", "invoices",
+                              "purchase_orders", "rental_contracts", "projects",
+                              "real_estate_units", "journal_entries", "accounts"]:
+                try:
+                    cur = raw_conn.cursor()
+                    cur.execute(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
+                    cur.close()
+                except Exception:
+                    try:
+                        raw_conn.rollback()
+                    except Exception:
+                        pass
+        else:
+            # SQLite: reset autoincrement counters
             try:
                 cur = raw_conn.cursor()
-                cur.execute(f"SELECT setval(pg_get_serial_sequence('{seq_table}', 'id'), 1, false)")
+                cur.execute("DELETE FROM sqlite_sequence")
                 cur.close()
+                raw_conn.commit()
             except Exception:
-                try:
-                    raw_conn.rollback()
-                except Exception:
-                    pass
+                pass
 
         raw_conn.commit()
 

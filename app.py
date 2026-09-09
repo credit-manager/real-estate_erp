@@ -18,129 +18,198 @@ def _run_migrations_and_seeds(app, db):
     from werkzeug.security import generate_password_hash
     from sqlalchemy import inspect, text
 
+    is_sqlite = "sqlite" in str(db.engine.url).lower()
     insp = inspect(db.engine)
-    cols = [c["name"] for c in insp.get_columns("users")]
-    if "must_change_password" not in cols:
-        db.session.execute(text(
-            "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
-        ))
+
+    if is_sqlite:
+        # ── وضع Desktop (SQLite): إنشاء الجداول من Models ثم Seed فقط ──
+        db.create_all()
+        db.session.commit()
+    else:
+        # ── وضع Cloud (PostgreSQL): migrations كاملة ──
+        cols = [c["name"] for c in insp.get_columns("users")]
+        if "must_change_password" not in cols:
+            db.session.execute(text(
+                "ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
+            ))
+            db.session.commit()
+
+        for table in ["invoices", "purchase_orders", "rental_contracts", "payment_plans"]:
+            cols = [c["name"] for c in insp.get_columns(table)]
+            if "financial_year_id" not in cols:
+                db.session.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN financial_year_id INTEGER"
+                ))
         db.session.commit()
 
-    for table in ["invoices", "purchase_orders", "rental_contracts", "payment_plans"]:
-        cols = [c["name"] for c in insp.get_columns(table)]
-        if "financial_year_id" not in cols:
-            db.session.execute(text(
-                f"ALTER TABLE {table} ADD COLUMN financial_year_id INTEGER"
-            ))
-    db.session.commit()
-
-    fk_plan = {
-        "invoices": "fk_invoices_financial_year",
-        "purchase_orders": "fk_purchase_orders_financial_year",
-        "rental_contracts": "fk_rental_contracts_financial_year",
-        "payment_plans": "fk_payment_plans_financial_year",
-    }
-    existing_tables = set(insp.get_table_names())
-    if "financial_years" in existing_tables:
-        fkinsp = inspect(db.engine)
-        existing_fk_names = {
-            fk["name"]
-            for table in existing_tables
-            for fk in fkinsp.get_foreign_keys(table)
-            if fk.get("name")
+        fk_plan = {
+            "invoices": "fk_invoices_financial_year",
+            "purchase_orders": "fk_purchase_orders_financial_year",
+            "rental_contracts": "fk_rental_contracts_financial_year",
+            "payment_plans": "fk_payment_plans_financial_year",
         }
-        for table, con_name in fk_plan.items():
-            if table not in existing_tables or con_name in existing_fk_names:
-                continue
-            if "financial_year_id" not in [c["name"] for c in fkinsp.get_columns(table)]:
-                continue
-            db.session.execute(text(
-                f"DELETE FROM {table} WHERE financial_year_id IS NOT NULL "
-                f"AND NOT EXISTS (SELECT 1 FROM financial_years "
-                f"WHERE id = {table}.financial_year_id)"
-            ))
-            db.session.execute(text(
-                f"ALTER TABLE {table} ADD CONSTRAINT {con_name} "
-                f"FOREIGN KEY (financial_year_id) REFERENCES financial_years(id) "
-                f"ON DELETE SET NULL"
-            ))
+        existing_tables = set(insp.get_table_names())
+        if "financial_years" in existing_tables:
+            fkinsp = inspect(db.engine)
+            existing_fk_names = {
+                fk["name"]
+                for table in existing_tables
+                for fk in fkinsp.get_foreign_keys(table)
+                if fk.get("name")
+            }
+            for table, con_name in fk_plan.items():
+                if table not in existing_tables or con_name in existing_fk_names:
+                    continue
+                if "financial_year_id" not in [c["name"] for c in fkinsp.get_columns(table)]:
+                    continue
+                db.session.execute(text(
+                    f"DELETE FROM {table} WHERE financial_year_id IS NOT NULL "
+                    f"AND NOT EXISTS (SELECT 1 FROM financial_years "
+                    f"WHERE id = {table}.financial_year_id)"
+                ))
+                db.session.execute(text(
+                    f"ALTER TABLE {table} ADD CONSTRAINT {con_name} "
+                    f"FOREIGN KEY (financial_year_id) REFERENCES financial_years(id) "
+                    f"ON DELETE SET NULL"
+                ))
+            db.session.commit()
+
+        if "sales_contracts" in insp.get_table_names():
+            sc_cols = [c["name"] for c in insp.get_columns("sales_contracts")]
+            if "vat_rate" not in sc_cols:
+                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_rate FLOAT DEFAULT 0"))
+            if "vat_amount" not in sc_cols:
+                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_amount NUMERIC(15,2) DEFAULT 0"))
+        if "commissions" in insp.get_table_names():
+            cm_cols = [c["name"] for c in insp.get_columns("commissions")]
+            if "broker_id" not in cm_cols:
+                db.session.execute(text("ALTER TABLE commissions ADD COLUMN broker_id INTEGER"))
+        for _tbl in ("sales_orders", "journal_entries"):
+            if _tbl in insp.get_table_names():
+                _cols = [c["name"] for c in insp.get_columns(_tbl)]
+                if "deleted_at" not in _cols:
+                    db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                    db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+        if "workflow_templates" in insp.get_table_names():
+            wt_cols = [c["name"] for c in insp.get_columns("workflow_templates")]
+            if "min_amount" not in wt_cols:
+                db.session.execute(text("ALTER TABLE workflow_templates ADD COLUMN min_amount NUMERIC(15, 2)"))
+        if "invoices" in insp.get_table_names():
+            inv_cols = [c["name"] for c in insp.get_columns("invoices")]
+            _einv_cols = {
+                "einv_status": "VARCHAR(20)",
+                "einv_reference": "VARCHAR(120)",
+                "einv_qr": "TEXT",
+                "einv_submitted_at": "TIMESTAMP",
+                "einv_message": "TEXT",
+            }
+            for _c, _t in _einv_cols.items():
+                if _c not in inv_cols:
+                    db.session.execute(text(f"ALTER TABLE invoices ADD COLUMN {_c} {_t}"))
         db.session.commit()
 
-    if "sales_contracts" in insp.get_table_names():
-        sc_cols = [c["name"] for c in insp.get_columns("sales_contracts")]
-        if "vat_rate" not in sc_cols:
-            db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_rate FLOAT DEFAULT 0"))
-        if "vat_amount" not in sc_cols:
-            db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_amount NUMERIC(15,2) DEFAULT 0"))
-    if "commissions" in insp.get_table_names():
-        cm_cols = [c["name"] for c in insp.get_columns("commissions")]
-        if "broker_id" not in cm_cols:
-            db.session.execute(text("ALTER TABLE commissions ADD COLUMN broker_id INTEGER"))
-    for _tbl in ("sales_orders", "journal_entries"):
-        if _tbl in insp.get_table_names():
-            _cols = [c["name"] for c in insp.get_columns(_tbl)]
-            if "deleted_at" not in _cols:
-                db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
-                db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
-    if "workflow_templates" in insp.get_table_names():
-        wt_cols = [c["name"] for c in insp.get_columns("workflow_templates")]
-        if "min_amount" not in wt_cols:
-            db.session.execute(text("ALTER TABLE workflow_templates ADD COLUMN min_amount NUMERIC(15, 2)"))
-    if "invoices" in insp.get_table_names():
-        inv_cols = [c["name"] for c in insp.get_columns("invoices")]
-        _einv_cols = {
-            "einv_status": "VARCHAR(20)",
-            "einv_reference": "VARCHAR(120)",
-            "einv_qr": "TEXT",
-            "einv_submitted_at": "TIMESTAMP",
-            "einv_message": "TEXT",
-        }
-        for _c, _t in _einv_cols.items():
-            if _c not in inv_cols:
-                db.session.execute(text(f"ALTER TABLE invoices ADD COLUMN {_c} {_t}"))
-    db.session.commit()
+        unit_cols = [c["name"] for c in insp.get_columns("real_estate_units")]
+        for col in ["building_id", "floor_id", "unit_type_id", "owner_id"]:
+            if col not in unit_cols:
+                db.session.execute(text(f"ALTER TABLE real_estate_units ADD COLUMN {col} INTEGER"))
+        db.session.commit()
 
+        if "employees" in insp.get_table_names():
+            emp_cols = [c["name"] for c in insp.get_columns("employees")]
+            emp_add = {
+                "department_id": "INTEGER",
+                "position_id": "INTEGER",
+                "manager_id": "INTEGER",
+                "gender": "VARCHAR(10)",
+                "birth_date": "DATE",
+                "end_date": "DATE",
+                "employment_type": "VARCHAR(30) DEFAULT 'full_time'",
+            }
+            for col_name, ddl in emp_add.items():
+                if col_name not in emp_cols:
+                    db.session.execute(text(f"ALTER TABLE employees ADD COLUMN {col_name} {ddl}"))
+            db.session.commit()
+
+        if "customers" in insp.get_table_names():
+            cust_cols = [c["name"] for c in insp.get_columns("customers")]
+            for col in ["company", "notes"]:
+                if col not in cust_cols:
+                    db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {col} VARCHAR(255)"))
+            if "is_active" not in cust_cols:
+                db.session.execute(text("ALTER TABLE customers ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
+            db.session.commit()
+
+        for table in ["invoices", "purchase_orders", "rental_contracts"]:
+            cols = [c["name"] for c in insp.get_columns(table)]
+            if "approval_status" not in cols:
+                db.session.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN approval_status VARCHAR(20) DEFAULT 'not_required'"
+                ))
+        db.session.commit()
+
+        if "journal_entry_lines" in insp.get_table_names():
+            cols = [c["name"] for c in insp.get_columns("journal_entry_lines")]
+            if "reconciled" not in cols:
+                db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled BOOLEAN DEFAULT FALSE"))
+            if "reconciled_at" not in cols:
+                db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled_at TIMESTAMP"))
+            db.session.commit()
+
+        if "invoice_items" in insp.get_table_names():
+            ii_cols = [c["name"] for c in insp.get_columns("invoice_items")]
+            if "item_id" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN item_id INTEGER"))
+            if "warehouse_id" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN warehouse_id INTEGER"))
+            if "expiry_date" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
+            db.session.commit()
+
+        if "hr_attendance" in insp.get_table_names():
+            att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
+            for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
+                if col not in att_cols:
+                    db.session.execute(text(f"ALTER TABLE hr_attendance ADD COLUMN {col} FLOAT"))
+            db.session.commit()
+
+        if "employees" in insp.get_table_names():
+            emp_cols = [c["name"] for c in insp.get_columns("employees")]
+            if "user_id" not in emp_cols:
+                db.session.execute(text("ALTER TABLE employees ADD COLUMN user_id INTEGER"))
+            db.session.commit()
+
+        for _tbl in ["real_estate_units", "unit_reservations", "sales_contracts", "invoices"]:
+            if _tbl in insp.get_table_names():
+                _cols = [c["name"] for c in insp.get_columns(_tbl)]
+                if "deleted_at" not in _cols:
+                    db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                    db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+                    db.session.commit()
+
+        try:
+            db.session.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_reservation_unit "
+                "ON unit_reservations (unit_id) WHERE status = 'active' AND deleted_at IS NULL"
+            ))
+            db.session.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_sales_contract_unit "
+                "ON sales_contracts (unit_id) WHERE status IN ('active','draft') AND deleted_at IS NULL"
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    # ── Seed Data (مشترك بين SQLite و PostgreSQL) ──
     from models import TaxType
     if TaxType.query.count() == 0:
         db.session.add(TaxType(name="ضريبة القيمة المضافة", rate=15, is_active=True, is_default=True))
         db.session.add(TaxType(name="معفاة من الضريبة", rate=0, is_active=True, is_default=False))
         db.session.commit()
 
-    unit_cols = [c["name"] for c in insp.get_columns("real_estate_units")]
-    for col in ["building_id", "floor_id", "unit_type_id", "owner_id"]:
-        if col not in unit_cols:
-            db.session.execute(text(f"ALTER TABLE real_estate_units ADD COLUMN {col} INTEGER"))
-    db.session.commit()
-
     from models import UnitType
     if UnitType.query.count() == 0:
         for ut in ["شقة", "فيلا", "بنتهاوس", "محل", "مكتب", "أرض", "مستودع"]:
             db.session.add(UnitType(name=ut, is_active=True))
-        db.session.commit()
-
-    if "employees" in insp.get_table_names():
-        emp_cols = [c["name"] for c in insp.get_columns("employees")]
-        emp_add = {
-            "department_id": "INTEGER",
-            "position_id": "INTEGER",
-            "manager_id": "INTEGER",
-            "gender": "VARCHAR(10)",
-            "birth_date": "DATE",
-            "end_date": "DATE",
-            "employment_type": "VARCHAR(30) DEFAULT 'full_time'",
-        }
-        for col_name, ddl in emp_add.items():
-            if col_name not in emp_cols:
-                db.session.execute(text(f"ALTER TABLE employees ADD COLUMN {col_name} {ddl}"))
-        db.session.commit()
-
-    if "customers" in insp.get_table_names():
-        cust_cols = [c["name"] for c in insp.get_columns("customers")]
-        for col in ["company", "notes"]:
-            if col not in cust_cols:
-                db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {col} VARCHAR(255)"))
-        if "is_active" not in cust_cols:
-            db.session.execute(text("ALTER TABLE customers ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
         db.session.commit()
 
     from models import CrmPipelineStage
@@ -160,14 +229,6 @@ def _run_migrations_and_seeds(app, db):
             db.session.add(SystemSetting(key=key, value=default))
     db.session.commit()
 
-    for table in ["invoices", "purchase_orders", "rental_contracts"]:
-        cols = [c["name"] for c in insp.get_columns(table)]
-        if "approval_status" not in cols:
-            db.session.execute(text(
-                f"ALTER TABLE {table} ADD COLUMN approval_status VARCHAR(20) DEFAULT 'not_required'"
-            ))
-    db.session.commit()
-
     from models import WorkflowTemplate, WorkflowStep
     default_templates = {
         "invoice": "اعتماد الفواتير",
@@ -184,38 +245,6 @@ def _run_migrations_and_seeds(app, db):
     import utils.accounting as accounting
     accounting.seed_default_coa()
 
-    tables = insp.get_table_names()
-    if "journal_entry_lines" in tables:
-        cols = [c["name"] for c in insp.get_columns("journal_entry_lines")]
-        if "reconciled" not in cols:
-            db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled BOOLEAN DEFAULT FALSE"))
-        if "reconciled_at" not in cols:
-            db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled_at TIMESTAMP"))
-        db.session.commit()
-
-    if "invoice_items" in insp.get_table_names():
-        ii_cols = [c["name"] for c in insp.get_columns("invoice_items")]
-        if "item_id" not in ii_cols:
-            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN item_id INTEGER"))
-        if "warehouse_id" not in ii_cols:
-            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN warehouse_id INTEGER"))
-        if "expiry_date" not in ii_cols:
-            db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
-        db.session.commit()
-
-    if "hr_attendance" in insp.get_table_names():
-        att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
-        for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
-            if col not in att_cols:
-                db.session.execute(text(f"ALTER TABLE hr_attendance ADD COLUMN {col} FLOAT"))
-        db.session.commit()
-
-    if "employees" in insp.get_table_names():
-        emp_cols = [c["name"] for c in insp.get_columns("employees")]
-        if "user_id" not in emp_cols:
-            db.session.execute(text("ALTER TABLE employees ADD COLUMN user_id INTEGER"))
-        db.session.commit()
-
     if Role.query.count() == 0:
         db.session.add(Role(name="admin", description="مدير النظام", is_system=True, permissions=permissions.all_true()))
         db.session.add(Role(name="employee", description="موظف", is_system=True, permissions=permissions.view_only()))
@@ -229,29 +258,9 @@ def _run_migrations_and_seeds(app, db):
         db.session.add(admin)
         db.session.commit()
 
-    for _tbl in ["real_estate_units", "unit_reservations", "sales_contracts", "invoices"]:
-        if _tbl in insp.get_table_names():
-            _cols = [c["name"] for c in insp.get_columns(_tbl)]
-            if "deleted_at" not in _cols:
-                db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
-                db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
-                db.session.commit()
-
-    try:
-        db.session.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_reservation_unit "
-            "ON unit_reservations (unit_id) WHERE status = 'active' AND deleted_at IS NULL"
-        ))
-        db.session.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_sales_contract_unit "
-            "ON sales_contracts (unit_id) WHERE status IN ('active','draft') AND deleted_at IS NULL"
-        ))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    from db_indexes import ensure_indexes
-    ensure_indexes(db.engine, db.session)
+    if not is_sqlite:
+        from db_indexes import ensure_indexes
+        ensure_indexes(db.engine, db.session)
 
     # Phase 1 — seed Master Cloud RBAC (roles + permission catalog). Idempotent.
     from security.rbac import seed_roles_and_permissions
@@ -265,8 +274,8 @@ def _run_migrations_and_seeds(app, db):
 def _source_dir():
     """مجلد المصدر الذي يُقرأ منه القوالب والملفات الثابتة.
 
-    عند تشغيل النسخة المجمعة (frozen) يبحث بجانب الـ exe عن مجلد المصدر
-    حتى تظهر أي تعديلات فوراً دون إعادة بناء، مع الاحتفاظ بخيار التجميع.
+    عند تشغيل النسخة المجمعة (frozen) يبحث أولاً عن مجلد المصدر الم开办
+    (للتطوير)، ثم يعود إلى مجلد الحزمة (sys._MEIPASS).
     """
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
@@ -282,6 +291,10 @@ def _source_dir():
         parent = os.path.abspath(os.path.join(exe_dir, os.pardir))
         if os.path.isfile(os.path.join(parent, "app.py")) and os.path.isdir(os.path.join(parent, "templates")):
             return parent
+        # Fall back to the PyInstaller bundle directory
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass and os.path.isdir(os.path.join(meipass, "templates")):
+            return meipass
         return None
     return os.path.abspath(os.path.dirname(__file__))
 
