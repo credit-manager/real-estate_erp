@@ -109,10 +109,11 @@ def downgrade() -> None:
         return
 
     op.execute(text(f"DROP TRIGGER IF EXISTS {_ENTRY_TRIGGER} ON journal_entries"))
+    op.execute(text(f"DROP TRIGGER IF EXISTS {_ENTRY_DELETE_TRIGGER} ON journal_entries"))
     op.execute(text(f"DROP TRIGGER IF EXISTS {_LINE_TRIGGER} ON journal_entry_lines"))
 
-    # Restore revision 0007 trigger functions.
-    op.execute(text(f"""
+    # Restore the trigger functions and DELETE protection from revision 0007.
+    op.execute(text("""
         CREATE OR REPLACE FUNCTION prevent_posted_journal_mutation()
         RETURNS trigger
         LANGUAGE plpgsql
@@ -141,14 +142,30 @@ def downgrade() -> None:
         END;
         $$;
     """))
-
     op.execute(text("""
         CREATE TRIGGER trg_prevent_posted_journal_mutation
         BEFORE UPDATE ON journal_entries
         FOR EACH ROW EXECUTE FUNCTION prevent_posted_journal_mutation();
     """))
 
-    op.execute(text(f"""
+    op.execute(text("""
+        CREATE OR REPLACE FUNCTION prevent_journal_delete()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            RAISE EXCEPTION 'Journal entries are never physically deleted; use the audited cancellation/reversal workflow.'
+                USING ERRCODE = '23514';
+        END;
+        $$;
+    """))
+    op.execute(text("""
+        CREATE TRIGGER trg_prevent_journal_delete
+        BEFORE DELETE ON journal_entries
+        FOR EACH ROW EXECUTE FUNCTION prevent_journal_delete();
+    """))
+
+    op.execute(text("""
         CREATE OR REPLACE FUNCTION prevent_posted_journal_line_mutation()
         RETURNS trigger
         LANGUAGE plpgsql
@@ -171,9 +188,11 @@ def downgrade() -> None:
         END;
         $$;
     """))
-
     op.execute(text("""
         CREATE TRIGGER trg_prevent_posted_journal_line_mutation
         BEFORE INSERT OR UPDATE OR DELETE ON journal_entry_lines
         FOR EACH ROW EXECUTE FUNCTION prevent_posted_journal_line_mutation();
     """))
+
+    op.execute(text(f"DROP FUNCTION IF EXISTS {_ENTRY_FUNCTION}()"))
+    op.execute(text(f"DROP FUNCTION IF EXISTS {_LINE_FUNCTION}()"))
