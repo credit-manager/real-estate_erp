@@ -87,5 +87,35 @@ def downgrade() -> None:
         op.execute(text(f"DROP TRIGGER IF EXISTS {_ENTRY_DELETE_TRIGGER} ON journal_entries"))
     if "journal_entry_lines" in tables:
         op.execute(text(f"DROP TRIGGER IF EXISTS {_LINE_TRIGGER} ON journal_entry_lines"))
+
+    # Restore the exact line trigger behavior supplied by revision 0006.
+    if "journal_entry_lines" in tables:
+        op.execute(text(f"""
+            CREATE OR REPLACE FUNCTION {_LINE_FUNCTION}()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            DECLARE
+                entry_status TEXT;
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    SELECT status INTO entry_status FROM journal_entries WHERE id = OLD.entry_id;
+                ELSE
+                    SELECT status INTO entry_status FROM journal_entries WHERE id = NEW.entry_id;
+                END IF;
+
+                IF entry_status = 'posted' THEN
+                    RAISE EXCEPTION 'Posted journal lines are immutable; use the reversal/cancellation workflow.'
+                        USING ERRCODE = '23514';
+                END IF;
+                RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+            END;
+            $$;
+        """))
+        op.execute(text(f"""
+            CREATE TRIGGER {_LINE_TRIGGER}
+            BEFORE INSERT OR UPDATE OR DELETE ON journal_entry_lines
+            FOR EACH ROW EXECUTE FUNCTION {_LINE_FUNCTION}();
+        """))
+
     op.execute(text(f"DROP FUNCTION IF EXISTS {_ENTRY_DELETE_FUNCTION}()"))
-    op.execute(text(f"DROP FUNCTION IF EXISTS {_LINE_FUNCTION}()"))
