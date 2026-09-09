@@ -1,22 +1,18 @@
-"""ينشئ ملف PDF من مصدر المشروع المباشر (لنافذة حفظ التطبيق).
+"""PDF generation helpers for the packaged desktop application.
 
-الاستخدام:
-    python live_pdf_builder.py <doc_type> <doc_id> <lang> <output_path>
-
-يدعم: invoice | po | contract | financial-year
+The desktop build imports this module directly; it must never spawn Python.exe
+or depend on source files outside the frozen bundle.
 """
 import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 
-def main():
-    if len(sys.argv) < 5:
-        sys.exit(1)
-    doc_type, doc_id, lang, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-
+def build_pdf_bytes(doc_type, doc_id, lang="ar"):
+    """Return the requested document PDF as bytes."""
     from app import app
     from database import db
     from models import Invoice, PurchaseOrder, RentalContract, FinancialYear
@@ -34,15 +30,21 @@ def main():
         "financial-year": (FinancialYear, build_financial_year_report_pdf),
     }
     if doc_type not in builders:
-        sys.exit(2)
+        raise ValueError(f"Unsupported PDF document type: {doc_type}")
+
     model, builder = builders[doc_type]
-
     with app.app_context():
-        doc = db.session.get(model, doc_id)
+        doc = db.session.get(model, int(doc_id))
         if doc is None:
-            sys.exit(3)
-        data = builder(doc, lang)
+            raise ValueError(f"Document not found: {doc_type}/{doc_id}")
+        return builder(doc, lang)
 
+
+def main():
+    if len(sys.argv) < 5:
+        sys.exit(1)
+    doc_type, doc_id, lang, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+    data = build_pdf_bytes(doc_type, doc_id, lang)
     with open(out, "wb") as fh:
         fh.write(data)
     print("OK")

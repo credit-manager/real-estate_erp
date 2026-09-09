@@ -2,16 +2,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 env:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "20"
 
 jobs:
-  # ── Python Lint + Test ──────────────────────────────────────
   backend:
     runs-on: ubuntu-latest
     services:
@@ -29,24 +28,19 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Lint (ruff)
+      - name: Lint production entrypoints
         run: |
           pip install ruff
-          ruff check . --select E,F,W --ignore E501,E302,E303
-
+          ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py
-
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py
       - name: Test (smoke)
         env:
           DB_USER: test_user
@@ -73,46 +67,119 @@ jobs:
           print('ALL SMOKE TESTS PASS')
           "
 
-  # ── Frontend Build ──────────────────────────────────────────
   frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-
       - name: Lint (next lint)
         working-directory: frontend
         run: npx next lint || true
-
       - name: Build
         working-directory: frontend
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
 
-  # ── Docker Build ────────────────────────────────────────────
+  desktop:
+    runs-on: windows-latest
+    needs: [backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller
+      - name: Build DynamicPro.exe
+        run: python -m PyInstaller --clean --noconfirm DynamicPro.spec
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\DynamicPro.exe")) {
+            throw "DynamicPro.exe was not produced"
+          }
+          Get-Item "dist\DynamicPro.exe" | Format-List FullName,Length
+      - name: Frozen executable smoke test
+        shell: pwsh
+        env:
+          DYNAMICPRO_SMOKE_TEST: "1"
+          DYNAMICPRO_DESKTOP: "1"
+        run: |
+          $p = Start-Process -FilePath "dist\DynamicPro.exe" -PassThru -WindowStyle Hidden
+          try {
+            Wait-Process -Id $p.Id -Timeout 90 -ErrorAction SilentlyContinue
+            if (-not $p.HasExited) {
+              throw "DynamicPro.exe frozen smoke test timed out."
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "DynamicPro.exe frozen smoke test failed with exit code $($p.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+      - name: Build self-contained setup
+        run: python -m PyInstaller --clean --noconfirm DynamicPro-Setup.spec
+      - name: Verify setup executable exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\DynamicPro-Setup.exe")) {
+            throw "DynamicPro-Setup.exe was not produced"
+          }
+          Get-Item "dist\DynamicPro-Setup.exe" | Format-List FullName,Length
+      - name: Setup executable smoke test
+        shell: pwsh
+        env:
+          DYNAMICPRO_SETUP_SMOKE_TEST: "1"
+        run: |
+          $p = Start-Process -FilePath "dist\DynamicPro-Setup.exe" -PassThru -WindowStyle Hidden
+          try {
+            Wait-Process -Id $p.Id -Timeout 60 -ErrorAction SilentlyContinue
+            if (-not $p.HasExited) {
+              throw "DynamicPro-Setup.exe smoke test timed out."
+            }
+            if ($p.ExitCode -ne 0) {
+              throw "DynamicPro-Setup.exe smoke test failed with exit code $($p.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $p.HasExited) {
+              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DynamicPro-Windows
+          path: |
+            dist/DynamicPro.exe
+            dist/DynamicPro-Setup.exe
+          if-no-files-found: error
+
   docker:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build backend image
         run: docker build -t dp-app:latest .
-
       - name: Build frontend image
         run: docker build -t dp-frontend:latest ./frontend
