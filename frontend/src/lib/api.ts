@@ -23,8 +23,18 @@ api.interceptors.request.use((request) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const token = res.headers["x-csrf-token"];
+    if (typeof token === "string" && token) {
+      csrfToken = token;
+    }
+    return res;
+  },
   async (error) => {
+    const responseToken = error.response?.headers?.["x-csrf-token"];
+    if (typeof responseToken === "string" && responseToken) {
+      csrfToken = responseToken;
+    }
     const original = error.config as (typeof error.config & { _retry?: boolean }) | undefined;
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
