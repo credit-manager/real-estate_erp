@@ -55,8 +55,6 @@ def _kill_tree(pid):
 
 def _bundled_server_loop(port, state, stop_event):
     """Serve the bundled Flask application without spawning Python.exe."""
-    # The application has one PostgreSQL-only legacy migration statement.
-    # Install the SQLite compatibility layer before importing app.
     import desktop_sqlite_compat  # noqa: F401
     from werkzeug.serving import make_server
     from app import app
@@ -144,6 +142,20 @@ def _wait_for_health(port, timeout=60):
     return False
 
 
+def _run_frozen_smoke_test():
+    """Validate the bundled application directly without WebView2 or a server loop."""
+    import desktop_sqlite_compat  # noqa: F401
+    from app import app
+
+    with app.test_client() as client:
+        response = client.get("/health")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"DynamicPro frozen health check failed: HTTP {response.status_code}"
+            )
+    print("DYNAMICPRO FROZEN SMOKE TEST: PASS", flush=True)
+
+
 class JsApi:
     """Python-side API exposed to the webview via window.pywebview.api."""
 
@@ -208,6 +220,13 @@ if __name__ == "__main__":
         os.environ["DYNAMICPRO_MODE"] = "production"
         os.environ["DYNAMICPRO_DESKTOP"] = "1"
 
+    # CI validates the actual frozen executable before any server or WebView2
+    # initialization. This makes failures deterministic and prevents a GUI
+    # process from being mistaken for a healthy application.
+    if os.environ.get("DYNAMICPRO_SMOKE_TEST") == "1":
+        _run_frozen_smoke_test()
+        sys.exit(0)
+
     port = server_config.get_port()
     webview.settings["ALLOW_DOWNLOADS"] = True
 
@@ -220,18 +239,6 @@ if __name__ == "__main__":
         name="dynamicpro-server",
     )
     thread.start()
-
-    # CI uses this path to validate the actual frozen executable. It exercises
-    # the bundled Flask server and database initialization without requiring a
-    # desktop session or WebView2 window.
-    if os.environ.get("DYNAMICPRO_SMOKE_TEST") == "1":
-        try:
-            if not _wait_for_health(port):
-                raise RuntimeError(f"Dynamic Pro health check failed on port {port}.")
-            print("DYNAMICPRO FROZEN SMOKE TEST: PASS", flush=True)
-        finally:
-            _stop_server(state, stop_event)
-        sys.exit(0)
 
     if args.background:
         try:
