@@ -1,16 +1,13 @@
 name: Generate Initial Alembic Baseline
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   baseline:
-    if: "!contains(github.event.head_commit.message, '[baseline-generated]')"
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -35,7 +32,7 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-production.txt
-      - name: Generate baseline
+      - name: Generate and validate baseline without mutating repository
         env:
           DB_USER: baseline_user
           DB_PASSWORD: baseline_pass
@@ -46,49 +43,12 @@ jobs:
           SECRET_KEY: baseline-application-secret-for-ci
           DYNAMICPRO_ENV: test
           RATELIMIT_STORAGE_URI: redis://127.0.0.1:6379/0
-        shell: bash
         run: |
           python -m alembic revision --autogenerate -m "initial ORM schema"
-          file="$(find migrations/versions -maxdepth 1 -type f -name '*.py' ! -name '0001_accounting_integrity.py' -print -quit)"
+          file="$(find migrations/versions -maxdepth 1 -type f -name '*.py' -print | sort | tail -n 1)"
           test -n "$file"
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          files = [p for p in Path('migrations/versions').glob('*.py') if p.name != '0001_accounting_integrity.py']
-          if len(files) != 1:
-              raise SystemExit(f'expected exactly one generated baseline, found {len(files)}')
-          baseline = files[0]
-          text = baseline.read_text(encoding='utf-8')
-          text = re.sub(r'^revision = [^\n]+$', 'revision = "0000_initial_schema"', text, flags=re.M)
-          text = re.sub(r'^down_revision = [^\n]+$', 'down_revision = None', text, flags=re.M)
-          target = Path('migrations/versions/0000_initial_schema.py')
-          target.write_text(text, encoding='utf-8')
-          if baseline != target:
-              baseline.unlink()
-          p = Path('migrations/versions/0001_accounting_integrity.py')
-          old = p.read_text(encoding='utf-8')
-          old = re.sub(r'^down_revision = None$', 'down_revision = "0000_initial_schema"', old, flags=re.M)
-          p.write_text(old, encoding='utf-8')
-          PY
-          python -m py_compile migrations/versions/0000_initial_schema.py migrations/versions/0001_accounting_integrity.py
-          git diff -- migrations/versions
-      - name: Validate clean database upgrade
-        env:
-          DB_USER: baseline_user
-          DB_PASSWORD: baseline_pass
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: baseline_db
-          JWT_SECRET_KEY: baseline-jwt-secret-for-ci
-          SECRET_KEY: baseline-application-secret-for-ci
-          DYNAMICPRO_ENV: test
-          RATELIMIT_STORAGE_URI: redis://127.0.0.1:6379/0
-        run: python -m alembic upgrade head
-      - name: Commit baseline
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add migrations/versions
-          git diff --cached --quiet && exit 0
-          git commit -m "db: add generated initial Alembic baseline [baseline-generated]"
-          git push
+          grep -q '^revision = ' "$file"
+          grep -q '^down_revision = ' "$file"
+          python -m py_compile "$file"
+          echo "Generated baseline: $file"
+          python -m alembic upgrade head
