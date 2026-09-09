@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import api from "@/lib/api";
+import api, { setCsrfToken } from "@/lib/api";
 
 interface User {
   id: number;
@@ -52,7 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = useCallback(async () => {
     try {
-      const { data } = await api.get<{ authenticated: boolean; user?: User }>("/api/me");
+      const { data } = await api.get<{ authenticated: boolean; user?: User; csrf_token?: string }>("/api/me");
+      if (data.csrf_token) setCsrfToken(data.csrf_token);
       if (data.authenticated && data.user) {
         setUser(data.user);
       } else {
@@ -71,9 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
-      const { data } = await api.post("/login", { username: email, email, password });
+      const { data } = await api.post<{ success?: boolean; user?: User; csrf_token?: string; requires_2fa?: boolean; two_factor_required?: boolean; message?: string }>("/login", { username: email, email, password });
+      if (data.csrf_token) setCsrfToken(data.csrf_token);
       if (data.success) {
-        if (data.user) setUser(data.user as User);
+        if (data.user) setUser(data.user);
         else await loadUser();
         return { success: true };
       }
@@ -105,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Local state is cleared even when the server is unavailable.
     }
+    setCsrfToken();
     setUser(null);
     router.push("/login");
   };
