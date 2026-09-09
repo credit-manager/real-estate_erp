@@ -1,10 +1,11 @@
-import importlib
 import os
+import subprocess
+import sys
 
 
 def test_production_requires_managed_secret(monkeypatch):
     monkeypatch.setenv("DYNAMICPRO_ENV", "production")
-    monkeypatch.delenv("SECRET_KEY", raising=False)
+    monkeypatch.setenv("SECRET_KEY", "ci-managed-secret-value")
     monkeypatch.setenv("DB_USER", "test")
     monkeypatch.setenv("DB_PASSWORD", "test")
     monkeypatch.setenv("DB_HOST", "localhost")
@@ -12,10 +13,32 @@ def test_production_requires_managed_secret(monkeypatch):
     monkeypatch.setenv("DB_NAME", "test")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
 
-    import config
+    code = "import config; assert config.IS_PRODUCTION is True"
+    result = subprocess.run([sys.executable, "-c", code], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
-    importlib.reload(config)
-    assert config.IS_PRODUCTION is True
+
+def test_production_secret_is_required_when_missing():
+    env = os.environ.copy()
+    env.update({
+        "DYNAMICPRO_ENV": "production",
+        "DB_USER": "test",
+        "DB_PASSWORD": "test",
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "test",
+        "REDIS_URL": "redis://localhost:6379/0",
+    })
+    env.pop("SECRET_KEY", None)
+    result = subprocess.run(
+        [sys.executable, "-c", "import config"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "SECRET_KEY" in (result.stderr + result.stdout)
 
 
 def test_bootstrap_password_never_uses_legacy_default(monkeypatch):
