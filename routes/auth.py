@@ -1,5 +1,6 @@
 import hashlib
 import os
+import secrets
 import threading
 import time
 from functools import wraps
@@ -14,13 +15,20 @@ import server_config
 
 auth_bp = Blueprint("auth", __name__)
 
-# ---------- حد محاولات الدخول (قفل مؤقت بعد محاولات خاطئة + تأخير) ----------
-MAX_LOGIN_ATTEMPTS = 5      # عدد المحاولات الخاطئة المسموح بها قبل القفل
-LOGIN_LOCK_SECONDS = 900    # مدة القفل المؤقت (15 دقيقة)
-_LOGIN_FAILURES = {}        # development/Desktop fallback only
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCK_SECONDS = 900
+_LOGIN_FAILURES = {}
 _cleanup_lock = threading.Lock()
 _REDIS_CLIENT = None
 _REDIS_UNAVAILABLE = False
+
+
+def _csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["_csrf_token"] = token
+    return token
 
 
 def _redis_login_store():
@@ -60,7 +68,6 @@ def _redis_key(prefix, key):
 
 
 def _cleanup_old_failures():
-    """Remove expired lock entries every 10 minutes to prevent memory leak."""
     now = time.time()
     with _cleanup_lock:
         expired = [
@@ -71,7 +78,6 @@ def _cleanup_old_failures():
             _LOGIN_FAILURES.pop(k, None)
 
 
-# Schedule cleanup every 10 minutes
 def _schedule_cleanup():
     try:
         t = threading.Timer(600, _schedule_cleanup)
@@ -86,13 +92,11 @@ _schedule_cleanup()
 
 
 def _login_key(username):
-    """مفتاح للتتبّع: عنوان IP + اسم المستخدم."""
     ip = request.remote_addr or "unknown"
     return f"{ip}:{str(username or '').lower()}"
 
 
 def _check_login_lock(key):
-    """Return remaining lock seconds, using Redis for production."""
     store = _redis_login_store()
     if store is not None:
         lock_key = _redis_key("lock", key)
@@ -111,7 +115,6 @@ def _check_login_lock(key):
 
 
 def _register_login_failure(key):
-    """Register a failed login atomically in Redis for production."""
     store = _redis_login_store()
     if store is not None:
         count_key = _redis_key("count", key)
@@ -206,6 +209,7 @@ def login():
                     }), 429
                 result = authenticate_company_user(email_lower, password)
                 if result.get("success"):
+                    result["csrf_token"] = _csrf_token()
                     return jsonify(result)
                 _register_login_failure(_login_key(username))
                 return jsonify(result), 401
@@ -226,12 +230,12 @@ def login():
     user = User.query.filter_by(username=username).first()
     if user and user.is_active and check_password_hash(user.password_hash, password):
         _reset_login_failures(key)
-        # تدوير الجلسة بعد تسجيل الدخول (حماية من session fixation)
         session.clear()
         session["user_id"] = user.id
         session["username"] = user.username
         session["full_name"] = user.full_name
         session["role"] = user.role
+        csrf_token = _csrf_token()
         from auditlog import log_action
         log_action("login", "user", user.id, user.username)
         try:
@@ -252,7 +256,7 @@ def login():
                 user.id,
                 f"خطأ في تنبيه الدخول: {str(exc)[:100]}",
             )
-        return jsonify({"success": True, "user": user.to_dict()})
+        return jsonify({"success": True, "user": user.to_dict(), "csrf_token": csrf_token})
 
     from auditlog import log_action
     log_action(
@@ -300,7 +304,7 @@ def me():
         from licensing.auth import is_company_user_logged_in, get_company_session_data
         if is_company_user_logged_in():
             data = get_company_session_data()
-            return jsonify({"authenticated": True, "type": "company", **data})
+            return jsonify({"authenticated": True, "type": "company", "csrf_token": _csrf_token(), **data})
     except ImportError:
         pass
     if "user_id" not in session:
@@ -309,4 +313,9 @@ def me():
     if not user:
         session.clear()
         return jsonify({"authenticated": False}), 401
-    return jsonify({"authenticated": True, "type": "employee", "user": user.to_dict()})
+    return jsonify({
+        "authenticated": True,
+        "type": "employee",
+        "user": user.to_dict(),
+        "csrf_token": _csrf_token(),
+    })
