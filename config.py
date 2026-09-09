@@ -2,66 +2,77 @@ import os
 import secrets
 import sys
 
-# تحميل متغيرات البيئة من ملف .env إن وُجد (اختياري — لا يُرفع .env إلى Git)
+# Optional local development configuration. Never use .env as the source of
+# production secrets; production must provide secrets through the environment.
 try:
     from dotenv import load_dotenv
+
     _env_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), ".env")
     if os.path.isfile(_env_path):
         load_dotenv(_env_path)
 except Exception:
     pass
 
-# ── كشف وضع التشغيل: مجمّع (Desktop) أم سحابي (Cloud) ──
-IS_FROZEN = getattr(sys, "frozen", False)
-
-# ── مجلد بيانات المستخدم (خارج مجلد البرنامج) ──
-if IS_FROZEN:
-    USER_DATA_DIR = os.path.join(
-        os.environ.get("APPDATA") or os.path.expanduser("~"),
-        "DynamicPro"
-    )
-else:
-    USER_DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+IS_FROZEN = bool(getattr(sys, "frozen", False))
+RUNTIME_ENV = os.environ.get("DYNAMICPRO_ENV", "development").strip().lower()
+IS_PRODUCTION = RUNTIME_ENV in {"production", "prod"}
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# ── وضع التشغيل ──
-COMPANY_ID = os.environ.get("COMPANY_ID", "")
-COMPANY_PORT = os.environ.get("COMPANY_PORT", "")
+# Frozen desktop data must live outside the executable directory so upgrades
+# and reinstalls cannot overwrite customer data or runtime-generated secrets.
+if IS_FROZEN:
+    USER_DATA_DIR = os.path.join(
+        os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.expanduser("~"),
+        "Dynamic Pro ERP",
+        "Data",
+    )
+else:
+    USER_DATA_DIR = os.environ.get(
+        "DYNAMICPRO_DATA_DIR",
+        os.path.join(os.path.expanduser("~"), ".dynamicpro"),
+    )
+
+COMPANY_ID = os.environ.get("COMPANY_ID", "").strip()
+COMPANY_PORT = os.environ.get("COMPANY_PORT", "").strip()
 IS_COMPANY_INSTANCE = bool(COMPANY_ID)
 
+os.makedirs(USER_DATA_DIR, exist_ok=True)
+
 if IS_FROZEN:
-    # ── وضع Desktop: SQLite في مجلد بيانات المستخدم ──
-    os.makedirs(USER_DATA_DIR, exist_ok=True)
     DB_PATH = os.path.join(USER_DATA_DIR, "dynamicpro.db")
-    SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_PATH}"
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{DB_PATH.replace(chr(92), '/') }"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         "connect_args": {"check_same_thread": False},
     }
-    # Fallback values for modules that reference these (e.g. licensing/db_manager)
     DB_USER = ""
     DB_PASSWORD = ""
     DB_HOST = ""
     DB_PORT = ""
     DB_NAME = ""
 else:
-    # ── وضع Cloud: PostgreSQL ──
     DB_USER = os.environ.get("DB_USER", "mokawlat_user")
     DB_HOST = os.environ.get("DB_HOST", "localhost")
     DB_PORT = os.environ.get("DB_PORT", "5432")
     DB_NAME = os.environ.get("DB_NAME", "dynamicpro")
 
-    _DB_PW_FILE = os.path.join(BASE_DIR, ".db_password")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
-    if not DB_PASSWORD and os.path.isfile(_DB_PW_FILE):
+    _DB_PW_FILE = os.path.join(USER_DATA_DIR, ".db_password")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "").strip()
+
+    if not DB_PASSWORD and not IS_PRODUCTION and os.path.isfile(_DB_PW_FILE):
         try:
             with open(_DB_PW_FILE, "r", encoding="utf-8") as fh:
                 DB_PASSWORD = fh.read().strip()
         except OSError:
             DB_PASSWORD = ""
+
     if not DB_PASSWORD:
-        DB_PASSWORD = secrets.token_urlsafe(24)
+        if IS_PRODUCTION:
+            raise RuntimeError(
+                "DB_PASSWORD must be supplied explicitly when DYNAMICPRO_ENV=production."
+            )
+        DB_PASSWORD = secrets.token_urlsafe(32)
         try:
             with open(_DB_PW_FILE, "w", encoding="utf-8") as fh:
                 fh.write(DB_PASSWORD)
@@ -69,72 +80,83 @@ else:
                 os.chmod(_DB_PW_FILE, 0o600)
             except OSError:
                 pass
-            print("[config] DB password generated and saved to .db_password")
         except OSError:
             pass
 
-    # ── إذا كان هناك COMPANY_ID، نبحث عن قاعدة بيانات الشركة ──
     if COMPANY_ID:
         try:
             from sqlalchemy import create_engine, text
-            _admin_uri = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
+
+            _admin_uri = (
+                f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/dynamicpro"
+            )
             _eng = create_engine(_admin_uri, isolation_level="AUTOCOMMIT")
             with _eng.connect() as _conn:
-                _row = _conn.execute(text(
-                    "SELECT db_name, db_host, db_port FROM lic_database_registry "
-                    "WHERE company_id = :cid AND status = 'active' LIMIT 1"
-                ), {"cid": int(COMPANY_ID)}).fetchone()
+                _row = _conn.execute(
+                    text(
+                        "SELECT db_name, db_host, db_port "
+                        "FROM lic_database_registry "
+                        "WHERE company_id = :cid AND status = 'active' LIMIT 1"
+                    ),
+                    {"cid": int(COMPANY_ID)},
+                ).fetchone()
                 if _row:
                     DB_NAME = _row[0]
                     DB_HOST = _row[1] or DB_HOST
                     DB_PORT = str(_row[2]) if _row[2] else DB_PORT
-                    print(f"[config] Company {COMPANY_ID}: DB={DB_NAME} @ {DB_HOST}:{DB_PORT}")
-                else:
-                    print(f"[config] WARNING: No active DB found for company {COMPANY_ID}, using default")
-        except Exception as e:
-            print(f"[config] WARNING: Could not lookup company DB: {e}")
+                elif IS_PRODUCTION:
+                    raise RuntimeError(
+                        f"No active database registry entry exists for company {COMPANY_ID}."
+                    )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            if IS_PRODUCTION:
+                raise RuntimeError(
+                    f"Unable to resolve the production database for company {COMPANY_ID}."
+                ) from exc
 
-    SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    SQLALCHEMY_DATABASE_URI = (
+        f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+    }
 
-# ── Per-company SECRET_KEY (CRITICAL #1) ──
-# كل شركة لها مفتاح جلسات مستقل لمنع اختراق عناصر الجلسة بين الشركات
-if COMPANY_ID:
-    _company_key_file = os.path.join(BASE_DIR, f".secret_key_{COMPANY_ID}")
-    if os.environ.get("SECRET_KEY"):
-        SECRET_KEY = os.environ["SECRET_KEY"]
-    elif os.path.isfile(_company_key_file):
-        with open(_company_key_file, "r", encoding="utf-8") as fh:
-            SECRET_KEY = fh.read().strip()
-    else:
-        SECRET_KEY = secrets.token_hex(32)
-        try:
-            with open(_company_key_file, "w", encoding="utf-8") as fh:
-                fh.write(SECRET_KEY)
-        except OSError:
-            pass
-else:
-    _SECRET_FILE = os.path.join(BASE_DIR, ".secret_key")
-    if os.environ.get("SECRET_KEY"):
-        SECRET_KEY = os.environ["SECRET_KEY"]
-    elif os.path.isfile(_SECRET_FILE):
+# Instance/session signing key. In production this must be externally managed;
+# never silently generate a new key because that would invalidate all sessions.
+_SECRET_FILE = os.path.join(USER_DATA_DIR, ".secret_key")
+SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
+
+if not SECRET_KEY and not IS_PRODUCTION and os.path.isfile(_SECRET_FILE):
+    try:
         with open(_SECRET_FILE, "r", encoding="utf-8") as fh:
             SECRET_KEY = fh.read().strip()
-    else:
-        SECRET_KEY = secrets.token_hex(32)
+    except OSError:
+        SECRET_KEY = ""
+
+if not SECRET_KEY:
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            "SECRET_KEY must be supplied explicitly when DYNAMICPRO_ENV=production."
+        )
+    SECRET_KEY = secrets.token_hex(32)
+    try:
+        with open(_SECRET_FILE, "w", encoding="utf-8") as fh:
+            fh.write(SECRET_KEY)
         try:
-            with open(_SECRET_FILE, "w", encoding="utf-8") as fh:
-                fh.write(SECRET_KEY)
+            os.chmod(_SECRET_FILE, 0o600)
         except OSError:
             pass
+    except OSError:
+        pass
 
 SEND_FILE_MAX_AGE_DEFAULT = 0
-
-# ── Session cookie isolation (HIGH #7) ──
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = IS_PRODUCTION and not IS_FROZEN
 PERMANENT_SESSION_LIFETIME = 8 * 3600
 
-# ── Flag للتمييز بين وضع Admin و Company ──
 IS_MASTER_INSTANCE = not COMPANY_ID
