@@ -66,17 +66,19 @@ jobs:
           auth = Path("frontend/src/contexts/AuthContext.tsx").read_text(encoding="utf-8")
           nginx = Path("deployment/nginx/nginx.conf").read_text(encoding="utf-8")
           docker = Path("Dockerfile").read_text(encoding="utf-8")
+          combined = api + auth
           forbidden_browser_tokens = ("localStorage.getItem(\"access_token\")", "localStorage.setItem(\"access_token\")", "localStorage.setItem(\"refresh_token\")", "sessionStorage.setItem(\"access_token\")")
-          assert not any(marker in api + auth for marker in forbidden_browser_tokens), "browser JWT persistence detected"
+          assert not any(marker in combined for marker in forbidden_browser_tokens), "browser JWT persistence detected"
+          assert "withCredentials: true" in api and "X-CSRF-Token" in api, "session CSRF transport is missing"
           assert "location = /health" in nginx and "proxy_pass http://backend/health" in nginx, "nginx health is not backend-aware"
           assert "USER dynamicpro" in docker, "container must run as non-root dynamicpro user"
           print("production architecture guards OK")
           PY
       - name: Lint production entrypoints and authentication
         run: |
-          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/0001_accounting_integrity.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/0001_accounting_integrity.py
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/*.py
       - name: Dependency vulnerability audit
         run: |
           pip-audit -r requirements.txt --progress-spinner off
@@ -92,7 +94,31 @@ jobs:
           SECRET_KEY: test-application-secret-key-for-ci
           DYNAMICPRO_ENV: test
         run: pytest -q --disable-warnings --maxfail=1
-      - name: Migration smoke test
+      - name: Migration revision contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          revisions = []
+          for path in sorted(Path("migrations/versions").glob("*.py")):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              values = {}
+              for node in tree.body:
+                  if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and node.targets[0].id in {"revision", "down_revision"}:
+                      try:
+                          values[node.targets[0].id] = ast.literal_eval(node.value)
+                      except Exception:
+                          pass
+              if "revision" in values:
+                  revisions.append((path.name, values.get("revision"), values.get("down_revision")))
+          assert revisions, "no Alembic revisions found"
+          ids = [r[1] for r in revisions]
+          assert len(ids) == len(set(ids)), "duplicate Alembic revision identifiers"
+          roots = [r for r in revisions if r[2] is None]
+          assert len(roots) == 1, f"expected one Alembic root revision, found {roots}"
+          print("Alembic revision contract OK:", revisions)
+          PY
+      - name: Clean database migration smoke test
         env:
           DB_USER: test_user
           DB_PASSWORD: test_pass
@@ -104,11 +130,18 @@ jobs:
           DYNAMICPRO_ENV: test
         run: |
           python - <<'PY'
-          from app import create_app
-          from database import db
-          app = create_app()
-          with app.app_context():
-              db.create_all()
+          import os
+          import psycopg2
+          conn = psycopg2.connect(
+              host=os.environ["DB_HOST"], port=int(os.environ["DB_PORT"]),
+              user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
+              dbname=os.environ["DB_NAME"],
+          )
+          conn.autocommit = True
+          with conn.cursor() as cur:
+              cur.execute("DROP SCHEMA public CASCADE")
+              cur.execute("CREATE SCHEMA public")
+          conn.close()
           PY
           alembic upgrade head
       - name: Application smoke test
