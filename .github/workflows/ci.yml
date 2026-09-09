@@ -34,14 +34,17 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt
+      - name: Install quality tools
+        run: python -m pip install ruff pip-audit
       - name: Lint production entrypoints
         run: |
-          pip install ruff
-          ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
         run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py
-      - name: Test (smoke)
+      - name: Dependency vulnerability audit
+        run: pip-audit -r requirements.txt --progress-spinner off
+      - name: Full backend test suite
         env:
           DB_USER: test_user
           DB_PASSWORD: test_pass
@@ -49,14 +52,21 @@ jobs:
           DB_PORT: 5432
           DB_NAME: test_db
           JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
+        run: pytest -q --disable-warnings --maxfail=1
+      - name: Application smoke test
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
         run: |
           python -c "
-          import os
-          os.environ.setdefault('DB_USER','test_user')
-          os.environ.setdefault('DB_PASSWORD','test_pass')
-          os.environ.setdefault('DB_HOST','localhost')
-          os.environ.setdefault('DB_NAME','test_db')
-          os.environ.setdefault('JWT_SECRET_KEY','test-secret')
           from app import create_app
           app = create_app()
           print('APP CREATED OK')
@@ -80,9 +90,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      - name: Lint (next lint)
+      - name: Lint
         working-directory: frontend
-        run: npx next lint || true
+        run: npm run lint
       - name: Build
         working-directory: frontend
         run: npm run build
@@ -201,6 +211,14 @@ jobs:
             if (-not $p.HasExited) {
               Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             }
+          }
+      - name: Verify release payload hashes
+        shell: pwsh
+        run: |
+          $files = @("dist\DynamicPro.exe", "dist\DynamicPro-Setup.exe")
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) { throw "Missing release payload: $file" }
+            Get-FileHash $file -Algorithm SHA256 | Format-List
           }
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
