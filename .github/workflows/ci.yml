@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   backend:
@@ -22,7 +22,7 @@ jobs:
           POSTGRES_DB: test_db
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U test_user"
+          --health-cmd "pg_isready -U test_user -d test_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -34,14 +34,21 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt
+      - name: Install production dependency set
+        run: python -m pip install -r requirements-production.txt
+      - name: Install quality tools
+        run: python -m pip install ruff pip-audit
       - name: Lint production entrypoints
         run: |
-          pip install ruff
-          ruff check app.py desktop.py config.py server_config.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py
-      - name: Test (smoke)
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py
+      - name: Dependency vulnerability audit
+        run: |
+          pip-audit -r requirements.txt --progress-spinner off
+          pip-audit -r requirements-production.txt --progress-spinner off
+      - name: Full backend test suite
         env:
           DB_USER: test_user
           DB_PASSWORD: test_pass
@@ -49,14 +56,21 @@ jobs:
           DB_PORT: 5432
           DB_NAME: test_db
           JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
+        run: pytest -q --disable-warnings --maxfail=1
+      - name: Application smoke test
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
         run: |
           python -c "
-          import os
-          os.environ.setdefault('DB_USER','test_user')
-          os.environ.setdefault('DB_PASSWORD','test_pass')
-          os.environ.setdefault('DB_HOST','localhost')
-          os.environ.setdefault('DB_NAME','test_db')
-          os.environ.setdefault('JWT_SECRET_KEY','test-secret')
           from app import create_app
           app = create_app()
           print('APP CREATED OK')
@@ -80,9 +94,15 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-      - name: Lint (next lint)
+      - name: Lint
         working-directory: frontend
-        run: npx next lint || true
+        run: npm run lint
+      - name: TypeScript type check
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Security audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
       - name: Build
         working-directory: frontend
         run: npm run build
@@ -103,14 +123,24 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
+      - name: Download WebView2 Evergreen Standalone Runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "assets\webview2" | Out-Null
+          $url = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+          $output = "assets\webview2\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          if (-not (Test-Path $output)) { throw "WebView2 Runtime installer was not downloaded" }
+          $item = Get-Item $output
+          if ($item.Length -lt 10MB) { throw "Downloaded WebView2 Runtime installer is unexpectedly small: $($item.Length) bytes" }
+          $signature = Get-AuthenticodeSignature $output
+          if ($signature.Status -ne "Valid") { throw "WebView2 Runtime signature validation failed: $($signature.Status)" }
       - name: Build DynamicPro.exe
         run: python -m PyInstaller --clean --noconfirm DynamicPro.spec
       - name: Verify executable exists
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist\DynamicPro.exe")) {
-            throw "DynamicPro.exe was not produced"
-          }
+          if (-not (Test-Path "dist\DynamicPro.exe")) { throw "DynamicPro.exe was not produced" }
           Get-Item "dist\DynamicPro.exe" | Format-List FullName,Length
       - name: Frozen executable smoke test
         shell: pwsh
@@ -121,26 +151,17 @@ jobs:
           $p = Start-Process -FilePath "dist\DynamicPro.exe" -PassThru -WindowStyle Hidden
           try {
             Wait-Process -Id $p.Id -Timeout 90 -ErrorAction SilentlyContinue
-            if (-not $p.HasExited) {
-              throw "DynamicPro.exe frozen smoke test timed out."
-            }
-            if ($p.ExitCode -ne 0) {
-              throw "DynamicPro.exe frozen smoke test failed with exit code $($p.ExitCode)."
-            }
-          }
-          finally {
-            if (-not $p.HasExited) {
-              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            }
+            if (-not $p.HasExited) { throw "DynamicPro.exe frozen smoke test timed out." }
+            if ($p.ExitCode -ne 0) { throw "DynamicPro.exe frozen smoke test failed with exit code $($p.ExitCode)." }
+          } finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
           }
       - name: Build self-contained setup
         run: python -m PyInstaller --clean --noconfirm DynamicPro-Setup.spec
       - name: Verify setup executable exists
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist\DynamicPro-Setup.exe")) {
-            throw "DynamicPro-Setup.exe was not produced"
-          }
+          if (-not (Test-Path "dist\DynamicPro-Setup.exe")) { throw "DynamicPro-Setup.exe was not produced" }
           Get-Item "dist\DynamicPro-Setup.exe" | Format-List FullName,Length
       - name: Setup executable smoke test
         shell: pwsh
@@ -150,17 +171,10 @@ jobs:
           $p = Start-Process -FilePath "dist\DynamicPro-Setup.exe" -PassThru -WindowStyle Hidden
           try {
             Wait-Process -Id $p.Id -Timeout 60 -ErrorAction SilentlyContinue
-            if (-not $p.HasExited) {
-              throw "DynamicPro-Setup.exe smoke test timed out."
-            }
-            if ($p.ExitCode -ne 0) {
-              throw "DynamicPro-Setup.exe smoke test failed with exit code $($p.ExitCode)."
-            }
-          }
-          finally {
-            if (-not $p.HasExited) {
-              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            }
+            if (-not $p.HasExited) { throw "DynamicPro-Setup.exe smoke test timed out." }
+            if ($p.ExitCode -ne 0) { throw "DynamicPro-Setup.exe smoke test failed with exit code $($p.ExitCode)." }
+          } finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
           }
       - name: Real installer payload installation smoke test
         shell: pwsh
@@ -170,17 +184,18 @@ jobs:
           $p = Start-Process -FilePath "dist\DynamicPro-Setup.exe" -PassThru -WindowStyle Hidden
           try {
             Wait-Process -Id $p.Id -Timeout 60 -ErrorAction SilentlyContinue
-            if (-not $p.HasExited) {
-              throw "DynamicPro-Setup.exe installation smoke test timed out."
-            }
-            if ($p.ExitCode -ne 0) {
-              throw "DynamicPro-Setup.exe installation smoke test failed with exit code $($p.ExitCode)."
-            }
+            if (-not $p.HasExited) { throw "DynamicPro-Setup.exe installation smoke test timed out." }
+            if ($p.ExitCode -ne 0) { throw "DynamicPro-Setup.exe installation smoke test failed with exit code $($p.ExitCode)." }
+          } finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
           }
-          finally {
-            if (-not $p.HasExited) {
-              Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            }
+      - name: Verify release payload hashes
+        shell: pwsh
+        run: |
+          $files = @("dist\DynamicPro.exe", "dist\DynamicPro-Setup.exe")
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) { throw "Missing release payload: $file" }
+            Get-FileHash $file -Algorithm SHA256 | Format-List
           }
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
@@ -194,7 +209,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx

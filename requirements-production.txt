@@ -1,0 +1,5 @@
+# Production-only runtime dependencies
+-r requirements.txt
+
+gunicorn==26.2.0
+redis==8.1.0

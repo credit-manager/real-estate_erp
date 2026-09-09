@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,6 +7,7 @@ import {
   LayoutDashboard, Building2, CreditCard, Shield, Package,
   FileText, BarChart3, Settings, LogOut, ChevronLeft, ChevronRight
 } from "lucide-react";
+import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
@@ -30,7 +30,9 @@ const insightNav = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ];
 
-function NavItem({ href, label, icon: Icon, collapsed }: { href: string; label: string; icon: any; collapsed: boolean }) {
+type NavIcon = ComponentType<{ className?: string }>;
+
+function NavItem({ href, label, icon: Icon, collapsed }: { href: string; label: string; icon: NavIcon; collapsed: boolean }) {
   const pathname = usePathname();
   const active = pathname === href || (href !== "/" && pathname.startsWith(href));
 
@@ -77,7 +79,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         transition={{ duration: 0.2, ease: "easeInOut" }}
         className="fixed inset-y-0 left-0 z-40 flex flex-col border-r bg-card"
       >
-        {/* Logo */}
         <div className="flex h-14 items-center gap-2 px-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
             <span className="text-xs font-bold text-primary-foreground">DP</span>
@@ -98,36 +99,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         <Separator />
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-          {/* Main */}
           <div className="space-y-1">
             {!collapsed && <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Overview</p>}
-            {mainNav.map((item) => (
-              <NavItem key={item.href} {...item} collapsed={collapsed} />
-            ))}
+            {mainNav.map((item) => <NavItem key={item.href} {...item} collapsed={collapsed} />)}
           </div>
-
-          {/* Security */}
           <div className="space-y-1">
             {!collapsed && <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Security</p>}
-            {securityNav.map((item) => (
-              <NavItem key={item.href} {...item} collapsed={collapsed} />
-            ))}
+            {securityNav.map((item) => <NavItem key={item.href} {...item} collapsed={collapsed} />)}
           </div>
-
-          {/* Insights */}
           <div className="space-y-1">
             {!collapsed && <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Insights</p>}
-            {insightNav.map((item) => (
-              <NavItem key={item.href} {...item} collapsed={collapsed} />
-            ))}
+            {insightNav.map((item) => <NavItem key={item.href} {...item} collapsed={collapsed} />)}
           </div>
         </nav>
 
         <Separator />
-
-        {/* Bottom */}
         <div className="p-3 space-y-1">
           <NavItem href="/settings" label="Settings" icon={Settings} collapsed={collapsed} />
           <button
@@ -141,10 +128,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             {!collapsed && <span>Logout</span>}
           </button>
         </div>
-
         <Separator />
 
-        {/* User info */}
         <div className={cn("flex items-center gap-3 p-3", collapsed && "justify-center")}>
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
@@ -166,10 +151,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </AnimatePresence>
         </div>
 
-        {/* Collapse toggle */}
         <button
           onClick={onToggle}
           className="absolute -right-3 top-7 z-50 flex h-6 w-6 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:text-foreground transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </button>

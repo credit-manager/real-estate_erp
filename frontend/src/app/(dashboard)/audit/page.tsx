@@ -1,10 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
-import { FileText, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 
-interface AuditLog { id: number; action: string; master_user_email: string; resource_type: string; resource_id: number; old_value: string; new_value: string; result: string; ip: string; created_at: string }
+interface AuditLog {
+  id: number;
+  action: string;
+  master_user_email: string;
+  resource_type: string;
+  resource_id: number;
+  old_value: string;
+  new_value: string;
+  result: string;
+  ip: string;
+  created_at: string;
+}
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -12,20 +23,26 @@ export default function AuditPage() {
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
 
-  const load = () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ limit: "50" });
-    if (actionFilter) params.set("action", actionFilter);
-    if (resourceFilter) params.set("resource_type", resourceFilter);
-    api.get(`/admin/security/audit?${params}`).then(({ data }) => {
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (actionFilter) params.set("action", actionFilter);
+      if (resourceFilter) params.set("resource_type", resourceFilter);
+      const { data } = await api.get<{ success: boolean; logs: AuditLog[] }>(`/admin/security/audit?${params}`);
       if (data.success) setLogs(data.logs);
-    }).finally(() => setLoading(false));
-  };
+    } finally {
+      setLoading(false);
+    }
+  }, [actionFilter, resourceFilter]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
-  const actions = [...new Set(logs.map((l) => l.action))];
-  const resources = [...new Set(logs.map((l) => l.resource_type))];
+  const actions = useMemo(() => [...new Set(logs.map((l) => l.action))], [logs]);
+  const resources = useMemo(() => [...new Set(logs.map((l) => l.resource_type))], [logs]);
 
   return (
     <div className="space-y-6">
@@ -43,7 +60,7 @@ export default function AuditPage() {
           <option value="">All Resources</option>
           {resources.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <button onClick={load} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm transition">Apply</button>
+        <button onClick={() => void load()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm transition">Apply</button>
       </div>
 
       {loading ? <div className="flex justify-center py-20"><div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div> : (

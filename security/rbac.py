@@ -1,79 +1,50 @@
 # -*- coding: utf-8 -*-
-"""RBAC — Role-Based Access Control for the Master Control Center (Phase 1).
-
-Replaces the naive
-    if user.is_admin: allow_everything()
-with an explicit permission chain:
-
-    Master User -> Role -> Permissions -> Resource.Action
-
-A permission is a dot-notation string such as ``companies.suspend`` or
-``licenses.revoke``.  A role carries a set of these permission codes, and a
-master user may hold one or more roles.  Access is granted iff **any** of the
-user's roles includes the required permission.
-
-The ``@permission_required("..." )`` decorator is the single gatekeeper used by
-every sensitive Admin endpoint; nothing sensitive may rely on frontend-only
-checks.
-"""
+"""RBAC — explicit role/permission authorization for the control center."""
 import logging
 
 from database import db
 
 log = logging.getLogger(__name__)
 
-# ── Permission catalog (resource.action) ─────────────────────────
-# Every Code a role can grant.  Keep alphabetical by resource for readability.
-
 PERMISSION_CATALOG = [
-    # Dashboard / system
     ("dashboard.view", "عرض لوحة التحكم"),
     ("system.view", "عرض حالة النظام"),
     ("system.settings", "تعديل إعدادات النظام"),
-    # Companies
     ("companies.view", "عرض الشركات"),
     ("companies.create", "إنشاء شركة"),
     ("companies.edit", "تعديل الشركة"),
     ("companies.suspend", "تعليق / تفعيل الشركة"),
     ("companies.archive", "أرشفة الشركة"),
     ("companies.db", "إنشاء قاعدة بيانات الشركة"),
-    # Plans & Trials
     ("plans.view", "عرض الباقات"),
     ("plans.create", "إنشاء باقة"),
     ("plans.edit", "تعديل باقة"),
     ("trials.view", "عرض الفترات التجريبية"),
     ("trials.create", "إنشاء فترة تجريبية"),
     ("trials.extend", "تمديد فترة تجريبية"),
-    # Subscriptions
     ("subscriptions.view", "عرض الاشتراكات"),
     ("subscriptions.create", "إنشاء اشتراك"),
     ("subscriptions.extend", "تمديد اشتراك"),
     ("subscriptions.cancel", "إلغاء اشتراك"),
-    # Licenses
     ("licenses.view", "عرض التراخيص"),
     ("licenses.create", "إنشاء ترخيص"),
     ("licenses.renew", "تجديد ترخيص"),
     ("licenses.suspend", "تعليق ترخيص"),
     ("licenses.revoke", "إلغاء ترخيص"),
-    # Modules
     ("modules.view", "عرض الوحدات"),
     ("modules.enable", "تفعيل وحدة"),
     ("modules.disable", "تعطيل وحدة"),
-    # Users & Roles (master-side)
     ("users.view", "عرض مستخدمي التحكم"),
     ("users.create", "إنشاء مستخدم تحكم"),
     ("users.edit", "تعديل مستخدم تحكم"),
     ("roles.manage", "إدارة الأدوار والصلاحيات"),
-    # Billing
     ("billing.view", "عرض الفواتير والمبيعات"),
     ("billing.payments", "إدارة المدفوعات"),
-    # Security
     ("security.view", "عرض الأحداث الأمنية"),
     ("security.audit", "عرض سجل التدقيق"),
     ("security.sessions", "إدارة الجلسات"),
 ]
 
-# System roles: name -> ordered permission codes.  Super admin receives all.
 SYSTEM_ROLES = {
     "super_admin": "صلاحيات كاملة على جميع الموارد",
     "admin": "إدارة العمليات: شركات، باقات، تراخيص، اشتراكات",
@@ -86,18 +57,8 @@ def _all_codes():
     return [code for code, _ in PERMISSION_CATALOG]
 
 
-def _codes(*groups):
-    from security.models import MasterPermission
-
-    allowed = set()
-    for g in groups:
-        allowed.update(g)
-    return [p.code for p in MasterPermission.query.filter(MasterPermission.code.in_(allowed)).all()]
-
-
-# Default permission sets per system role.
 _ROLE_PERMISSIONS = {
-    "super_admin": None,  # sentinel -> every permission
+    "super_admin": None,
     "admin": [
         "dashboard.view", "system.view",
         "companies.view", "companies.create", "companies.edit", "companies.suspend",
@@ -106,42 +67,36 @@ _ROLE_PERMISSIONS = {
         "trials.view", "trials.create", "trials.extend",
         "subscriptions.view", "subscriptions.create", "subscriptions.extend",
         "licenses.view", "licenses.create", "licenses.renew", "licenses.suspend",
-        "licenses.revoke",
-        "modules.view", "modules.enable", "modules.disable",
-        "billing.view", "billing.payments",
-        "users.view",
+        "licenses.revoke", "modules.view", "modules.enable", "modules.disable",
+        "billing.view", "billing.payments", "users.view",
     ],
     "support": [
-        "dashboard.view", "system.view",
-        "companies.view", "licenses.view", "subscriptions.view",
-        "trials.view", "plans.view", "modules.view",
-        "users.view",
+        "dashboard.view", "system.view", "companies.view", "licenses.view",
+        "subscriptions.view", "trials.view", "plans.view", "modules.view", "users.view",
     ],
     "sales": [
-        "dashboard.view",
-        "companies.view", "companies.create", "companies.edit",
+        "dashboard.view", "companies.view", "companies.create", "companies.edit",
         "plans.view", "trials.view", "trials.create", "trials.extend",
     ],
 }
 
 
 def seed_roles_and_permissions():
-    """Idempotently create the permission catalog and the system roles."""
+    """Idempotently create the permission catalog, roles, and legacy links."""
     from security.models import MasterPermission, MasterRole, MasterRolePermission
 
-    # 1) Permissions
-    perms_by_code = {}
     existing = {p.code: p for p in MasterPermission.query.all()}
+    perms_by_code = {}
     for code, desc in PERMISSION_CATALOG:
-        if code in existing:
-            p = existing[code]
+        permission = existing.get(code)
+        if permission is None:
+            permission = MasterPermission(code=code, description=desc)
+            db.session.add(permission)
         else:
-            p = MasterPermission(code=code, description=desc)
-            db.session.add(p)
-        perms_by_code[code] = p
+            permission.description = desc
+        perms_by_code[code] = permission
     db.session.flush()
 
-    # 2) System roles — create roles + explicit MasterRolePermission rows
     for name, desc in SYSTEM_ROLES.items():
         role = MasterRole.query.filter_by(name=name).first()
         if role is None:
@@ -151,44 +106,33 @@ def seed_roles_and_permissions():
         else:
             role.description = desc
 
-        if name == "super_admin":
-            codes = _all_codes()
-        else:
-            codes = _ROLE_PERMISSIONS[name]
-
-        # Clear existing associations for this role
+        codes = _all_codes() if name == "super_admin" else _ROLE_PERMISSIONS[name]
         MasterRolePermission.query.filter_by(role_id=role.id).delete()
         db.session.flush()
-
-        # Create explicit association rows
         for code in codes:
-            perm = perms_by_code.get(code)
-            if perm:
-                db.session.add(MasterRolePermission(role_id=role.id, permission_id=perm.id))
+            permission = perms_by_code.get(code)
+            if permission:
+                db.session.add(
+                    MasterRolePermission(role_id=role.id, permission_id=permission.id)
+                )
         db.session.flush()
 
     db.session.commit()
     log.info("Seeded master roles and %d permissions", len(perms_by_code))
 
-    # Auto-link any existing master users to their RBAC roles
     from licensing.models import LicMasterUser
     from security.models import MasterUserRole
+
     existing_user_ids = {ur.master_user_id for ur in MasterUserRole.query.all()}
     for user in LicMasterUser.query.filter(LicMasterUser.is_active == True).all():
         if user.id not in existing_user_ids and user.role:
             ensure_user_role_link(user.id, user.role)
 
 
-# ── Permission resolution ───────────────────────────────────────
-
 def user_permissions(master_user_id):
-    """Return the set of permission codes a master user has across all roles.
-
-    A user holding the super_admin role is treated as having every permission.
-    """
+    """Return the complete effective permission set for a master user."""
     from security.models import MasterRole, MasterUserRole
 
-    perms = set()
     try:
         rows = (
             db.session.query(MasterRole)
@@ -201,70 +145,68 @@ def user_permissions(master_user_id):
             )
             .all()
         )
-    except Exception as e:  # table missing (fresh DB before seeding)
-        log.warning("Could not load master permissions: %s", e)
-        return perms
+    except Exception as exc:
+        log.warning("Could not load master permissions: %s", exc)
+        return set()
 
-    role_names = []
+    permissions = set()
+    role_names = set()
     for role in rows:
-        role_names.append(role.name)
-        for p in role.permissions:
-            perms.add(p.code)
-
+        role_names.add(role.name)
+        permissions.update(p.code for p in role.permissions)
     if "super_admin" in role_names:
-        perms.update(_all_codes())
-    return perms
+        permissions.update(_all_codes())
+    return permissions
 
 
 def has_permission(master_user_id, code):
-    """True if the master user holds the permission (directly or via super_admin)."""
     return code in user_permissions(master_user_id)
 
 
 def permitted(permission_codes, required):
-    """Check that a set of permission codes satisfies a required permission.
-
-    ``required`` may be a single string or an iterable; an iterable is treated
-    as AND (all required) unless ``any`` style is desired by caller.
-    """
+    """Require one permission or every permission in an iterable."""
     if isinstance(required, str):
         return required in permission_codes
-    return all(r in permission_codes for r in required)
+    return all(required_code in permission_codes for required_code in required)
 
 
 def permission_required(*codes):
-    """Decorator for Admin endpoints: require current master user to hold *all* codes.
-
-    Uses the existing Flask master session (master_user_id).  Returns 403 JSON
-    for API paths, otherwise redirects to the admin panel.
-    """
+    """Decorator for sensitive admin endpoints; *all* supplied codes are required."""
     from functools import wraps
     from flask import jsonify, redirect, request, url_for
 
     from licensing.auth import get_master_session_data
 
+    required_codes = tuple(code for code in codes if code)
+    if not required_codes:
+        raise ValueError("permission_required requires at least one permission code")
+
     def decorator(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
-            sess = get_master_session_data()
-            if not sess:
+            session_data = get_master_session_data()
+            if not session_data:
                 if request.path.startswith("/api/") or "/api/" in request.path:
                     return jsonify({"success": False, "message": "غير مصرح"}), 401
                 return redirect(url_for("admin_lic.admin_panel"))
-            if not has_permission(sess["id"], codes[0]):
-                log.warning("Permission denied for master user %s: %s", sess["email"], codes)
+
+            effective_permissions = user_permissions(session_data["id"])
+            if not permitted(effective_permissions, required_codes):
+                log.warning(
+                    "Permission denied for master user %s: required=%s",
+                    session_data.get("email", "unknown"),
+                    required_codes,
+                )
                 return jsonify({"success": False, "message": "لا تملك الصلاحية لهذه العملية"}), 403
             return f(*args, **kwargs)
+
         return wrapped
+
     return decorator
 
 
 def ensure_user_role_link(master_user_id, legacy_role_name):
-    """Auto-link a legacy master_user (by role column) to the RBAC role.
-
-    Called once per login so old role=super_admin users automatically get
-    the super_admin RBAC role and all its permissions.
-    """
+    """Link legacy role field users to the corresponding RBAC role."""
     from security.models import MasterRole, MasterUserRole
 
     if not legacy_role_name:

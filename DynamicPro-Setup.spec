@@ -1,13 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller build for the single-file Dynamic Pro ERP installer."""
+"""PyInstaller build for the self-contained Dynamic Pro ERP installer."""
 
 import os
 
 server_exe = os.path.join("dist", "DynamicPro.exe")
+webview2_installer = os.path.join(
+    "assets",
+    "webview2",
+    "MicrosoftEdgeWebView2RuntimeInstallerX64.exe",
+)
+
 if not os.path.isfile(server_exe):
     raise SystemExit(
         "DynamicPro-Setup.spec requires dist/DynamicPro.exe. "
         "Build DynamicPro.spec first."
+    )
+
+if not os.path.isfile(webview2_installer):
+    raise SystemExit(
+        "DynamicPro-Setup.spec requires the Microsoft WebView2 Evergreen "
+        "Standalone x64 installer at " + webview2_installer
     )
 
 a = Analysis(
@@ -16,9 +28,10 @@ a = Analysis(
     binaries=[],
     datas=[
         (server_exe, "."),
+        (webview2_installer, "."),
         ("app.ico", "."),
     ],
-    hiddenimports=[],
+    hiddenimports=["webview2_runtime"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
