@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { Shield, AlertTriangle, Users, Activity, Lock, Unlock, XCircle } from "lucide-react";
+import { Shield, AlertTriangle, Users, Activity, XCircle } from "lucide-react";
 
 interface SecSummary { login_failures_24h: number; login_success_24h: number; critical_events_7d: number; active_sessions: number }
-interface SecEvent { id: number; event_type: string; master_user_email: string; ip: string; severity: string; details: any; created_at: string }
+interface SecEvent { id: number; event_type: string; master_user_email: string; ip: string; severity: string; details: Record<string, unknown> | null; created_at: string }
 
 export default function SecurityPage() {
   const [summary, setSummary] = useState<SecSummary | null>(null);
@@ -13,19 +13,24 @@ export default function SecurityPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     Promise.all([
-      api.get("/admin/security/security/summary"),
-      api.get("/admin/security/security/events?limit=20"),
+      api.get<SecSummary>("/admin/security/security/summary"),
+      api.get<{ success: boolean; events: SecEvent[] }>("/admin/security/security/events?limit=20"),
     ]).then(([s, e]) => {
+      if (!active) return;
       if (s.data.success) setSummary(s.data);
       if (e.data.success) setEvents(e.data.events);
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
   const killAll = async () => {
     if (!confirm("Kill ALL sessions (except yours)?")) return;
     await api.post("/admin/security/security/kill-all-sessions");
-    const { data } = await api.get("/admin/security/security/summary");
+    const { data } = await api.get<SecSummary>("/admin/security/security/summary");
     if (data.success) setSummary(data);
   };
 
