@@ -264,7 +264,6 @@ def authenticate_master_user(email, password):
     session[SESS_MASTER_NAME] = user.full_name or user.email
     session[SESS_MASTER_ROLE] = user.role
 
-    # Keep the browser session revocable without putting JWT material into the cookie.
     jti = _start_master_session(user, is_company_user=False, extra=None)
     if jti:
         session[SESS_MASTER_JTI] = jti
@@ -346,7 +345,6 @@ def get_master_session_data():
     if not uid:
         return None
     try:
-        from security.models import MasterSession
         from security.models import MasterSession
         from datetime import datetime
         master_session = MasterSession.query.filter_by(
