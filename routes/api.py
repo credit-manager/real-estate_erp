@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, session, current_app
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from sqlalchemy import func as sa_func
+from sqlalchemy.orm import selectinload
 from database import db
 from models import (
     Project, RealEstateUnit, Employee, Customer, Supplier,
@@ -175,6 +176,14 @@ def list_units():
         q = q.filter_by(project_id=project_id)
     if search:
         q = q.filter(RealEstateUnit.unit_code.ilike("%" + search + "%"))
+    # Eager-load to_dict() relationships (avoids 5N queries on list pages)
+    q = q.options(
+        selectinload(RealEstateUnit.project),
+        selectinload(RealEstateUnit.building),
+        selectinload(RealEstateUnit.floor_ref),
+        selectinload(RealEstateUnit.unit_type_ref),
+        selectinload(RealEstateUnit.owner),
+    )
     items, envelope = paged_or_cap(q.order_by(RealEstateUnit.id.desc()))
     return jsonify(envelope if envelope else items)
 
@@ -433,6 +442,11 @@ def list_invoices():
         q = q.filter_by(invoice_type=invoice_type)
     if status:
         q = q.filter_by(status=status)
+    # Eager-load to_dict() relationships (financial year + lines)
+    q = q.options(
+        selectinload(Invoice.financial_year),
+        selectinload(Invoice.items),
+    )
     items, envelope = paged_or_cap(q.order_by(Invoice.created_at.desc()))
     return jsonify(envelope if envelope else items)
 
