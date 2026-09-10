@@ -128,6 +128,15 @@ INDEXES = {
     "crm_tickets": ["customer_id", "status", "assigned_to"],
     "crm_campaigns": ["owner_id", "status"],
     "crm_campaign_leads": ["campaign_id", "lead_id"],
+    # ترخيص + إدارة عن بُعد
+    "lic_companies": ["status"],
+    "lic_subscriptions": ["company_id", "status"],
+    "lic_licenses": ["company_id", "status"],
+    "lic_company_users": ["company_id"],
+    "lic_master_users": ["email"],
+    "remote_clients": ["company_id", "status"],
+    "remote_commands": ["client_id", "status"],
+    "remote_sync_log": ["client_id", "status"],
 }
 
 

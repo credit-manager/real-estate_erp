@@ -79,6 +79,17 @@ def _admin_or_abort():
     user = _require_admin()
     if not user:
         return None, (jsonify({"success": False, "message": "Unauthorized"}), 401)
+    # Force password change for default/rotated credentials
+    if getattr(user, "must_change_password", False):
+        allowed = {
+            "/admin/change-password", "/admin/logout", "/admin/me",
+            "/admin/", "/admin/login",
+        }
+        if request.path not in allowed:
+            return None, (jsonify({
+                "success": False, "message": "يجب تغيير كلمة المرور",
+                "code": "must_change_password",
+            }), 403)
     return user, None
 
 
@@ -309,13 +320,25 @@ def create_new_company():
     if not name:
         return jsonify({"success": False, "message": "Company name is required"}), 400
 
-    result = create_company(
-        name=name, name_ar=data.get("name_ar"), email=data.get("email"),
-        phone=data.get("phone"), tax_number=data.get("tax_number"),
-        address=data.get("address"),
-        is_trial=data.get("is_trial", True), plan_code=data.get("plan_code", "basic"),
-        subscription_days=data.get("subscription_days"),
-    )
+    admin_email = (data.get("admin_email") or data.get("email") or "").strip().lower() or None
+    admin_password = data.get("admin_password") or None
+    if admin_password:
+        from utils.passwords import validate_password as _vp2
+        _ok2, _msg2 = _vp2(admin_password)
+        if not _ok2:
+            return jsonify({"success": False, "message": _msg2}), 400
+
+    try:
+        result = create_company(
+            name=name, name_ar=data.get("name_ar"), email=admin_email,
+            phone=data.get("phone"), tax_number=data.get("tax_number"),
+            address=data.get("address"),
+            is_trial=data.get("is_trial", True), plan_code=data.get("plan_code", "basic"),
+            subscription_days=data.get("subscription_days"),
+            admin_password=admin_password, admin_full_name=data.get("admin_name"),
+        )
+    except ValueError as ve:
+        return jsonify({"success": False, "message": str(ve)}), 400
 
     if not result["success"]:
         company_obj = result.get("company")
@@ -329,17 +352,13 @@ def create_new_company():
     if new_license:
         _log_activity(user, "license_created", target_type="license", target_id=new_license.id,
                       details={"license_key": new_license.license_key})
-    admin_email = data.get("admin_email")
-    admin_password = data.get("admin_password")
-    if admin_email and admin_password:
-        from licensing.onboarding import create_company_admin
-        create_company_admin(company.id, admin_email, admin_password, full_name=data.get("admin_name"))
 
     return jsonify({
         "success": True,
         "company": company.to_dict(),
         "subscription": result["subscription"].to_dict() if result.get("subscription") else None,
         "license": result["license"].to_dict() if result.get("license") else None,
+        "generated_password": result.get("generated_password"),
         "message": result["message"],
     })
 
@@ -477,8 +496,10 @@ def reset_company_admin_password(company_id):
         return perm_err
     data = request.get_json(silent=True) or {}
     new_password = (data.get("new_password") or "").strip()
-    if len(new_password) < 8:
-        return jsonify({"success": False, "message": "يجب أن تكون كلمة المرور 8 أحرف على الأقل"}), 400
+    from utils.passwords import validate_password as _vp
+    _ok, _msg = _vp(new_password)
+    if not _ok:
+        return jsonify({"success": False, "message": _msg}), 400
 
     company = db.session.get(LicCompany, company_id)
     if not company:
@@ -1022,20 +1043,25 @@ def system_settings():
 
 @admin_lic_bp.route("/change-password", methods=["POST"])
 def change_master_password():
-    user, err = _admin_or_abort()
-    if err:
-        return err
+    # Allow this endpoint even when must_change_password is set
+    user = _require_admin()
+    if not user:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
     from werkzeug.security import check_password_hash, generate_password_hash
+    from utils.passwords import validate_password
     data = request.get_json(silent=True) or {}
     old_pw = (data.get("old_password") or "").strip()
     new_pw = (data.get("new_password") or "").strip()
     if not old_pw:
         return jsonify({"success": False, "message": "كلمة المرور الحالية مطلوبة"}), 400
-    if len(new_pw) < 8:
-        return jsonify({"success": False, "message": "يجب أن تكون كلمة المرور 8 أحرف على الأقل"}), 400
+    ok, msg = validate_password(new_pw)
+    if not ok:
+        return jsonify({"success": False, "message": msg}), 400
     if not check_password_hash(user.password_hash, old_pw):
         return jsonify({"success": False, "message": "كلمة المرور الحالية غير صحيحة"}), 400
     user.password_hash = generate_password_hash(new_pw)
+    if hasattr(user, "must_change_password"):
+        user.must_change_password = False
     db.session.commit()
     _log_activity(user, "master_password_changed")
     return jsonify({"success": True, "message": "تم تغيير كلمة المرور بنجاح"})

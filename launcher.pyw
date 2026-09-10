@@ -26,7 +26,20 @@ if BUNDLE_DIR not in sys.path:
 
 os.environ.setdefault("DYNAMICPRO_MODE", "production")
 
-logging.basicConfig(level=logging.INFO, format="[DynamicPro] %(message)s")
+_log_dir = os.path.join(os.environ.get("APPDATA", BUNDLE_DIR), "DynamicPro")
+os.makedirs(_log_dir, exist_ok=True)
+_log_file = os.path.join(_log_dir, "dynamicpro.log")
+
+try:
+    from logging.handlers import RotatingFileHandler
+    _file_handler = RotatingFileHandler(_log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+except Exception:
+    _file_handler = logging.FileHandler(_log_file, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(logging.Formatter("[DynamicPro] %(message)s"))
+
+logging.basicConfig(level=logging.INFO, handlers=[_file_handler, _console_handler])
 log = logging.getLogger("dynamicpro")
 
 
@@ -69,10 +82,26 @@ def main():
     log.info(f"Starting server on port {port}...")
     if not _wait_for_port(port, timeout=30):
         log.error("Server failed to start within 30 seconds.")
-        input("Press Enter to exit...")
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, "Server failed to start within 30 seconds.", "DynamicPro", 0x10)
+        except Exception:
+            pass
         return
 
     log.info(f"Server ready at http://127.0.0.1:{port}")
+
+    # ── 3b. Start remote sync agent (optional, for cloud-managed clients) ──
+    # Enabled via env: REMOTE_MASTER_URL + REMOTE_COMPANY_ID
+    try:
+        _master_url = os.environ.get("REMOTE_MASTER_URL", "").strip()
+        _company_id = os.environ.get("REMOTE_COMPANY_ID", "").strip()
+        if _master_url and _company_id:
+            from remote_sync import RemoteSyncAgent
+            _agent = RemoteSyncAgent(master_url=_master_url, company_id=int(_company_id), auto_start=True)
+            log.info(f"Remote sync agent started for company {_company_id}")
+    except Exception as _e:
+        log.warning(f"Remote agent not started: {_e}")
 
     # ── 4. Open pywebview window (native, no browser needed) ──
     try:
@@ -105,7 +134,7 @@ def main():
         webbrowser.open(f"http://127.0.0.1:{port}")
         try:
             while True:
-                time.sleep(1)
+                time.sleep(60)
         except KeyboardInterrupt:
             pass
     except Exception as e:
@@ -114,7 +143,7 @@ def main():
         webbrowser.open(f"http://127.0.0.1:{port}")
         try:
             while True:
-                time.sleep(1)
+                time.sleep(60)
         except KeyboardInterrupt:
             pass
 

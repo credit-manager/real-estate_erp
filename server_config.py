@@ -22,7 +22,7 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE = "DynamicProServer"
 
 DEFAULTS = {
-    "port": 5000,
+    "port": 1000,
     "access_password": "",
     "auto_start": False,
     "https_enabled": False,

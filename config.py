@@ -145,3 +145,7 @@ PERMANENT_SESSION_LIFETIME = 8 * 3600
 
 # ── Flag للتمييز بين وضع Admin و Company ──
 IS_MASTER_INSTANCE = not COMPANY_ID
+
+# ── وضع الإنتاج: DYNAMICPRO_MODE=production ──
+# يستخدم لمنع إنشاء بيانات اعتماد افتراضية معروفة في بيئات التشغيل التجاري.
+IS_PRODUCTION = os.environ.get("DYNAMICPRO_MODE", "dev").strip().lower() == "production"

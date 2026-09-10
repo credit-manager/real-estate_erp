@@ -241,6 +241,7 @@ class LicMasterUser(db.Model):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(150))
+    must_change_password = db.Column(db.Boolean, default=False)
 
     role = db.Column(db.String(30), default="support")  # super_admin | admin | support | sales
 
@@ -252,6 +253,7 @@ class LicMasterUser(db.Model):
         return {
             "id": self.id, "email": self.email, "full_name": self.full_name,
             "role": self.role, "is_active": self.is_active,
+            "must_change_password": bool(getattr(self, "must_change_password", False)),
         }
 
 
@@ -339,4 +341,115 @@ class LicActivityLog(db.Model):
             "action": self.action, "target_type": self.target_type,
             "target_id": self.target_id, "details": self.details,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class RemoteClient(db.Model):
+    """Tracks offline/desktop clients that connect to the master server."""
+    __tablename__ = "remote_clients"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("lic_companies.id"), nullable=False)
+
+    client_name = db.Column(db.String(200), nullable=False)
+    client_id = db.Column(db.String(100), unique=True, nullable=False)
+    client_type = db.Column(db.String(20), default="desktop")  # desktop | laptop
+    os_info = db.Column(db.String(200))
+    app_version = db.Column(db.String(20))
+
+    public_ip = db.Column(db.String(50))
+    local_ip = db.Column(db.String(50))
+    mac_address = db.Column(db.String(30))
+
+    status = db.Column(db.String(20), default="active")  # active | offline | suspended
+    last_heartbeat = db.Column(db.DateTime)
+    last_sync = db.Column(db.DateTime)
+    sync_token = db.Column(db.String(100))
+
+    pending_commands = db.Column(db.JSON, default=list)
+    remote_config = db.Column(db.JSON, default=dict)
+
+    is_authorized = db.Column(db.Boolean, default=True)
+    client_secret = db.Column(db.String(100), unique=True)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+    company = db.relationship("LicCompany", backref="remote_clients", lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "company_id": self.company_id,
+            "company_name": self.company.name if self.company else None,
+            "client_name": self.client_name, "client_id": self.client_id,
+            "client_type": self.client_type, "os_info": self.os_info,
+            "app_version": self.app_version,
+            "public_ip": self.public_ip, "local_ip": self.local_ip,
+            "status": self.status,
+            "last_heartbeat": self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            "last_sync": self.last_sync.isoformat() if self.last_sync else None,
+            "pending_commands": self.pending_commands or [],
+            "remote_config": self.remote_config or {},
+            "is_authorized": self.is_authorized,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class RemoteCommand(db.Model):
+    """Commands queued for remote clients."""
+    __tablename__ = "remote_commands"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("remote_clients.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("lic_companies.id"), nullable=False)
+
+    command = db.Column(db.String(50), nullable=False)
+    # set_role | update_modules | suspend | reactivate | sync_data | update_config | push_permissions | lock | unlock
+    payload = db.Column(db.JSON, default=dict)
+    status = db.Column(db.String(20), default="pending")  # pending | sent | executed | failed
+    result = db.Column(db.JSON)
+
+    issued_by = db.Column(db.String(150))
+    issued_at = db.Column(db.DateTime, server_default=db.func.now())
+    executed_at = db.Column(db.DateTime)
+
+    client = db.relationship("RemoteClient", backref="commands", lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "client_id": self.client_id,
+            "company_id": self.company_id,
+            "command": self.command, "payload": self.payload or {},
+            "status": self.status, "result": self.result,
+            "issued_by": self.issued_by,
+            "issued_at": self.issued_at.isoformat() if self.issued_at else None,
+            "executed_at": self.executed_at.isoformat() if self.executed_at else None,
+        }
+
+
+class RemoteSyncLog(db.Model):
+    """Sync history between clients and server."""
+    __tablename__ = "remote_sync_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("remote_clients.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("lic_companies.id"), nullable=False)
+
+    sync_type = db.Column(db.String(30), nullable=False)  # push | pull | full
+    direction = db.Column(db.String(10), nullable=False)  # to_server | to_client
+    records_count = db.Column(db.Integer, default=0)
+    status = db.Column(db.String(20), default="success")  # success | partial | failed
+    error_message = db.Column(db.Text)
+    started_at = db.Column(db.DateTime, server_default=db.func.now())
+    completed_at = db.Column(db.DateTime)
+
+    client = db.relationship("RemoteClient", backref="sync_logs", lazy="joined")
+
+    def to_dict(self):
+        return {
+            "id": self.id, "client_id": self.client_id,
+            "company_id": self.company_id,
+            "sync_type": self.sync_type, "direction": self.direction,
+            "records_count": self.records_count, "status": self.status,
+            "error_message": self.error_message,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }

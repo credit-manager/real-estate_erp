@@ -21,9 +21,38 @@ ALLOWED_MIME = {
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 }
+ALLOWED_EXT = {'.pdf', '.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff', '.doc', '.docx', '.xls', '.xlsx'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads', 'dms')
+UPLOAD_FOLDER = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'uploads', 'dms'))
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+def _is_safe_upload(filename, mimetype):
+    ext = os.path.splitext(filename or "")[1].lower()
+    if ext not in ALLOWED_EXT:
+        return False
+    if (mimetype or "") not in ALLOWED_MIME:
+        return False
+    return True
+
+
+def _safe_stored_path(stored_name):
+    base = os.path.basename(stored_name)
+    path = os.path.abspath(os.path.join(UPLOAD_FOLDER, base))
+    if not path.startswith(UPLOAD_FOLDER):
+        return None
+    return path
+
+
+def _verify_doc_path(doc_path):
+    if not doc_path:
+        return None
+    path = os.path.abspath(doc_path)
+    if not path.startswith(UPLOAD_FOLDER):
+        return None
+    if not os.path.isfile(path):
+        return None
+    return path
 
 
 # ==================== Folders ====================
@@ -168,8 +197,8 @@ def create_document():
     if fsize > MAX_FILE_SIZE:
         return jsonify({"message": "حجم الملف كبير جداً (الحد 50MB)"}), 413
 
-    # تحقق من النوع
-    if file.mimetype not in ALLOWED_MIME:
+    # تحقق من النوع (الامتداد + MIME معاً لمنع التزوير)
+    if not _is_safe_upload(file.filename, file.mimetype):
         return jsonify({"message": "نوع الملف غير مدعوم"}), 400
 
     # بيانات النموذج
@@ -191,10 +220,13 @@ def create_document():
     if existing:
         return jsonify({"message": "ملف مكرر (نفس المحتوى)", "existing_id": existing.id}), 409
 
-    # حفظ على القرص
-    ext = os.path.splitext(file.filename)[1]
-    stored_name = f"{hashlib.md5(f'{datetime.now().isoformat()}{file.filename}'.encode()).hexdigest()}{ext}"
-    stored_path = os.path.join(UPLOAD_FOLDER, stored_name)
+    # حفظ على القرص (اسم عشوائي آمن)
+    import secrets as _secrets
+    ext = os.path.splitext(filename)[1].lower()
+    stored_name = f"{_secrets.token_hex(16)}{ext}"
+    stored_path = _safe_stored_path(stored_name)
+    if not stored_path:
+        return jsonify({"message": "اسم ملف غير صالح"}), 400
     file.save(stored_path)
     fsize = os.path.getsize(stored_path)
 
@@ -258,10 +290,11 @@ def ocr_callback(doc_id):
     """callback من خدمة OCR (مثل Tesseract أو Azure Form Recognizer).
     يتطلب توقيع webhook secret للحماية.
     """
-    secret = request.headers.get("X-Webhook-Secret") or request.args.get("secret")
+    import hmac as _hmac
+    secret = request.headers.get("X-Webhook-Secret") or request.args.get("secret") or ""
     from flask import current_app
-    expected = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
-    if not expected or secret != expected:
+    expected = current_app.config.get("SERVER_ACCESS_PASSWORD", "") or ""
+    if not expected or not _hmac.compare_digest(str(secret), str(expected)):
         return jsonify({"message": "unauthorized"}), 401
     data = request.get_json() or {}
     doc = db.session.get(Document, doc_id)
@@ -316,9 +349,10 @@ def download_document(doc_id):
     doc = db.session.get(Document, doc_id)
     if not doc or doc.deleted_at:
         return jsonify({"message": "غير موجود"}), 404
-    if not os.path.exists(doc.file_path):
+    safe_path = _verify_doc_path(doc.file_path)
+    if not safe_path:
         return jsonify({"message": "الملف غير موجود على القرص"}), 404
-    return send_file(doc.file_path, as_attachment=True, download_name=doc.file_name)
+    return send_file(safe_path, as_attachment=True, download_name=doc.file_name)
 
 
 @dms_bp.route("/documents/<int:doc_id>", methods=["PUT"])
@@ -360,7 +394,7 @@ def new_version(doc_id):
     file.seek(0)
     if fsize > MAX_FILE_SIZE:
         return jsonify({"message": "حجم الملف كبير جداً"}), 413
-    if file.mimetype not in ALLOWED_MIME:
+    if not _is_safe_upload(file.filename, file.mimetype):
         return jsonify({"message": "نوع الملف غير مدعوم"}), 400
 
     filename = secure_filename(file.filename)
@@ -371,9 +405,12 @@ def new_version(doc_id):
     if existing:
         return jsonify({"message": "ملف مكرر", "existing_id": existing.id}), 409
 
-    ext = os.path.splitext(file.filename)[1]
-    stored_name = f"{hashlib.md5(f'{datetime.now().isoformat()}{file.filename}'.encode()).hexdigest()}{os.path.splitext(file.filename)[1]}"
-    stored_path = os.path.join(UPLOAD_FOLDER, stored_name)
+    import secrets as _secrets2
+    ext = os.path.splitext(filename)[1].lower()
+    stored_name = f"{_secrets2.token_hex(16)}{ext}"
+    stored_path = _safe_stored_path(stored_name)
+    if not stored_path:
+        return jsonify({"message": "اسم ملف غير صالح"}), 400
     file.save(stored_path)
     fsize = os.path.getsize(stored_path)
     mime_type = file.mimetype
@@ -424,9 +461,10 @@ def download_version(doc_id, version):
         doc = db.session.get(Document, doc_id)
         if not doc or doc.version != version:
             return jsonify({"message": "إصدار غير موجود"}), 404
-    if not os.path.exists(doc.file_path):
+    safe_path = _verify_doc_path(doc.file_path)
+    if not safe_path:
         return jsonify({"message": "الملف غير موجود"}), 404
-    return send_file(doc.file_path, as_attachment=True, download_name=f"v{version}_{doc.file_name}")
+    return send_file(safe_path, as_attachment=True, download_name=f"v{version}_{doc.file_name}")
 
 
 # ==================== Annotations ====================

@@ -12,7 +12,17 @@ from licensing.plans_data import TRIAL_DAYS, GRACE_PERIOD_DAYS
 
 log = logging.getLogger(__name__)
 
-DEFAULT_TEMP_PASSWORD = "Admin@123"
+DEFAULT_TEMP_PASSWORD = None  # generated per-company (never a shared default)
+
+
+def _resolve_admin_password(admin_password=None):
+    from utils.passwords import validate_password, generate_strong_password
+    if admin_password:
+        ok, msg = validate_password(admin_password)
+        if not ok:
+            raise ValueError(msg)
+        return admin_password, False
+    return generate_strong_password(), True
 
 
 def create_company(name, name_ar=None, email=None, phone=None, tax_number=None, address=None, is_trial=True, plan_code="basic", subscription_days=None, admin_password=None, admin_full_name=None):
@@ -64,15 +74,22 @@ def create_company(name, name_ar=None, email=None, phone=None, tax_number=None, 
         db.session.commit()
 
         admin = None
+        generated_pw = None
         if email:
+            resolved_pw, was_generated = _resolve_admin_password(admin_password)
+            if was_generated:
+                generated_pw = resolved_pw
             admin = create_company_admin(
                 company.id, email,
-                password=admin_password or DEFAULT_TEMP_PASSWORD,
+                password=resolved_pw,
                 full_name=admin_full_name,
             )
 
         log.info("Onboarding complete for %s: sub=%d, lic=%s", name, subscription.id, license.license_key)
-        return {"success": True, "company": company, "subscription": subscription, "license": license, "admin": admin, "message": f"Company '{name}' created"}
+        out = {"success": True, "company": company, "subscription": subscription, "license": license, "admin": admin, "message": f"Company '{name}' created"}
+        if generated_pw:
+            out["generated_password"] = generated_pw
+        return out
 
     except Exception as e:
         log.error("Onboarding failed for '%s': %s", name, e)
@@ -93,6 +110,11 @@ def create_company_admin(company_id, email, password, full_name=None):
     company = db.session.get(LicCompany, company_id)
     if not company:
         return {"success": False, "message": "Company not found"}
+
+    from utils.passwords import validate_password as _vp3
+    _ok3, _msg3 = _vp3(password)
+    if not _ok3:
+        return {"success": False, "message": _msg3}
 
     password_hash = generate_password_hash(password)
     username = email.split("@")[0]

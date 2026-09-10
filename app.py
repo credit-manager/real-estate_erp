@@ -165,6 +165,24 @@ def _run_migrations_and_seeds(app, db):
                 db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
             db.session.commit()
 
+        # Remote management auth (client_secret) + master forced password change
+        if "remote_clients" in insp.get_table_names():
+            rc_cols = [c["name"] for c in insp.get_columns("remote_clients")]
+            if "client_secret" not in rc_cols:
+                db.session.execute(text("ALTER TABLE remote_clients ADD COLUMN client_secret VARCHAR(100)"))
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_remote_clients_secret "
+                    "ON remote_clients (client_secret)"
+                ))
+            db.session.commit()
+        if "lic_master_users" in insp.get_table_names():
+            mu_cols = [c["name"] for c in insp.get_columns("lic_master_users")]
+            if "must_change_password" not in mu_cols:
+                db.session.execute(text(
+                    "ALTER TABLE lic_master_users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
+                ))
+            db.session.commit()
+
         if "hr_attendance" in insp.get_table_names():
             att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
             for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
@@ -261,12 +279,48 @@ def _run_migrations_and_seeds(app, db):
     # Seed master admin for licensing panel (desktop mode)
     from licensing.models import LicMasterUser
     if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():
+        from config import IS_PRODUCTION
+        _master_pw = "admin123"
+        _must_change = True
+        if IS_PRODUCTION:
+            # In production never seed a known password: use bootstrap env or random
+            import secrets as _secrets
+            _env_pw = os.environ.get("DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD", "").strip()
+            if _env_pw:
+                from utils.passwords import validate_password as _vp
+                _ok, _msg = _vp(_env_pw)
+                if not _ok or len(_env_pw) < 14:
+                    raise RuntimeError(
+                        "DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD must be >=14 chars with letters+digits."
+                    )
+                _master_pw = _env_pw
+            else:
+                _master_pw = _secrets.token_urlsafe(18)
+                try:
+                    from pathlib import Path as _Path
+                    from config import USER_DATA_DIR as _UDD
+                    _cred = _Path(_UDD) / "FIRST_RUN_MASTER.txt"
+                    if not _cred.exists():
+                        _cred.write_text(
+                            "Dynamic Pro ERP first-run master admin\n"
+                            "email=admin@mokawlat.com\n"
+                            f"password={_master_pw}\n"
+                            "change this password immediately after first login\n",
+                            encoding="utf-8",
+                        )
+                        try:
+                            os.chmod(_cred, 0o600)
+                        except OSError:
+                            pass
+                except OSError:
+                    pass
         master = LicMasterUser(
             email="admin@mokawlat.com",
-            password_hash=generate_password_hash("admin123"),
+            password_hash=generate_password_hash(_master_pw),
             full_name="Super Admin",
             role="super_admin",
             is_active=True,
+            must_change_password=_must_change,
         )
         db.session.add(master)
         db.session.commit()
@@ -371,7 +425,7 @@ def create_app():
     db.init_app(app)
 
     # CORS
-    _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1111", "http://127.0.0.1:1111"]
+    _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1000", "http://127.0.0.1:1000"]
     CORS(app, origins=_cors_origins,
          supports_credentials=True, expose_headers=["Content-Type", "X-CSRF-Token"])
 
@@ -490,6 +544,8 @@ def create_app():
     if not config.COMPANY_ID:
         app.register_blueprint(admin_lic_bp)
         app.register_blueprint(security_bp)
+        from licensing.remote_api import remote_api_bp
+        app.register_blueprint(remote_api_bp)
 
     def get_lang():
         lang = request.cookies.get("lang", DEFAULT_LANG)
@@ -556,6 +612,16 @@ def create_app():
             "status": "healthy" if db_ok else "degraded",
             "database": "connected" if db_ok else "disconnected",
         }), 200 if db_ok else 503
+
+    @app.route("/api/version")
+    def version():
+        """Public version endpoint for desktop clients / support."""
+        return jsonify({
+            "success": True,
+            "app": "DynamicPro ERP",
+            "version": "1.0.0",
+            "api": "v1",
+        })
 
     # إنشاء الجداول + مستخدم وادوار افتراضية
     # HIGH #9: company instances لا تُشغّل الترحيلات العامة

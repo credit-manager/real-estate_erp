@@ -26,7 +26,7 @@ api = Api(
             "contact": {"name": "DynamicPro Team", "email": "support@dynamicpro.com"},
             "license": {"name": "Proprietary"}
         },
-        "servers": [{"url": "http://localhost:1111", "description": "Development server"}],
+        "servers": [{"url": "http://localhost:1000", "description": "Development server"}],
         "components": {
             "securitySchemes": {
                 "sessionAuth": {
