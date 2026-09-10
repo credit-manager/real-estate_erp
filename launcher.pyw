@@ -43,6 +43,15 @@ logging.basicConfig(level=logging.INFO, handlers=[_file_handler, _console_handle
 log = logging.getLogger("dynamicpro")
 
 
+def _stage(msg):
+    """Field diagnostics: append a startup marker (works even if logging fails)."""
+    try:
+        with open(os.path.join(_log_dir, "startup.log"), "a", encoding="utf-8") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+    except OSError:
+        pass
+
+
 def _wait_for_port(port, host="127.0.0.1", timeout=30):
     """Block until the Flask server is accepting connections."""
     deadline = time.time() + timeout
@@ -94,9 +103,11 @@ def _notify_already_running(port):
 
 
 def main():
+    _stage("main: importing server_config")
     # ── 1. Import server_config (reads %APPDATA%\DynamicPro\server_config.json) ──
     import server_config
     port = server_config.get_port()
+    _stage(f"main: port={port}")
 
     # Single instance: if our previous process is alive, focus it instead
     # of spawning another server (prevents port/DB conflicts).
@@ -119,8 +130,11 @@ def main():
                 break
 
     # ── 2. Start Flask server in a background thread ──
+    _stage("main: importing app")
     from app import create_app
+    _stage("main: create_app()")
     app = create_app()
+    _stage("main: app created")
 
     def run_server():
         app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
@@ -201,8 +215,16 @@ def main():
 
 
 if __name__ == "__main__":
+    _stage("launcher start")
     try:
         main()
+    except BaseException:
+        try:
+            import traceback
+            _stage("UNHANDLED:\n" + traceback.format_exc())
+        except OSError:
+            pass
+        raise
     finally:
         try:
             os.remove(_lock_path())
