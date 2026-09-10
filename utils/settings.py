@@ -38,6 +38,8 @@ DEFAULTS = {
     "backup_auto_interval_days": "1",
     "backup_auto_folder": "",
     "backup_auto_keep": "10",
+    # ---- Mobile / push ----
+    "fcm_server_key": "",
     "backup_auto_last": "",
     "backup_encryption_password": "",
     # ---- Country / Currency ----

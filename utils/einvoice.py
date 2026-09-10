@@ -263,7 +263,8 @@ def build_ubl_xml(unified, country_code=None):
         price = ET.SubElement(line, f"{{{cac}}}Price")
         ET.SubElement(price, f"{{{cbc}}}PriceAmount", currencyID=unified["document"]["currency"]).text = str(item["unit_price"])
 
-    return ET.tostring(root, encoding="unicode", xml_declaration=False)
+    # XML declaration included: required by ZATCA/ETA submissions and hash stability.
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True).decode("utf-8")
 
 
 def build_ubl_hash(ubl_xml):

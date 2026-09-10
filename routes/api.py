@@ -475,8 +475,13 @@ def create_invoice():
     invoice_type = data.get("invoice_type", "sales")
     if invoice_type not in ("sales", "purchase", "expense"):
         return jsonify({"message": "نوع الفاتورة غير صالح", "error_key": "invalidInvoiceType"}), 400
+    _inv_number = (data.get("invoice_number") or "").strip()
+    if not _inv_number:
+        from utils.docnum import seq_by_prefix
+        from datetime import datetime as _dt
+        _inv_number = seq_by_prefix(Invoice, Invoice.invoice_number, f"INV-{_dt.now().year}-")
     invoice = Invoice(
-        invoice_number=data.get("invoice_number"),
+        invoice_number=_inv_number,
         invoice_type=data.get("invoice_type", "sales"),
         customer_id=data.get("customer_id"),
         supplier_id=data.get("supplier_id"),

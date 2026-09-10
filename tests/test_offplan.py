@@ -64,5 +64,41 @@ class TestDSPPlans:
         assert data["milestone_id"] == ms["id"]
 
     def test_dsp_check(self, auth_client, sample_project):
-        resp = auth_client.get("/api/offplan/dsp/check/1")
-        assert resp.status_code == 200
+        import os as _os
+        ms = auth_client.post("/api/offplan/milestones", json={
+            "project_id": sample_project["id"],
+            "name": "مرحلة الفحص",
+            "target_date": "2027-06-01",
+            "weight": 40,
+        }).get_json()
+        auth_client.post("/api/offplan/dsp", json={
+            "project_id": sample_project["id"],
+            "milestone_id": ms["id"],
+            "name": "دفعة الفحص",
+            "due_pct": 15,
+        })
+        auth_client.put(f"/api/offplan/milestones/{ms['id']}", json={"completion_pct": 100})
+        unit = auth_client.post("/api/units", json={
+            "unit_code": f"TST-DSP-{_os.urandom(4).hex()}",
+            "project_id": sample_project["id"],
+            "price": 600000,
+        }).get_json()
+        cust = auth_client.post("/api/customers", json={"full_name": "عميل فحص الدفعات"}).get_json()
+        from app import create_app as _mk_app
+        from database import db as _db
+        from models import SalesContract as _SC
+        _app = _mk_app()
+        with _app.app_context():
+            contract = _SC(
+                contract_number=f"DSP-C-{_os.urandom(4).hex()}",
+                unit_id=unit["id"], customer_id=cust["id"], status="active",
+            )
+            _db.session.add(contract)
+            _db.session.commit()
+            cid = contract.id
+        resp = auth_client.get(f"/api/offplan/dsp/check/{cid}")
+        assert resp.status_code == 200, resp.get_json()
+        body = resp.get_json()
+        assert body["total_due_pct"] == 15
+        # Missing contract -> 404 (correct behavior)
+        assert auth_client.get("/api/offplan/dsp/check/999999999").status_code == 404

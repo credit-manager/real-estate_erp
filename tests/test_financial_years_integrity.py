@@ -57,13 +57,23 @@ def test_financial_year_delete_rejects_linked_transactions(auth_client, app):
 
     with app.app_context():
         from database import db
-        from models import JournalEntry
+        from decimal import Decimal
+        from models import Account, JournalEntry, JournalEntryLine
+        tag = uuid.uuid4().hex[:8]
+        acc1 = Account(code=f"FY{tag}A", name="FY Year A", type="asset")
+        acc2 = Account(code=f"FY{tag}B", name="FY Year B", type="equity")
+        db.session.add_all([acc1, acc2])
+        db.session.flush()
         entry = JournalEntry(
             entry_number=f"FY-TEST-{uuid.uuid4().hex[:10]}",
             date=__import__("datetime").date(2027, 2, 1),
             financial_year_id=year_id,
             status="posted",
         )
+        entry.lines.extend([
+            JournalEntryLine(account_id=acc1.id, debit=Decimal("5.00"), credit=Decimal("0.00")),
+            JournalEntryLine(account_id=acc2.id, debit=Decimal("0.00"), credit=Decimal("5.00")),
+        ])
         db.session.add(entry)
         db.session.commit()
 

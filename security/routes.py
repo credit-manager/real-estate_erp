@@ -576,6 +576,15 @@ def plans_list():
     return jsonify({"success": True, "plans": [p.to_dict() for p in plans]})
 
 
+@security_bp.route("/modules", methods=["GET"])
+def modules_list():
+    g = _guard()
+    if g:
+        return g
+    from security.modules import list_modules
+    return jsonify(list_modules())
+
+
 @security_bp.route("/plans", methods=["POST"])
 def plans_create():
     g = _guard()

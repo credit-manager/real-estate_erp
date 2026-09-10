@@ -69,6 +69,31 @@ def auth_client(client, app):
     yield client
 
     with app.app_context():
+        from sqlalchemy import text as _text
+        # Null out any FK references to the test user (e.g. approval
+        # requests auto-created by workflow submission) before delete.
+        try:
+            _fks = db.session.execute(_text(
+                "SELECT tc.table_name, kcu.column_name "
+                "FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "  ON tc.constraint_name = kcu.constraint_name "
+                "JOIN information_schema.constraint_column_usage ccu "
+                "  ON ccu.constraint_name = tc.constraint_name "
+                "WHERE tc.constraint_type = 'FOREIGN KEY' "
+                "  AND ccu.table_name = 'users' "
+                "  AND ccu.column_name = 'id'"
+            )).fetchall()
+            for _tbl, _col in _fks:
+                try:
+                    db.session.execute(
+                        _text(f'UPDATE "{_tbl}" SET "{_col}" = NULL WHERE "{_col}" = :uid'),
+                        {"uid": user_id},
+                    )
+                except Exception:
+                    db.session.rollback()
+        except Exception:
+            db.session.rollback()
         db.session.query(AuditLog).filter(AuditLog.user_id == user_id).delete(synchronize_session=False)
         db.session.query(LicenseActivity).filter(LicenseActivity.user_id == user_id).delete(synchronize_session=False)
         user = db.session.get(User, user_id)
@@ -136,3 +161,100 @@ def _db(app):
     with app.app_context():
         db.create_all()
         yield db
+
+
+# ── Shared sample-data fixtures (used across module test files) ────
+
+
+@pytest.fixture(scope="function")
+def future_date():
+    from datetime import date, timedelta
+
+    return (date.today() + timedelta(days=30)).isoformat()
+
+
+@pytest.fixture(scope="function")
+def sample_project(auth_client):
+    resp = auth_client.post("/api/projects", json={
+        "name": f"مشروع اختبار {uuid.uuid4().hex[:6]}",
+        "location": "الرياض",
+    })
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture(scope="function")
+def sample_building(auth_client, sample_project):
+    resp = auth_client.post("/api/realestate/buildings", json={
+        "project_id": sample_project["id"],
+        "name": "مبنى اختبار",
+    })
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture(scope="function")
+def sample_unit(auth_client, sample_project, sample_building):
+    resp = auth_client.post("/api/units", json={
+        "unit_code": f"TST-{uuid.uuid4().hex[:8].upper()}",
+        "project_id": sample_project["id"],
+        "building_id": sample_building["id"],
+        "price": 500000,
+        "status": "available",
+    })
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture(scope="function")
+def sample_customer(auth_client):
+    resp = auth_client.post("/api/customers", json={
+        "full_name": f"عميل اختبار {uuid.uuid4().hex[:6]}",
+    })
+    assert resp.status_code in (200, 201), resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture(scope="function")
+def sample_supplier(auth_client):
+    resp = auth_client.post("/api/suppliers", json={
+        "company_name": f"مورد اختبار {uuid.uuid4().hex[:6]}",
+    })
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()
+
+
+@pytest.fixture(scope="function")
+def sample_company(app):
+    """Minimal licensed company (plan + active subscription) for admin tests."""
+    from datetime import date, timedelta
+
+    from database import db
+    from licensing.models import LicCompany, LicPlan, LicSubscription
+
+    with app.app_context():
+        plan = LicPlan.query.filter_by(code="basic").first()
+        if not plan:
+            plan = LicPlan(
+                code="basic", name="Basic", name_ar="الأساسية",
+                max_users=5, max_projects=10, max_storage_mb=1024,
+                modules={}, is_active=True, sort_order=0,
+            )
+            db.session.add(plan)
+            db.session.flush()
+        tag = uuid.uuid4().hex[:8]
+        company = LicCompany(
+            name=f"Test Co {tag}", name_ar=f"شركة اختبار {tag}",
+            email=f"testco-{tag}@example.test",
+            db_name=f"testdb_{tag}", port=29999, status="active",
+        )
+        db.session.add(company)
+        db.session.flush()
+        today = date.today()
+        db.session.add(LicSubscription(
+            company_id=company.id, plan_id=plan.id,
+            start_date=today, end_date=today + timedelta(days=30),
+            status="active",
+        ))
+        db.session.commit()
+        return {"id": company.id, "name": company.name, "status": company.status}

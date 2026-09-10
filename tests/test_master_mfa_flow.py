@@ -42,7 +42,7 @@ def test_master_password_alone_never_creates_authenticated_session(app, client):
 
         dashboard = client.get("/admin/dashboard")
         assert dashboard.status_code == 401
-        assert client.get("/admin/security/summary").status_code == 401
+        assert client.get("/admin/security/security/summary").status_code == 401
 
         code = pyotp.TOTP(secret).now()
         response = client.post("/admin/security/2fa/verify", json={"code": code})

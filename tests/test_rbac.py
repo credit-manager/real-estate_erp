@@ -4,27 +4,18 @@
 SECURITY_BASE = "/admin/security"
 
 
-def _login(client):
-    client.post("/admin/login", json={
-        "email": "admin@dynamicpro.com",
-        "password": "admin123",
-    })
-
-
 class TestPermissions:
     """Permission catalog and user permissions."""
 
-    def test_list_permissions(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/permissions")
+    def test_list_permissions(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/permissions")
         data = resp.get_json()
         assert resp.status_code == 200
         assert data["success"] is True
         assert len(data["permissions"]) >= 30
 
-    def test_permission_codes_have_dot_notation(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/permissions")
+    def test_permission_codes_have_dot_notation(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/permissions")
         data = resp.get_json()
         for p in data["permissions"]:
             code = p["code"]
@@ -32,9 +23,8 @@ class TestPermissions:
             parts = code.split(".")
             assert len(parts) == 2, f"Permission '{code}' should have exactly one dot"
 
-    def test_me_includes_role(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/me")
+    def test_me_includes_role(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/me")
         data = resp.get_json()
         assert resp.status_code == 200
         assert "role" in data["user"]
@@ -43,25 +33,22 @@ class TestPermissions:
 class TestRoles:
     """Role management."""
 
-    def test_list_roles(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/roles")
+    def test_list_roles(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/roles")
         data = resp.get_json()
         assert resp.status_code == 200
         assert data["success"] is True
         assert len(data["roles"]) >= 4
 
-    def test_roles_have_permissions(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/roles")
+    def test_roles_have_permissions(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/roles")
         data = resp.get_json()
         for role in data["roles"]:
             assert "permissions" in role
             assert isinstance(role["permissions"], list)
 
-    def test_super_admin_has_all_permissions(self, client):
-        _login(client)
-        resp = client.get(f"{SECURITY_BASE}/roles")
+    def test_super_admin_has_all_permissions(self, master_client):
+        resp = master_client.get(f"{SECURITY_BASE}/roles")
         data = resp.get_json()
         super_admin = next((r for r in data["roles"] if r["name"] == "super_admin"), None)
         assert super_admin is not None

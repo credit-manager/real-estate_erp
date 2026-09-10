@@ -25,7 +25,7 @@ def test_permission_required_rejects_empty_declaration():
 
 
 def test_jwt_round_trip_uses_utc_and_required_claims():
-    now = datetime(2026, 9, 9, 10, 0, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     access, refresh, jti = issue_token_pair(
         master_user_id=7,
         email="admin@example.com",

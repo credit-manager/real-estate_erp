@@ -274,7 +274,10 @@ def _run_migrations_and_seeds(app, db):
         if bootstrap_password is None:
             if getattr(config, "IS_PRODUCTION", False):
                 raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
-        else:
+            elif not getattr(config, "IS_FROZEN", False):
+                # Dev/test only: known bootstrap credential (forces change on login).
+                bootstrap_password = "admin123"
+        if bootstrap_password is not None:
             admin = User(
                 username="admin", email="admin@mokawlat.com", full_name="مدير النظام",
                 role="admin", password_hash=generate_password_hash(bootstrap_password), must_change_password=True,
@@ -290,7 +293,10 @@ def _run_migrations_and_seeds(app, db):
         if bootstrap_password is None:
             if getattr(config, "IS_PRODUCTION", False):
                 raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
-        else:
+            elif not getattr(config, "IS_FROZEN", False):
+                # Dev/test only: known bootstrap credential (forces change on login).
+                bootstrap_password = "admin123"
+        if bootstrap_password is not None:
             master = LicMasterUser(
                 email="admin@mokawlat.com",
                 password_hash=generate_password_hash(bootstrap_password),
@@ -418,13 +424,21 @@ def create_app():
             and not getattr(config, "IS_FROZEN", False)
             and _rate_storage == "memory://"):
         raise RuntimeError("Distributed production rate limiting requires Redis storage.")
+    # In test runs the shared in-memory quota would flake fast test
+    # clients (same IP, no network latency); dedicated throttle logic
+    # (login/MFA) is covered by its own tests.
+    _limiter_testing = (
+        app.config.get("TESTING")
+        or os.environ.get("DYNAMICPRO_ENV", "").strip().lower() in {"test", "testing"}
+    )
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute", "50 per second"],
         storage_uri=_rate_storage,
         strategy="fixed-window",
-        key_prefix="rl:"
+        key_prefix="rl:",
+        enabled=not _limiter_testing,
     )
     # متاح للوحدات التي تحتاج حدود مخصصة (مثل /api/ai/query)
     app.config["RATELIMITER"] = limiter

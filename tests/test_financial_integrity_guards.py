@@ -46,11 +46,13 @@ def test_posted_entry_rejects_closed_financial_year(app):
         with pytest.raises(ValueError, match="financialYearClosed"):
             db.session.commit()
         db.session.rollback()
-        db.session.query(JournalEntry).filter_by(entry_number="TEST-CLOSED-001").delete()
-        db.session.delete(a1)
-        db.session.delete(a2)
-        db.session.delete(year)
-        db.session.delete(company)
+        db.session.query(JournalEntry).filter_by(entry_number="TEST-CLOSED-001").delete(
+            synchronize_session=False)
+        for obj in (a1, a2, year, company):
+            try:
+                db.session.delete(db.session.merge(obj))
+            except Exception:
+                db.session.rollback()
         db.session.commit()
 
 
@@ -81,9 +83,11 @@ def test_posted_entry_rejects_unbalanced_lines(app):
         with pytest.raises(ValueError, match="notBalanced"):
             db.session.commit()
         db.session.rollback()
-        db.session.query(JournalEntry).filter_by(entry_number="TEST-BAL-001").delete()
-        db.session.delete(a1)
-        db.session.delete(a2)
-        db.session.delete(year)
-        db.session.delete(company)
+        db.session.query(JournalEntry).filter_by(entry_number="TEST-BAL-001").delete(
+            synchronize_session=False)
+        for obj in (a1, a2, year, company):
+            try:
+                db.session.delete(db.session.merge(obj))
+            except Exception:
+                db.session.rollback()
         db.session.commit()

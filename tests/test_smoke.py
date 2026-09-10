@@ -266,9 +266,36 @@ def test_milestone_dsp_flow(auth_client):
     assert updated['status'] == 'completed'
     assert updated['completion_pct'] == 100
 
-    # Check DSP is now due
-    resp = auth_client.get(f'/api/offplan/dsp/check/1')
-    assert resp.status_code == 200
+    # Check DSP is now due (via a real contract linked to the project unit)
+    unit_resp = auth_client.post('/api/units', json={
+        'unit_code': f'TST-DSP-{os.urandom(4).hex()}',
+        'project_id': project_id,
+        'price': 750000,
+    })
+    assert unit_resp.status_code == 201, unit_resp.get_json()
+    unit_id = unit_resp.get_json()['id']
+    cust_id = _mk_customer(auth_client, 'عميل خطة الدفع')
+    from app import create_app as _mk_app
+    from database import db as _db
+    from models import SalesContract as _SC
+    _app = _mk_app()
+    with _app.app_context():
+        contract = _SC(
+            contract_number=f'DSP-T-{os.urandom(4).hex()}',
+            unit_id=unit_id, customer_id=cust_id, status='active',
+        )
+        _db.session.add(contract)
+        _db.session.commit()
+        cid = contract.id
+    resp = auth_client.get(f'/api/offplan/dsp/check/{cid}')
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body['total_due_pct'] == 10
+    assert len(body['due']) == 1
+
+    # Missing contract -> 404 (correct behavior)
+    resp = auth_client.get('/api/offplan/dsp/check/999999999')
+    assert resp.status_code == 404
 
 
 # ==================== Portal Tests ====================
@@ -505,7 +532,7 @@ def test_einvoice_countries_22():
 
 def test_einvoice_ubl_xml_generation(app):
     """توليد UBL XML من فاتورة داخلية."""
-    from utils.einvoice import build_unified, build_ubl_xml, compute_ubl_hash
+    from utils.einvoice import build_unified, build_ubl_xml, build_ubl_hash as compute_ubl_hash
     with app.app_context():
         from models import Invoice, InvoiceItem
         inv = Invoice(invoice_number="UBL-TEST-001", invoice_type="sales",

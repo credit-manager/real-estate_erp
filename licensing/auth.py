@@ -231,6 +231,11 @@ def complete_pending_master_mfa(user_id):
     try:
         user.last_login = datetime.utcnow()
         _establish_master_session(user)
+        try:
+            from security.rbac import ensure_user_role_link
+            ensure_user_role_link(user.id, user.role)
+        except Exception:
+            log.exception("Unable to ensure master role link (MFA path)")
         db.session.commit()
     except Exception:
         db.session.rollback()
