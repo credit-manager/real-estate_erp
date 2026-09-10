@@ -53,7 +53,7 @@ def _get_providers():
 # ── System prompt ───────────────────────────────────────────────
 
 _SYSTEM_PROMPT = textwrap.dedent("""\
-أنت مساعد ذكي مدمج في نظام DynamicPro ERP لإدارة المبيعات والمشتريات والموارد البشرية والمحاسبة والمخزون والعقارات.
+أنت مساعد ذكي مدمج في نظام 2TO لإدارة المبيعات والمشتريات والموارد البشرية والمحاسبة والمخزون والعقارات.
 
 مهمتك فهم أسئلة المستخدم بالعربية أو الإنجليزية وإرجاع إجابة مختصرة ودقيقة بناءً على البيانات المتاحة في قاعدة البيانات.
 
@@ -254,7 +254,7 @@ class OpenRouterProvider(OpenAICompatProvider):
     def _headers(self):
         headers = super()._headers()
         headers["HTTP-Referer"] = "https://dynamicpro-erp.local"
-        headers["X-Title"] = "DynamicPro ERP"
+        headers["X-Title"] = "2TO"
         return headers
 
 

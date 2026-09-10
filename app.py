@@ -555,9 +555,9 @@ def create_app():
             "perms": permissions.current_perms,
             "is_dark": request.cookies.get("theme", "light") == "dark",
             "is_server_local": request.remote_addr in ("127.0.0.1", "::1"),
-            "system_name": _settings.get("system_name") or "Dynamic Pro ERP",
+            "system_name": _settings.get("system_name") or "2TO",
             "system_logo": _settings.get("system_logo") or "",
-            "owner_name": _server_cfg.get("owner_name") or "Dynamic Pro",
+            "owner_name": _server_cfg.get("owner_name") or "2TO",
             "owner_logo": _server_cfg.get("owner_logo") or "",
             "default_theme": _settings.get("default_theme") or "light",
             "default_lang": _settings.get("default_lang") or "ar",
@@ -604,7 +604,7 @@ def create_app():
         """Public version endpoint for desktop clients / support."""
         return jsonify({
             "success": True,
-            "app": "DynamicPro ERP",
+            "app": "2TO",
             "version": "1.0.0",
             "api": "v1",
         })

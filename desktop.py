@@ -16,7 +16,7 @@ import urllib.request
 
 import server_config
 
-TITLE = "Dynamic Pro ERP"
+TITLE = "2TO"
 
 
 def _root_dir():

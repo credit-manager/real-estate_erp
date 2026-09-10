@@ -19,7 +19,7 @@ from window_theme import apply_light_titlebar
 
 CONFIG_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "DynamicPro")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "client_config.json")
-TITLE = "Dynamic Pro ERP"
+TITLE = "2TO"
 
 
 def _load_url():

@@ -109,7 +109,7 @@ def main():
         from window_theme import apply_light_theme
 
         window = webview.create_window(
-            title="Dynamic Pro ERP",
+            title="2TO",
             url=f"http://127.0.0.1:{port}",
             width=1400,
             height=900,

@@ -325,7 +325,7 @@ def test_openapi_spec_exists(client):
     assert resp.status_code == 200
     spec = resp.get_json()
     assert spec['openapi'] == '3.0.3'
-    assert spec['info']['title'] == 'DynamicPro ERP API'
+    assert spec['info']['title'] == '2TO API'
     assert 'paths' in spec
 
 
@@ -333,7 +333,7 @@ def test_redoc_ui(client):
     """ReDoc UI should be accessible."""
     resp = client.get('/api/docs/redoc')
     assert resp.status_code == 200
-    assert b'redoc' in resp.data.lower() or b'DynamicPro' in resp.data
+    assert b'redoc' in resp.data.lower() or b'2TO' in resp.data
 
 
 # ==================== Rate Limiting ====================

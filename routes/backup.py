@@ -279,7 +279,7 @@ def _restore(data):
 @require_api("backup", "create")
 def export_backup():
     data = {
-        "app": "Dynamic Pro ERP",
+        "app": "2TO",
         "version": 1,
         "exported_at": datetime.now().isoformat(),
         **_dump(),
@@ -408,7 +408,7 @@ def _run_auto_backup_once(app):
     os.makedirs(folder, exist_ok=True)
 
     payload = json.dumps({
-        "app": "Dynamic Pro ERP",
+        "app": "2TO",
         "version": 1,
         "exported_at": now.isoformat(),
         **_dump(),

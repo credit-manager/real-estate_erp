@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ERP Control Center",
-  description: "Master Admin Portal — DynamicPro ERP",
+  title: "2TO Control Center",
+  description: "Master Admin Portal — 2TO",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

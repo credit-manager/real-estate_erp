@@ -29,7 +29,7 @@ DEFAULTS = {
     "https_port": 5443,
     "gemini_api_key": "",
     "gemini_model": "gemini-3.6-flash",
-    "owner_name": "Dynamic Pro",
+    "owner_name": "2TO",
     "owner_logo": "",
     "ai_providers": {
         "gemini": {"enabled": True, "api_key": "", "model": "gemini-3.6-flash", "priority": 1},

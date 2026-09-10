@@ -72,7 +72,7 @@ def _configure_bootstrap_admin(mapper, connection, target):
         target.password_hash = generate_password_hash(generated)
         if not existing_password:
             credentials_path.write_text(
-                "Dynamic Pro ERP first-run administrator\n"
+                "2TO first-run administrator\n"
                 "username=admin\n"
                 f"password={generated}\n"
                 "change this password immediately after first login\n",

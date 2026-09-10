@@ -52,7 +52,7 @@ def _persist_first_run_password(user_data_dir: str, password: str, filename: str
         return
     Path(user_data_dir).mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "Dynamic Pro ERP first-run administrator\n"
+        "2TO first-run administrator\n"
         "username=admin\n"
         f"password={password}\n"
         "change this password immediately after first login\n",

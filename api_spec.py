@@ -5,11 +5,11 @@ from marshmallow import Schema, fields, validate
 # API Instance - سيتم تهيئته في app.py
 api = Api(
     spec_kwargs={
-        "title": "DynamicPro ERP API",
+        "title": "2TO API",
         "version": "2.0.0",
         "openapi_version": "3.0.3",
         "info": {
-            "description": "DynamicPro ERP - Real Estate Management System API\n\n"
+            "description": "2TO - Real Estate Management System API\n\n"
                            "## Authentication\n"
                            "All API endpoints require session-based authentication via Flask session cookie.\n"
                            "CSRF token required for state-changing requests (POST/PUT/PATCH/DELETE).\n\n"
@@ -23,7 +23,7 @@ api = Api(
                            "  \"error_key\": \"translation.key\"\n"
                            "}\n"
                            "```",
-            "contact": {"name": "DynamicPro Team", "email": "support@dynamicpro.com"},
+            "contact": {"name": "2TO Team", "email": "support@dynamicpro.com"},
             "license": {"name": "Proprietary"}
         },
         "servers": [{"url": "http://localhost:1000", "description": "Development server"}],
@@ -353,7 +353,7 @@ def redoc_view():
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DynamicPro ERP API - ReDoc</title>
+    <title>2TO API - ReDoc</title>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">

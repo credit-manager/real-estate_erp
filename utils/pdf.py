@@ -52,7 +52,7 @@ def _fmt_date(d):
 
 def _doc_footer(t):
     """سطر التذييل القياسي للمستندات: تذييل مخصص + اسم النظام + تاريخ الإنشاء."""
-    sysname = settings_module.get("system_name", "Dynamic Pro ERP")
+    sysname = settings_module.get("system_name", "2TO")
     footer = (settings_module.get("doc_footer_text", "") or "").strip()
     gen = t("doc.generated") + " " + _fmt_date(date.today())
     return (footer + " — " if footer else "") + sysname + " — " + gen
@@ -133,7 +133,7 @@ class DocPDF(FPDF):
                 pass
         self._font(16)
         self._ink(_INK)
-        self.cell(w, 8, (settings_module.get("system_name", "Dynamic Pro ERP") or "Dynamic Pro ERP")[:18])
+        self.cell(w, 8, (settings_module.get("system_name", "2TO") or "2TO")[:18])
 
     def header_block(self, title, doc_no, subtitle):
         half = 90
@@ -371,7 +371,7 @@ def build_invoice_pdf(invoice, lang):
         party = [s.company_name] + _party_lines(t, s.phone, s.email, s.address)
     else:
         party = ["—"]
-    pdf.parties(party_title, party, t("doc.issuedBy"), ["Dynamic Pro", t("doc.companyInfo")])
+    pdf.parties(party_title, party, t("doc.issuedBy"), ["2TO", t("doc.companyInfo")])
 
     headers = [t("doc.colNo"), t("doc.description"), t("doc.qty"),
                t("doc.price"), t("doc.tax"), t("doc.total")]
@@ -438,7 +438,7 @@ def build_po_pdf(po, lang):
         party = [s.company_name] + _party_lines(t, s.phone, s.email, s.address)
     else:
         party = ["—"]
-    pdf.parties(t("po.supplierLabel"), party, t("doc.issuedBy"), ["Dynamic Pro", t("doc.companyInfo")])
+    pdf.parties(t("po.supplierLabel"), party, t("doc.issuedBy"), ["2TO", t("doc.companyInfo")])
 
     headers = [t("doc.colNo"), t("doc.description"), t("doc.qty"),
                t("doc.price"), t("doc.tax"), t("doc.total")]
@@ -499,7 +499,7 @@ def build_sales_order_pdf(order, lang):
         party = [c.full_name] + _party_lines(t, c.phone, c.email, c.address)
     else:
         party = ["—"]
-    pdf.parties(t("doc.billTo"), party, t("doc.issuedBy"), ["Dynamic Pro", t("doc.companyInfo")])
+    pdf.parties(t("doc.billTo"), party, t("doc.issuedBy"), ["2TO", t("doc.companyInfo")])
 
     headers = [t("doc.colNo"), t("doc.description"), t("doc.qty"),
                t("doc.price"), t("doc.tax"), t("doc.total")]
@@ -564,7 +564,7 @@ def build_sales_return_pdf(ret, lang):
         party = [c.full_name] + _party_lines(t, c.phone, c.email, c.address)
     else:
         party = ["—"]
-    pdf.parties(t("doc.billTo"), party, t("doc.issuedBy"), ["Dynamic Pro", t("doc.companyInfo")])
+    pdf.parties(t("doc.billTo"), party, t("doc.issuedBy"), ["2TO", t("doc.companyInfo")])
 
     headers = [t("doc.colNo"), t("doc.description"), t("doc.qty"),
                t("doc.price"), t("doc.tax"), t("doc.total")]
@@ -630,7 +630,7 @@ def build_contract_pdf(contract, lang):
         party = [c.full_name] + _party_lines(t, c.phone, c.email, c.address)
     else:
         party = ["—"]
-    pdf.parties(t("doc.firstParty"), ["Dynamic Pro", t("doc.companyInfo")],
+    pdf.parties(t("doc.firstParty"), ["2TO", t("doc.companyInfo")],
                 t("doc.secondParty"), party)
 
     unit = contract.unit
@@ -678,7 +678,7 @@ def build_crm_quote_pdf(quote, lang):
         party = [c.full_name] + _party_lines(t, c.phone, c.email, c.address)
     else:
         party = ["—"]
-    pdf.parties(t("doc.customer"), party, t("doc.issuedBy"), ["Dynamic Pro", t("doc.companyInfo")])
+    pdf.parties(t("doc.customer"), party, t("doc.issuedBy"), ["2TO", t("doc.companyInfo")])
 
     headers = [t("doc.colNo"), t("doc.description"), t("doc.qty"), t("doc.price"), t("doc.total")]
     widths = [12, 82, 18, 33, 35]
@@ -724,7 +724,7 @@ def build_crm_contract_pdf(contract, lang):
         party = [c.full_name] + _party_lines(t, c.phone, c.email, c.address)
     else:
         party = ["—"]
-    pdf.parties(t("doc.firstParty"), ["Dynamic Pro", t("doc.companyInfo")],
+    pdf.parties(t("doc.firstParty"), ["2TO", t("doc.companyInfo")],
                 t("doc.secondParty"), party)
 
     pdf.section_title(t("doc.contractDetails"))

@@ -5,7 +5,7 @@ from models.setting import SystemSetting
 
 DEFAULTS = {
     # ---- General ----
-    "system_name": "Dynamic Pro ERP",
+    "system_name": "2TO",
     "system_logo": "",
     "default_lang": "ar",
     "default_theme": "light",

@@ -45,7 +45,7 @@ def server_info():
     """Public endpoint used by the login page to show the access-password field."""
     return jsonify({
         "access_password_required": bool(current_app.config.get("SERVER_ACCESS_PASSWORD", "")),
-        "server_name": "Dynamic Pro ERP",
+        "server_name": "2TO",
     })
 
 
