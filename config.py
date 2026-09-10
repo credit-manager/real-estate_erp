@@ -127,8 +127,9 @@ SESSION_COOKIE_SECURE = bool(IS_PRODUCTION and not IS_FROZEN)
 PERMANENT_SESSION_LIFETIME = 8 * 3600
 
 # Redis-backed rate limiting is mandatory for production multi-instance Cloud.
+# Frozen desktop builds are single-user (local SQLite) and always use memory.
 RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI") or os.environ.get("REDIS_URL", "")
-if IS_PRODUCTION and not RATELIMIT_STORAGE_URI:
+if IS_PRODUCTION and not IS_FROZEN and not RATELIMIT_STORAGE_URI:
     raise RuntimeError(
         "REDIS_URL or RATELIMIT_STORAGE_URI is required in production for distributed rate limiting."
     )

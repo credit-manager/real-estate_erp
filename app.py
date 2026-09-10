@@ -414,7 +414,9 @@ def create_app():
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
     _rate_storage = getattr(config, "RATELIMIT_STORAGE_URI", "") or "memory://"
-    if getattr(config, "IS_PRODUCTION", False) and _rate_storage == "memory://":
+    if (getattr(config, "IS_PRODUCTION", False)
+            and not getattr(config, "IS_FROZEN", False)
+            and _rate_storage == "memory://"):
         raise RuntimeError("Distributed production rate limiting requires Redis storage.")
     limiter = Limiter(
         get_remote_address,

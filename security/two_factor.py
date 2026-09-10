@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import secrets
+import sys
 import time
 from datetime import datetime
 
@@ -37,6 +38,8 @@ def provisioning_uri(user_email, secret):
 
 def _redis_mfa_store():
     global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    if getattr(sys, "frozen", False):
+        return None  # Frozen desktop is single-user: in-memory store is correct.
     env = str(os.environ.get("DYNAMICPRO_ENV", "")).strip().lower()
     if env not in {"production", "prod"}:
         return None

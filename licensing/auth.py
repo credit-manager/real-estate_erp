@@ -9,6 +9,7 @@ Production login throttling uses Redis so limits remain effective across workers
 import hashlib
 import logging
 import secrets
+import sys
 import time
 from datetime import datetime, timedelta
 
@@ -31,6 +32,8 @@ _REDIS_UNAVAILABLE = False
 
 def _redis_login_store():
     global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    if getattr(sys, "frozen", False):
+        return None  # Frozen desktop is single-user: in-memory store is correct.
     env = str(__import__("os").environ.get("DYNAMICPRO_ENV", "")).strip().lower()
     if env not in {"production", "prod"}:
         return None

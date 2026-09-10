@@ -1,6 +1,7 @@
 import hashlib
 import os
 import secrets
+import sys
 import threading
 import time
 from functools import wraps
@@ -34,6 +35,8 @@ def _csrf_token():
 def _redis_login_store():
     """Return the distributed login store; production never falls back silently."""
     global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    if getattr(sys, "frozen", False):
+        return None  # Frozen desktop is single-user: in-memory store is correct.
     env = str(os.environ.get("DYNAMICPRO_ENV", "")).strip().lower()
     if env not in {"production", "prod"}:
         return None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import sys
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -146,6 +147,8 @@ def _patch_rate_limiter() -> None:
             configured = os.environ.get("RATELIMIT_STORAGE_URI") or os.environ.get("REDIS_URL")
             if configured:
                 kwargs["storage_uri"] = configured
+            elif getattr(sys, "frozen", False):
+                kwargs.setdefault("storage_uri", "memory://")
             elif os.environ.get("DYNAMICPRO_ENV", "").lower() in {"prod", "production"}:
                 raise RuntimeError("Distributed production rate limiting requires REDIS_URL or RATELIMIT_STORAGE_URI.")
             super().__init__(*args, **kwargs)
