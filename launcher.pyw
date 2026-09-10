@@ -55,10 +55,60 @@ def _wait_for_port(port, host="127.0.0.1", timeout=30):
     return False
 
 
+def _lock_path():
+    return os.path.join(_log_dir, "app.lock")
+
+
+def _already_running(default_port):
+    """Single-instance guard: True if our lock file points to a live process."""
+    try:
+        with open(_lock_path(), encoding="utf-8") as fh:
+            pid = int((fh.read() or "").strip().split()[0])
+    except (OSError, ValueError, IndexError):
+        return False
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        handle = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        if not handle:
+            return False
+        kernel32.CloseHandle(handle)
+        return True
+    except Exception:
+        return False
+
+
+def _notify_already_running(port):
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(
+            0, "2TO is already running.", "2TO", 0x40)
+    except Exception:
+        pass
+    try:
+        import webbrowser
+        webbrowser.open(f"http://127.0.0.1:{port}")
+    except Exception:
+        pass
+
+
 def main():
     # ── 1. Import server_config (reads %APPDATA%\DynamicPro\server_config.json) ──
     import server_config
     port = server_config.get_port()
+
+    # Single instance: if our previous process is alive, focus it instead
+    # of spawning another server (prevents port/DB conflicts).
+    if _already_running(port):
+        log.info("Another 2TO instance is already running; opening it.")
+        _notify_already_running(port)
+        return
+    try:
+        with open(_lock_path(), "w", encoding="utf-8") as fh:
+            fh.write(str(os.getpid()))
+    except OSError:
+        pass
 
     # Make sure port is not already in use
     if server_config.is_port_in_use(port):
@@ -84,8 +134,12 @@ def main():
         log.error("Server failed to start within 30 seconds.")
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, "Server failed to start within 30 seconds.", "DynamicPro", 0x10)
+            ctypes.windll.user32.MessageBoxW(0, "Server failed to start within 30 seconds.", "2TO", 0x10)
         except Exception:
+            pass
+        try:
+            os.remove(_lock_path())
+        except OSError:
             pass
         return
 
@@ -106,7 +160,7 @@ def main():
     # ── 4. Open pywebview window (native, no browser needed) ──
     try:
         import webview
-        from window_theme import apply_light_theme
+        from window_theme import apply_light_titlebar
 
         window = webview.create_window(
             title="2TO",
@@ -120,7 +174,7 @@ def main():
 
         def on_loaded():
             try:
-                apply_light_theme(window)
+                apply_light_titlebar(window)
             except Exception:
                 pass
 
@@ -128,8 +182,8 @@ def main():
         log.info("Opening window...")
         webview.start(debug=False)
 
-    except ImportError:
-        log.warning("pywebview not available, falling back to browser...")
+    except ImportError as e:
+        log.warning(f"pywebview unavailable ({e}); falling back to browser...")
         import webbrowser
         webbrowser.open(f"http://127.0.0.1:{port}")
         try:
@@ -149,4 +203,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        try:
+            os.remove(_lock_path())
+        except OSError:
+            pass
