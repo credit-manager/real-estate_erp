@@ -8,6 +8,7 @@ from models import (
 )
 from models.setting import SystemSetting
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from sqlalchemy import text
 
 ACCOUNT_TYPES = ["asset", "liability", "equity", "revenue", "expense"]
 
@@ -19,7 +20,6 @@ TYPE_LABELS = {
     "expense": "accounting.expense",
 }
 
-# الحسابات الافتراضية (بأكواد ثابتة تُستخدم كمرجع للترحيل التلقائي)
 DEFAULT_COA = [
     {"code": "100000", "name": "الأصول", "type": "asset"},
     {"code": "110000", "name": "أصول متداولة", "type": "asset", "parent": "100000"},
@@ -51,7 +51,6 @@ DEFAULT_COA = [
     {"code": "510400", "name": "مصروفات عامة وإدارية", "type": "expense", "parent": "500000"},
     {"code": "510500", "name": "مصروفات إهلاك", "type": "expense", "parent": "500000"},
     {"code": "510600", "name": "مصروفات ضريبية", "type": "expense", "parent": "500000"},
-    # --- حسابات المشاريع العقارية ---
     {"code": "130300", "name": "أراضٍ قيد الاستخدام", "type": "asset", "parent": "130000"},
     {"code": "130400", "name": "مباني تحت الإنشاء", "type": "asset", "parent": "130000"},
     {"code": "130500", "name": "تراخيص وتصاريح عقارية", "type": "asset", "parent": "130000"},
@@ -66,28 +65,17 @@ DEFAULT_COA = [
 ]
 
 DEFAULT_ACCOUNT_MAP = {
-    "acc_default_receivable": "120100",   # الذمم المدينة
-    "acc_default_payable": "210100",      # الذمم الدائنة
-    "acc_default_cash": "110100",         # الصندوق
-    "acc_default_bank": "110200",         # البنوك
-    "acc_default_revenue": "410100",      # إيرادات المبيعات
-    "acc_default_expense": "510100",      # مصروفات المشتريات
-    "acc_default_equity": "320100",       # أرباح مرحلة (رصيد افتتاحي)
-    "acc_default_asset": "130100",        # الأصول الثابتة
-    "acc_default_accumulated": "130200",  # مجمع الإهلاك
-    "acc_default_depreciation": "510500", # مصروفات الإهلاك
-    "acc_default_tax_in": "120200",       # ضريبة المدينة
-    "acc_default_tax_out": "220100",      # ضريبة الدائنة
-    "acc_re_project_land": "130300",
-    "acc_re_project_building": "130400",
-    "acc_re_project_license": "130500",
-    "acc_re_cost_land": "520100",
-    "acc_re_cost_construction": "520200",
-    "acc_re_cost_licensing": "520300",
-    "acc_re_cost_operating": "520400",
-    "acc_re_cost_labor": "520500",
-    "acc_re_cost_engineering": "520600",
-    "acc_re_revenue_sales": "420100",
+    "acc_default_receivable": "120100", "acc_default_payable": "210100",
+    "acc_default_cash": "110100", "acc_default_bank": "110200",
+    "acc_default_revenue": "410100", "acc_default_expense": "510100",
+    "acc_default_equity": "320100", "acc_default_asset": "130100",
+    "acc_default_accumulated": "130200", "acc_default_depreciation": "510500",
+    "acc_default_tax_in": "120200", "acc_default_tax_out": "220100",
+    "acc_re_project_land": "130300", "acc_re_project_building": "130400",
+    "acc_re_project_license": "130500", "acc_re_cost_land": "520100",
+    "acc_re_cost_construction": "520200", "acc_re_cost_licensing": "520300",
+    "acc_re_cost_operating": "520400", "acc_re_cost_labor": "520500",
+    "acc_re_cost_engineering": "520600", "acc_re_revenue_sales": "420100",
     "acc_re_revenue_rent": "420200",
 }
 
@@ -100,11 +88,8 @@ def seed_default_coa():
     parents = {}
     for item in DEFAULT_COA:
         acc = Account(
-            code=item["code"],
-            name=item["name"],
-            type=item["type"],
-            is_cash=item.get("is_cash", False),
-            is_bank=item.get("is_bank", False),
+            code=item["code"], name=item["name"], type=item["type"],
+            is_cash=item.get("is_cash", False), is_bank=item.get("is_bank", False),
             is_contra=item.get("is_contra", False),
         )
         if item.get("parent"):
@@ -117,7 +102,6 @@ def seed_default_coa():
 
 
 def _ensure_default_mapping():
-    """تحديث قيم الحسابات الافتراضية المخزنة في الإعدادات عند توفرها."""
     existing = {s.key: s.value for s in SystemSetting.query.all()}
     changed = False
     for key, code in DEFAULT_ACCOUNT_MAP.items():
@@ -130,7 +114,6 @@ def _ensure_default_mapping():
 
 
 def default_account_id(key):
-    """قراءة معرف الحساب الافتراضي من الإعدادات."""
     if key not in DEFAULT_ACCOUNT_MAP:
         return None
     row = SystemSetting.query.filter_by(key=key).first()
@@ -144,20 +127,35 @@ def default_account_id(key):
 
 
 def set_default_account_id(key, account_id):
+    if key not in DEFAULT_ACCOUNT_MAP:
+        raise ValueError("accounting.invalidDefaultAccount")
+    account_id = int(account_id) if account_id else None
+    if account_id is not None and db.session.get(Account, account_id) is None:
+        raise ValueError("accounting.accountNotFound")
     row = SystemSetting.query.filter_by(key=key).first()
     if row:
-        row.value = str(account_id)
+        row.value = str(account_id) if account_id is not None else ""
     else:
-        db.session.add(SystemSetting(key=key, value=str(account_id)))
+        db.session.add(SystemSetting(key=key, value=str(account_id) if account_id is not None else ""))
     db.session.commit()
 
 
 def next_entry_number(year_id):
+    """Generate a journal number safely; PostgreSQL serializes concurrent writers."""
     year = db.session.get(FinancialYear, year_id) if year_id else None
     prefix = "JV"
     if year and year.name:
-        prefix = f"JV-{year.name.split()[0] if year.name else ''}"
-    # استعلام SQL مباشر لأحدث رقم تسلسلي (بدلاً من جلب كل القيود)
+        prefix = f"JV-{year.name.split()[0]}"
+
+    if db.engine.dialect.name == "postgresql":
+        # Transaction-scoped advisory lock: only one writer computes the next
+        # number for this prefix at a time. The lock is released on commit/rollback.
+        lock_key = f"dynamicpro:journal-seq:{prefix}"
+        db.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+            {"lock_key": lock_key},
+        )
+
     like_prefix = f"{prefix}-%"
     q = JournalEntry.query.filter(JournalEntry.entry_number.like(like_prefix))
     if year_id:
@@ -180,7 +178,6 @@ def d0(v):
 
 
 def _clean_year(year_id):
-    """تطبيع معرف السنة المالية (قد يأتي None/سلسلة فارغة/"0")."""
     if year_id in (None, "", 0, "0"):
         return None
     try:
@@ -191,7 +188,6 @@ def _clean_year(year_id):
 
 def make_entry(lines, date=None, description="", financial_year_id=None,
                source="manual", ref_type=None, ref_id=None, commit=True):
-    """إنشاء قيد مرتّب ومتوازن. lines = [dict(account_id, debit, credit, cost_center_id, description)]"""
     total_dr = d0(0)
     total_cr = d0(0)
     clean = []
@@ -200,10 +196,14 @@ def make_entry(lines, date=None, description="", financial_year_id=None,
         credit = d0(ln.get("credit"))
         if debit == 0 and credit == 0:
             continue
+        if debit < 0 or credit < 0:
+            raise ValueError("accounting.amountNegative")
         if debit > 0 and credit > 0:
             raise ValueError("accounting.oneSideOnly")
         if not ln.get("account_id"):
             raise ValueError("accounting.accountRequired")
+        if db.session.get(Account, int(ln["account_id"])) is None:
+            raise ValueError("accounting.accountNotFound")
         total_dr += debit
         total_cr += credit
         clean.append({
@@ -215,26 +215,19 @@ def make_entry(lines, date=None, description="", financial_year_id=None,
         })
     if not clean:
         raise ValueError("accounting.emptyEntry")
-    if abs(total_dr - total_cr) > 0.005:
+    if abs(total_dr - total_cr) > Decimal("0.005"):
         raise ValueError("accounting.notBalanced")
 
     entry = JournalEntry(
-        date=date or datetime.date.today(),
-        financial_year_id=financial_year_id,
-        description=(description or "").strip(),
-        source=source,
-        ref_type=ref_type,
-        ref_id=ref_id,
-        status="posted",
+        date=date or datetime.date.today(), financial_year_id=financial_year_id,
+        description=(description or "").strip(), source=source, ref_type=ref_type,
+        ref_id=ref_id, status="posted",
     )
     entry.entry_number = next_entry_number(financial_year_id)
     for ln in clean:
         entry.lines.append(JournalEntryLine(
-            account_id=ln["account_id"],
-            cost_center_id=ln["cost_center_id"],
-            debit=ln["debit"],
-            credit=ln["credit"],
-            description=ln["description"],
+            account_id=ln["account_id"], cost_center_id=ln["cost_center_id"],
+            debit=ln["debit"], credit=ln["credit"], description=ln["description"],
         ))
     db.session.add(entry)
     if commit:
@@ -245,28 +238,54 @@ def make_entry(lines, date=None, description="", financial_year_id=None,
 
 
 def delete_source_entries(source, ref_type, ref_id, commit=True):
-    """حذف القيود المرتبطة بمصدر خارجي (فاتورة/قسمة...)."""
+    """Preserve posted entries by creating auditable reversal entries.
+
+    Kept under the legacy function name for compatibility with callers. A source
+    entry is reversed at most once; the original posting is never physically deleted.
+    """
     if ref_id in (None, ""):
         return 0
-    entries = JournalEntry.query.filter_by(source=source, ref_type=ref_type, ref_id=int(ref_id)).all()
-    for e in entries:
-        db.session.delete(e)
-    if entries and commit:
+    entries = JournalEntry.query.filter_by(
+        source=source, ref_type=ref_type, ref_id=int(ref_id), status="posted"
+    ).all()
+    reversed_count = 0
+    for entry in entries:
+        already_reversed = JournalEntry.query.filter_by(reversed_of=entry.id).first()
+        if already_reversed:
+            continue
+        lines = []
+        for line in entry.lines:
+            lines.append({
+                "account_id": line.account_id,
+                "cost_center_id": line.cost_center_id,
+                "debit": d0(line.credit),
+                "credit": d0(line.debit),
+                "description": f"عكس القيد {entry.entry_number}",
+            })
+        reversal = make_entry(
+            lines,
+            date=datetime.date.today(),
+            description=f"عكس ترحيل {source}/{ref_type} #{ref_id}",
+            financial_year_id=entry.financial_year_id,
+            source="reversal",
+            ref_type=source,
+            ref_id=int(ref_id),
+            commit=False,
+        )
+        reversal.reversed_of = entry.id
+        reversed_count += 1
+    if reversed_count and commit:
         db.session.commit()
-    return len(entries)
+    return reversed_count
 
 
 def account_balance(account, end_date=None, year_id=None):
-    """رصيد حساب بعد اعتبار نوعه (مدين/دائن) والرصيد الافتتاحي."""
     year_id = _clean_year(year_id)
     sums = db.session.query(
         db.func.coalesce(db.func.sum(JournalEntryLine.debit), 0),
         db.func.coalesce(db.func.sum(JournalEntryLine.credit), 0),
-    ).join(
-        JournalEntry, JournalEntryLine.entry_id == JournalEntry.id
-    ).filter(
-        JournalEntryLine.account_id == account.id,
-        JournalEntry.status == "posted",
+    ).join(JournalEntry, JournalEntryLine.entry_id == JournalEntry.id).filter(
+        JournalEntryLine.account_id == account.id, JournalEntry.status == "posted",
     )
     if end_date:
         sums = sums.filter(JournalEntry.date <= end_date)
@@ -280,14 +299,10 @@ def account_balance(account, end_date=None, year_id=None):
 
 
 def ledger(account_id, start_date=None, end_date=None, year_id=None):
-    """دفتر الأستاذ لحساب: سطور + رصيد تراكمي."""
     year_id = _clean_year(year_id)
     q = db.session.query(JournalEntryLine).join(
         JournalEntry, JournalEntryLine.entry_id == JournalEntry.id
-    ).filter(
-        JournalEntryLine.account_id == account_id,
-        JournalEntry.status == "posted",
-    )
+    ).filter(JournalEntryLine.account_id == account_id, JournalEntry.status == "posted")
     if start_date:
         q = q.filter(JournalEntry.date >= start_date)
     if end_date:
@@ -296,27 +311,21 @@ def ledger(account_id, start_date=None, end_date=None, year_id=None):
         q = q.filter(JournalEntry.financial_year_id == year_id)
     rows = q.order_by(JournalEntry.date.asc(), JournalEntry.id.asc()).all()
     out = []
-    running = d0(0)
     acc = db.session.get(Account, account_id)
-    opening = d0(acc.opening_balance) if acc else d0(0)
-    running = opening
+    running = d0(acc.opening_balance) if acc else d0(0)
     for line in rows:
-        running += d0(line.debit) - d0(line.credit) if (acc and acc.is_debit_normal) else d0(line.credit) - d0(line.debit)
+        running += (d0(line.debit) - d0(line.credit)) if (acc and acc.is_debit_normal) else (d0(line.credit) - d0(line.debit))
         out.append({
-            "id": line.id,
-            "date": line.entry.date.isoformat() if line.entry.date else None,
-            "entry_id": line.entry_id,
-            "entry_number": line.entry.entry_number if line.entry else None,
+            "id": line.id, "date": line.entry.date.isoformat() if line.entry.date else None,
+            "entry_id": line.entry_id, "entry_number": line.entry.entry_number if line.entry else None,
             "description": line.description or (line.entry.description if line.entry else ""),
-            "debit": float(line.debit or 0),
-            "credit": float(line.credit or 0),
+            "debit": float(line.debit or 0), "credit": float(line.credit or 0),
             "balance": float(running),
         })
     return out
 
 
 def trial_balance(year_id=None, end_date=None):
-    """ميزان المراجعة: كل الحسابات النشطة مع حركة وأرصدة."""
     year_id = _clean_year(year_id)
     rows = []
     total_dr = d0(0)
@@ -326,19 +335,17 @@ def trial_balance(year_id=None, end_date=None):
             db.func.coalesce(db.func.sum(JournalEntryLine.debit), 0),
             db.func.coalesce(db.func.sum(JournalEntryLine.credit), 0),
         ).join(JournalEntry, JournalEntryLine.entry_id == JournalEntry.id).filter(
-            JournalEntryLine.account_id == acc.id,
-            JournalEntry.status == "posted",
+            JournalEntryLine.account_id == acc.id, JournalEntry.status == "posted",
         )
         if end_date:
             q = q.filter(JournalEntry.date <= end_date)
         if year_id:
             q = q.filter(JournalEntry.financial_year_id == year_id)
         debit, credit = q.first()
-        debit = d0(debit)
-        credit = d0(credit)
-        if debit == 0 and credit == 0 and acc.opening_balance == 0:
-            continue
+        debit, credit = d0(debit), d0(credit)
         opening = d0(acc.opening_balance)
+        if debit == 0 and credit == 0 and opening == 0:
+            continue
         if acc.is_debit_normal:
             total_dr += opening + debit
             total_cr += credit
@@ -347,15 +354,9 @@ def trial_balance(year_id=None, end_date=None):
             total_dr += debit
             total_cr += opening + credit
             balance = opening + credit - debit
-        rows.append({
-            "code": acc.code,
-            "name": acc.name,
-            "type": acc.type,
-            "debit": float(debit),
-            "credit": float(credit),
-            "opening": float(opening),
-            "balance": float(balance),
-        })
+        rows.append({"code": acc.code, "name": acc.name, "type": acc.type,
+                     "debit": float(debit), "credit": float(credit),
+                     "opening": float(opening), "balance": float(balance)})
     return {"rows": rows, "total_debit": float(total_dr), "total_credit": float(total_cr)}
 
 
@@ -374,11 +375,8 @@ def _expense_balance(end_date=None, year_id=None):
 
 
 def income_statement(start_date=None, end_date=None, year_id=None):
-    """الأرباح والخسائر (بند لكل حساب إيراد/مصروف)."""
-    revenues = []
-    expenses = []
-    total_rev = d0(0)
-    total_exp = d0(0)
+    revenues, expenses = [], []
+    total_rev, total_exp = d0(0), d0(0)
     for acc in Account.query.filter_by(type="revenue").order_by(Account.code.asc()).all():
         bal = account_balance(acc, end_date, year_id)
         if bal != 0:
@@ -389,22 +387,14 @@ def income_statement(start_date=None, end_date=None, year_id=None):
         if bal != 0:
             expenses.append({"code": acc.code, "name": acc.name, "amount": bal})
             total_exp += d0(bal)
-    net = float(total_rev - total_exp)
-    return {
-        "revenues": revenues, "expenses": expenses,
-        "total_revenue": float(total_rev), "total_expense": float(total_exp),
-        "net_income": net,
-    }
+    return {"revenues": revenues, "expenses": expenses,
+            "total_revenue": float(total_rev), "total_expense": float(total_exp),
+            "net_income": float(total_rev - total_exp)}
 
 
 def balance_sheet(end_date=None, year_id=None):
-    """الميزانية العمومية: أصول = خصوم + حقوق ملكية."""
-    assets = []
-    liabilities = []
-    equity = []
-    total_assets = d0(0)
-    total_liab = d0(0)
-    total_eq = d0(0)
+    assets, liabilities, equity = [], [], []
+    total_assets, total_liab, total_eq = d0(0), d0(0), d0(0)
 
     def add_section(items, total, acc, bal):
         contribution = -d0(bal) if acc.is_contra else d0(bal)
@@ -429,21 +419,17 @@ def balance_sheet(end_date=None, year_id=None):
         equity.append({"code": "-", "name": "صافي النتيجة (الحالي)", "amount": float(net)})
     return {
         "assets": assets, "liabilities": liabilities, "equity": equity,
-        "total_assets": float(total_assets),
-        "total_liabilities": float(total_liab),
+        "total_assets": float(total_assets), "total_liabilities": float(total_liab),
         "total_equity": float(total_eq),
         "balanced": abs(total_assets - (total_liab + total_eq)) < 0.05,
     }
 
 
 def cash_flow(start_date=None, end_date=None, year_id=None):
-    """قائمة التدفقات النقدية (طريقة مباشرة مبسطة) من القيود المؤثرة على النقدية."""
     year_id = _clean_year(year_id)
     cash_account_ids = [a.id for a in Account.query.filter(
         (Account.is_cash == True) | (Account.is_bank == True)).all()]  # noqa: E712
-    q = db.session.query(JournalEntry).filter(
-        JournalEntry.status == "posted",
-    )
+    q = db.session.query(JournalEntry).filter(JournalEntry.status == "posted")
     if year_id:
         q = q.filter(JournalEntry.financial_year_id == year_id)
     entries = q.order_by(JournalEntry.date.asc()).all()
@@ -452,16 +438,10 @@ def cash_flow(start_date=None, end_date=None, year_id=None):
     if end_date:
         entries = [e for e in entries if e.date <= end_date]
 
-    op_in, op_out = d0(0), d0(0)
-    inv_in, inv_out = d0(0), d0(0)
-    fin_in, fin_out = d0(0), d0(0)
-
+    op_in = op_out = inv_in = inv_out = fin_in = fin_out = d0(0)
     recv_id = default_account_id("acc_default_receivable")
     pay_id = default_account_id("acc_default_payable")
-    op_counter_ids = {recv_id, pay_id,
-                      default_account_id("acc_default_tax_in"),
-                      default_account_id("acc_default_tax_out")}
-
+    op_counter_ids = {recv_id, pay_id, default_account_id("acc_default_tax_in"), default_account_id("acc_default_tax_out")}
     for e in entries:
         cash_lines = [l for l in e.lines if l.account_id in cash_account_ids]
         if not cash_lines:
@@ -475,43 +455,31 @@ def cash_flow(start_date=None, end_date=None, year_id=None):
                 break
         if kind is None:
             for l in others:
-                t = l.account.type if l.account else None
-                if t in ("revenue", "expense"):
+                if l.account.type in ("revenue", "expense") if l.account else False:
                     kind = "operating"
                     break
         if kind is None:
             for l in others:
                 t = l.account.type if l.account else None
                 if t in ("asset", "liability", "equity"):
-                    if t == "asset":
-                        kind = "investing"
-                    else:
-                        kind = "financing"
+                    kind = "investing" if t == "asset" else "financing"
                     break
-        if kind is None:
-            kind = "operating"
+        kind = kind or "operating"
         if net_cash > 0:
-            if kind == "investing":
-                inv_in += net_cash
-            elif kind == "financing":
-                fin_in += net_cash
-            else:
-                op_in += net_cash
+            if kind == "investing": inv_in += net_cash
+            elif kind == "financing": fin_in += net_cash
+            else: op_in += net_cash
         elif net_cash < 0:
             net_cash = abs(net_cash)
-            if kind == "investing":
-                inv_out += net_cash
-            elif kind == "financing":
-                fin_out += net_cash
-            else:
-                op_out += net_cash
+            if kind == "investing": inv_out += net_cash
+            elif kind == "financing": fin_out += net_cash
+            else: op_out += net_cash
 
     return {
         "operating_in": float(op_in), "operating_out": float(op_out),
         "investing_in": float(inv_in), "investing_out": float(inv_out),
         "financing_in": float(fin_in), "financing_out": float(fin_out),
-        "net_operating": float(op_in - op_out),
-        "net_investing": float(inv_in - inv_out),
+        "net_operating": float(op_in - op_out), "net_investing": float(inv_in - inv_out),
         "net_financing": float(fin_in - fin_out),
         "net_cash": float(op_in - op_out + inv_in - inv_out + fin_in - fin_out),
     }
@@ -523,7 +491,6 @@ def posting_enabled():
 
 
 def post_invoice_entries(invoice):
-    """ترحيل تلقائي للفواتير (مبيعات/مشتريات/مصروفات) بقيد متوازن."""
     if not posting_enabled():
         return None
     try:
@@ -535,22 +502,16 @@ def post_invoice_entries(invoice):
         tax_out = default_account_id("acc_default_tax_out")
         if not (dr_acc and cr_acc and rev_acc and exp_acc):
             return None
-
         delete_source_entries("invoice", "invoice", invoice.id, commit=False)
-
         items = invoice.items or []
         if items:
             subtotal = d0(sum(d0(i.quantity) * d0(i.unit_price) for i in items))
             tax = d0(sum(d0(i.quantity) * d0(i.unit_price) * d0(i.tax_rate) / 100 for i in items))
             total = subtotal + tax
         else:
-            total = d0(invoice.amount)
-            subtotal = total
-            tax = d0(0)
-
+            total = d0(invoice.amount); subtotal = total; tax = d0(0)
         date = invoice.issue_date or datetime.date.today()
         desc = f"{invoice.invoice_number} - {invoice.description or ''}".strip()
-        lines = []
         if invoice.invoice_type == "sales":
             lines = [
                 {"account_id": dr_acc, "debit": total, "credit": 0, "description": desc},
@@ -559,19 +520,16 @@ def post_invoice_entries(invoice):
             if tax > 0 and tax_out:
                 lines.append({"account_id": tax_out, "debit": 0, "credit": tax, "description": desc})
         elif invoice.invoice_type in ("purchase", "expense"):
-            lines = [
-                {"account_id": exp_acc, "debit": subtotal, "credit": 0, "description": desc},
-            ]
+            lines = [{"account_id": exp_acc, "debit": subtotal, "credit": 0, "description": desc}]
             if tax > 0 and tax_in:
                 lines.append({"account_id": tax_in, "debit": tax, "credit": 0, "description": desc})
             lines.append({"account_id": cr_acc, "debit": 0, "credit": total, "description": desc})
-        if not lines:
+        else:
             return None
         entry = make_entry(
             lines, date=date, description=f"فاتورة {invoice.invoice_number}",
             financial_year_id=invoice.financial_year_id,
-            source="invoice", ref_type="invoice", ref_id=invoice.id,
-            commit=False,
+            source="invoice", ref_type="invoice", ref_id=invoice.id, commit=False,
         )
         db.session.commit()
         return entry
@@ -582,10 +540,6 @@ def post_invoice_entries(invoice):
 
 def post_payment_entries(source, ref_type, ref_id, amount, date=None,
                          financial_year_id=None, is_receipt=True, description=""):
-    """ترحيل تلقائي للدفعات/التحصيلات: استلام (صندوق ← ذمم) أو دفع (ذمم ← صندوق).
-
-    إعادة الترحيل idempotent: يحذف القيود القديمة للمصدر ثم ينشئ قيد المبلغ الكامل.
-    """
     if not posting_enabled():
         return None
     amount = d0(amount)
@@ -600,24 +554,14 @@ def post_payment_entries(source, ref_type, ref_id, amount, date=None,
             return None
         delete_source_entries(source, ref_type, ref_id, commit=False)
         if is_receipt:
-            lines = [
-                {"account_id": cash, "debit": amount, "credit": 0},
-                {"account_id": receivable, "debit": 0, "credit": amount},
-            ]
-            text = f"تحصيل {description}".strip()
+            lines = [{"account_id": cash, "debit": amount, "credit": 0}, {"account_id": receivable, "debit": 0, "credit": amount}]
+            text_desc = f"تحصيل {description}".strip()
         else:
-            lines = [
-                {"account_id": payable, "debit": amount, "credit": 0},
-                {"account_id": cash, "debit": 0, "credit": amount},
-            ]
-            text = f"دفعة {description}".strip()
-        entry = make_entry(
-            lines, date=date or datetime.date.today(),
-            description=text,
-            financial_year_id=financial_year_id,
-            source=source, ref_type=ref_type, ref_id=ref_id,
-            commit=False,
-        )
+            lines = [{"account_id": payable, "debit": amount, "credit": 0}, {"account_id": cash, "debit": 0, "credit": amount}]
+            text_desc = f"دفعة {description}".strip()
+        entry = make_entry(lines, date=date or datetime.date.today(), description=text_desc,
+                           financial_year_id=financial_year_id, source=source,
+                           ref_type=ref_type, ref_id=ref_id, commit=False)
         db.session.commit()
         return entry
     except Exception:
@@ -626,7 +570,6 @@ def post_payment_entries(source, ref_type, ref_id, amount, date=None,
 
 
 def post_purchase_order_entries(po):
-    """ترحيل تلقائي لأمر الشراء عند الاعتماد (مصروف ← ذمم دائنة)."""
     if not posting_enabled():
         return None
     try:
@@ -642,20 +585,15 @@ def post_purchase_order_entries(po):
             tax = d0(sum(d0(i.quantity) * d0(i.unit_price) * d0(i.tax_rate) / 100 for i in items))
             total = subtotal + tax
         else:
-            total = d0(po.total)
-            subtotal = total
-            tax = d0(0)
+            total = d0(po.total); subtotal = total; tax = d0(0)
         date = po.order_date or datetime.date.today()
         lines = [{"account_id": exp_acc, "debit": subtotal, "credit": 0}]
         if tax > 0 and tax_in:
             lines.append({"account_id": tax_in, "debit": tax, "credit": 0})
         lines.append({"account_id": cr_acc, "debit": 0, "credit": total})
-        entry = make_entry(
-            lines, date=date, description=f"أمر شراء {po.po_number}",
-            financial_year_id=po.financial_year_id,
-            source="po", ref_type="po", ref_id=po.id,
-            commit=False,
-        )
+        entry = make_entry(lines, date=date, description=f"أمر شراء {po.po_number}",
+                           financial_year_id=po.financial_year_id, source="po", ref_type="po",
+                           ref_id=po.id, commit=False)
         db.session.commit()
         return entry
     except Exception:
@@ -664,7 +602,6 @@ def post_purchase_order_entries(po):
 
 
 def post_contract_entries(contract):
-    """ترحيل تلقائي لعقد الإيجار عند الاعتماد (ذمم مدينة ← إيراد قيمة العقد)."""
     if not posting_enabled():
         return None
     try:
@@ -682,16 +619,13 @@ def post_contract_entries(contract):
         total = monthly * months
         if total <= 0:
             return None
-        date = contract.start_date or datetime.date.today()
         entry = make_entry(
-            [
-                {"account_id": dr_acc, "debit": total, "credit": 0},
-                {"account_id": rev_acc, "debit": 0, "credit": total},
-            ],
-            date=date, description=f"عقد إيجار {contract.contract_number}",
-            financial_year_id=contract.financial_year_id,
-            source="contract", ref_type="rental_contract", ref_id=contract.id,
-            commit=False,
+            [{"account_id": dr_acc, "debit": total, "credit": 0},
+             {"account_id": rev_acc, "debit": 0, "credit": total}],
+            date=contract.start_date or datetime.date.today(),
+            description=f"عقد إيجار {contract.contract_number}",
+            financial_year_id=contract.financial_year_id, source="contract",
+            ref_type="rental_contract", ref_id=contract.id, commit=False,
         )
         db.session.commit()
         return entry
@@ -701,21 +635,18 @@ def post_contract_entries(contract):
 
 
 def reverse_entry(entry, description="إلغاء قيد"):
-    """عكس قيد مرتّب بقيد معاكس."""
-    lines = []
-    for l in entry.lines:
-        lines.append({
-            "account_id": l.account_id,
-            "cost_center_id": l.cost_center_id,
-            "debit": d0(l.credit),
-            "credit": d0(l.debit),
-            "description": description,
-        })
-    new = make_entry(
-        lines, date=datetime.date.today(), description=description,
-        financial_year_id=entry.financial_year_id,
-        source="manual", ref_type=None, ref_id=None, commit=False,
-    )
+    if entry.status != "posted":
+        raise ValueError("accounting.entryNotPosted")
+    existing = JournalEntry.query.filter_by(reversed_of=entry.id).first()
+    if existing:
+        return existing
+    lines = [{
+        "account_id": l.account_id, "cost_center_id": l.cost_center_id,
+        "debit": d0(l.credit), "credit": d0(l.debit), "description": description,
+    } for l in entry.lines]
+    new = make_entry(lines, date=datetime.date.today(), description=description,
+                     financial_year_id=entry.financial_year_id, source="reversal",
+                     ref_type="journal_entry", ref_id=entry.id, commit=False)
     new.reversed_of = entry.id
     db.session.commit()
     return new

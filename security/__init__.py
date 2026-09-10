@@ -45,9 +45,13 @@ from security.two_factor import (  # noqa: F401
     verify_recovery_code,
 )
 
+# Import for its process-wide Flask request-finished hook. This is intentionally
+# after the security models/helpers so package initialization remains acyclic.
+from security import csrf_transport as _csrf_transport  # noqa: F401,E402
+
 __all__ = [
     "MasterRole", "MasterPermission", "MasterSession", "MasterTwoFactor",
-    "MasterAuditLog",
+    "MasterAuditLog", "ModuleCatalog", "CompanyModule",
     "has_permission", "permitted", "permission_required",
     "seed_roles_and_permissions", "user_permissions",
     "decode_token", "issue_token_pair", "refresh_access_token",

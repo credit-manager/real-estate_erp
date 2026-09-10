@@ -1,32 +1,53 @@
 #!/bin/sh
-# ─────────────────────────────────────────────────────────────
-# DynamicPro ERP — Database Backup Script
-# Runs as a cron container. Backs up daily, keeps last N days.
-# ─────────────────────────────────────────────────────────────
-set -e
+# DynamicPro ERP — verified periodic PostgreSQL backup worker.
+set -eu
 
 BACKUP_DIR="/backups"
-DATE=$(date +%Y-%m-%d_%H%M)
-BACKUP_FILE="${BACKUP_DIR}/dp_${DB_NAME}_${DATE}.sql.gz"
-
-echo "[BACKUP] Starting backup: ${DATE}"
+BACKUP_INTERVAL_SECONDS="${BACKUP_INTERVAL_SECONDS:-86400}"
+BACKUP_RETENTION="${BACKUP_RETENTION:-30}"
 
 mkdir -p "${BACKUP_DIR}"
 
-# Dump and compress
-pg_dump -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" \
-    --no-owner --no-privileges --clean --if-exists \
-    | gzip > "${BACKUP_FILE}"
+while :; do
+    DATE=$(date +%Y-%m-%d_%H%M%S)
+    BACKUP_FILE="${BACKUP_DIR}/dp_${DB_NAME}_${DATE}.sql.gz"
+    TMP_FILE="${BACKUP_FILE}.tmp"
 
-FILESIZE=$(stat -c%s "${BACKUP_FILE}" 2>/dev/null || stat -f%z "${BACKUP_FILE}")
-echo "[BACKUP] Created: ${BACKUP_FILE} (${FILESIZE} bytes)"
+    echo "[BACKUP] Starting backup: ${DATE}"
+    rm -f "${TMP_FILE}"
 
-# Delete backups older than RETENTION days
-echo "[BACKUP] Cleaning backups older than ${BACKUP_RETENTION} days..."
-find "${BACKUP_DIR}" -name "dp_*.sql.gz" -mtime "+${BACKUP_RETENTION}" -delete 2>/dev/null || true
+    if pg_dump -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" \
+        --no-owner --no-privileges --clean --if-exists \
+        | gzip > "${TMP_FILE}"; then
+        :
+    else
+        echo "[BACKUP] pg_dump failed" >&2
+        rm -f "${TMP_FILE}"
+        sleep "${BACKUP_INTERVAL_SECONDS}"
+        continue
+    fi
 
-# List remaining backups
-REMAINING=$(ls -1 "${BACKUP_DIR}"/dp_*.sql.gz 2>/dev/null | wc -l)
-echo "[BACKUP] ${REMAINING} backups remaining"
+    FILESIZE=$(stat -c%s "${TMP_FILE}" 2>/dev/null || stat -f%z "${TMP_FILE}")
+    if [ "${FILESIZE}" -lt 128 ]; then
+        echo "[BACKUP] Refusing suspiciously small backup (${FILESIZE} bytes)" >&2
+        rm -f "${TMP_FILE}"
+        sleep "${BACKUP_INTERVAL_SECONDS}"
+        continue
+    fi
 
-echo "[BACKUP] Done."
+    if ! gzip -t "${TMP_FILE}"; then
+        echo "[BACKUP] gzip integrity verification failed" >&2
+        rm -f "${TMP_FILE}"
+        sleep "${BACKUP_INTERVAL_SECONDS}"
+        continue
+    fi
+
+    mv -f "${TMP_FILE}" "${BACKUP_FILE}"
+    echo "[BACKUP] Created and verified: ${BACKUP_FILE} (${FILESIZE} bytes)"
+
+    find "${BACKUP_DIR}" -name "dp_*.sql.gz" -mtime "+${BACKUP_RETENTION}" -delete 2>/dev/null || true
+    REMAINING=$(find "${BACKUP_DIR}" -maxdepth 1 -type f -name "dp_*.sql.gz" | wc -l)
+    echo "[BACKUP] ${REMAINING} backups remaining"
+    echo "[BACKUP] Sleeping ${BACKUP_INTERVAL_SECONDS}s before next run."
+    sleep "${BACKUP_INTERVAL_SECONDS}"
+done

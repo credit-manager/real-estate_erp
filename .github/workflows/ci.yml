@@ -39,11 +39,46 @@ jobs:
         run: python -m pip install -r requirements-production.txt
       - name: Install quality tools
         run: python -m pip install ruff pip-audit
-      - name: Lint production entrypoints
+      - name: Verify application source integrity
+        shell: bash
         run: |
-          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py --select E,F,W --ignore E501,E302,E303,F401,F811,E401
+          test "$(wc -c < app.py)" -gt 10000
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          source = Path("app.py").read_text(encoding="utf-8")
+          ast.parse(source, filename="app.py")
+          forbidden = ('generate_password_hash("admin123")', 'password_hash=generate_password_hash("admin123")')
+          assert not any(marker in source for marker in forbidden), "legacy bootstrap credential found in app.py"
+          required = ("def create_app", "@app.route(\"/health\")", "@app.route(\"/ready\")")
+          for marker in required:
+              assert marker in source, f"missing required application marker: {marker}"
+          print(f"app.py integrity OK: {len(source)} bytes")
+          PY
+      - name: Verify production architecture guards
+        shell: bash
+        run: |
+          test -d migrations/versions
+          test -n "$(find migrations/versions -maxdepth 1 -name '*.py' -not -name '__init__.py' -print -quit)"
+          python - <<'PY'
+          from pathlib import Path
+          api = Path("frontend/src/lib/api.ts").read_text(encoding="utf-8")
+          auth = Path("frontend/src/contexts/AuthContext.tsx").read_text(encoding="utf-8")
+          nginx = Path("deployment/nginx/nginx.conf").read_text(encoding="utf-8")
+          docker = Path("Dockerfile").read_text(encoding="utf-8")
+          combined = api + auth
+          forbidden_browser_tokens = ("localStorage.getItem(\"access_token\")", "localStorage.setItem(\"access_token\")", "localStorage.setItem(\"refresh_token\")", "sessionStorage.setItem(\"access_token\")")
+          assert not any(marker in combined for marker in forbidden_browser_tokens), "browser JWT persistence detected"
+          assert "withCredentials: true" in api and "X-CSRF-Token" in api, "session CSRF transport is missing"
+          assert "location = /health" in nginx and "proxy_pass http://backend/health" in nginx, "nginx health is not backend-aware"
+          assert "USER dynamicpro" in docker, "container must run as non-root dynamicpro user"
+          print("production architecture guards OK")
+          PY
+      - name: Lint production entrypoints and authentication
+        run: |
+          ruff check app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions --select E,F,W --ignore E501,E302,E303,F401,F811,E401
       - name: Compile check
-        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py
+        run: python -m py_compile app.py desktop.py config.py server_config.py desktop_sqlite_compat.py installer.py webview2_runtime.py routes/auth.py migrations/env.py migrations/versions/*.py
       - name: Dependency vulnerability audit
         run: |
           pip-audit -r requirements.txt --progress-spinner off
@@ -59,6 +94,56 @@ jobs:
           SECRET_KEY: test-application-secret-key-for-ci
           DYNAMICPRO_ENV: test
         run: pytest -q --disable-warnings --maxfail=1
+      - name: Migration revision contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          revisions = []
+          for path in sorted(Path("migrations/versions").glob("*.py")):
+              tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+              values = {}
+              for node in tree.body:
+                  if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and node.targets[0].id in {"revision", "down_revision"}:
+                      try:
+                          values[node.targets[0].id] = ast.literal_eval(node.value)
+                      except Exception:
+                          pass
+              if "revision" in values:
+                  revisions.append((path.name, values.get("revision"), values.get("down_revision")))
+          assert revisions, "no Alembic revisions found"
+          ids = [r[1] for r in revisions]
+          assert len(ids) == len(set(ids)), "duplicate Alembic revision identifiers"
+          roots = [r for r in revisions if r[2] is None]
+          assert len(roots) == 1, f"expected one Alembic root revision, found {roots}"
+          print("Alembic revision contract OK:", revisions)
+          PY
+      - name: Clean database migration smoke test
+        env:
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: test_db
+          JWT_SECRET_KEY: test-secret-key-for-ci
+          SECRET_KEY: test-application-secret-key-for-ci
+          DYNAMICPRO_ENV: test
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+          conn = psycopg2.connect(
+              host=os.environ["DB_HOST"], port=int(os.environ["DB_PORT"]),
+              user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"],
+              dbname=os.environ["DB_NAME"],
+          )
+          conn.autocommit = True
+          with conn.cursor() as cur:
+              cur.execute("DROP SCHEMA public CASCADE")
+              cur.execute("CREATE SCHEMA public")
+          conn.close()
+          PY
+          alembic upgrade head
       - name: Application smoke test
         env:
           DB_USER: test_user
@@ -75,9 +160,10 @@ jobs:
           app = create_app()
           print('APP CREATED OK')
           client = app.test_client()
-          r = client.get('/health')
-          print('HEALTH:', r.status_code, r.get_json())
-          assert r.status_code == 200
+          for path in ('/health', '/ready'):
+              r = client.get(path)
+              print(path.upper() + ':', r.status_code, r.get_json())
+              assert r.status_code == 200
           print('ALL SMOKE TESTS PASS')
           "
 
@@ -218,3 +304,9 @@ jobs:
         run: docker build -t dp-app:latest .
       - name: Build frontend image
         run: docker build -t dp-frontend:latest ./frontend
+      - name: Verify backend image runs as non-root
+        run: |
+          test "$(docker inspect -f '{{.Config.User}}' dp-app:latest)" = "dynamicpro"
+      - name: Verify frontend image
+        run: |
+          test -n "$(docker inspect -f '{{.Id}}' dp-frontend:latest)"

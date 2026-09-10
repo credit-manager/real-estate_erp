@@ -269,61 +269,38 @@ def _run_migrations_and_seeds(app, db):
         db.session.commit()
 
     if not User.query.filter_by(username="admin").first():
-        admin = User(
-            username="admin", email="admin@mokawlat.com", full_name="مدير النظام",
-            role="admin", password_hash=generate_password_hash("admin123"), must_change_password=True,
-        )
-        db.session.add(admin)
-        db.session.commit()
+        from runtime_hardening import secure_bootstrap_admin
+        bootstrap_password = secure_bootstrap_admin(generate_random=getattr(config, "IS_FROZEN", False))
+        if bootstrap_password is None:
+            if getattr(config, "IS_PRODUCTION", False):
+                raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
+        else:
+            admin = User(
+                username="admin", email="admin@mokawlat.com", full_name="مدير النظام",
+                role="admin", password_hash=generate_password_hash(bootstrap_password), must_change_password=True,
+            )
+            db.session.add(admin)
+            db.session.commit()
 
     # Seed master admin for licensing panel (desktop mode)
     from licensing.models import LicMasterUser
     if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():
-        from config import IS_PRODUCTION
-        _master_pw = "admin123"
-        _must_change = True
-        if IS_PRODUCTION:
-            # In production never seed a known password: use bootstrap env or random
-            import secrets as _secrets
-            _env_pw = os.environ.get("DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-            if _env_pw:
-                from utils.passwords import validate_password as _vp
-                _ok, _msg = _vp(_env_pw)
-                if not _ok or len(_env_pw) < 14:
-                    raise RuntimeError(
-                        "DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD must be >=14 chars with letters+digits."
-                    )
-                _master_pw = _env_pw
-            else:
-                _master_pw = _secrets.token_urlsafe(18)
-                try:
-                    from pathlib import Path as _Path
-                    from config import USER_DATA_DIR as _UDD
-                    _cred = _Path(_UDD) / "FIRST_RUN_MASTER.txt"
-                    if not _cred.exists():
-                        _cred.write_text(
-                            "Dynamic Pro ERP first-run master admin\n"
-                            "email=admin@mokawlat.com\n"
-                            f"password={_master_pw}\n"
-                            "change this password immediately after first login\n",
-                            encoding="utf-8",
-                        )
-                        try:
-                            os.chmod(_cred, 0o600)
-                        except OSError:
-                            pass
-                except OSError:
-                    pass
-        master = LicMasterUser(
-            email="admin@mokawlat.com",
-            password_hash=generate_password_hash(_master_pw),
-            full_name="Super Admin",
-            role="super_admin",
-            is_active=True,
-            must_change_password=_must_change,
-        )
-        db.session.add(master)
-        db.session.commit()
+        from runtime_hardening import secure_bootstrap_admin
+        bootstrap_password = secure_bootstrap_admin(generate_random=getattr(config, "IS_FROZEN", False))
+        if bootstrap_password is None:
+            if getattr(config, "IS_PRODUCTION", False):
+                raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
+        else:
+            master = LicMasterUser(
+                email="admin@mokawlat.com",
+                password_hash=generate_password_hash(bootstrap_password),
+                full_name="Super Admin",
+                role="super_admin",
+                is_active=True,
+                must_change_password=True,
+            )
+            db.session.add(master)
+            db.session.commit()
 
     if not is_sqlite:
         from db_indexes import ensure_indexes
@@ -436,11 +413,14 @@ def create_app():
     # تهيئة Rate Limiting
     from flask_limiter import Limiter
     from flask_limiter.util import get_remote_address
+    _rate_storage = getattr(config, "RATELIMIT_STORAGE_URI", "") or "memory://"
+    if getattr(config, "IS_PRODUCTION", False) and _rate_storage == "memory://":
+        raise RuntimeError("Distributed production rate limiting requires Redis storage.")
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per minute", "50 per second"],
-        storage_uri="memory://",
+        storage_uri=_rate_storage,
         strategy="fixed-window",
         key_prefix="rl:"
     )
@@ -601,17 +581,23 @@ def create_app():
 
     @app.route("/health")
     def health():
-        """Health check endpoint for Docker / Nginx."""
+        """Liveness/health endpoint with a real database probe."""
         from sqlalchemy import text
         try:
             db.session.execute(text("SELECT 1"))
-            db_ok = True
         except Exception:
-            db_ok = False
-        return jsonify({
-            "status": "healthy" if db_ok else "degraded",
-            "database": "connected" if db_ok else "disconnected",
-        }), 200 if db_ok else 503
+            return jsonify({"status": "unhealthy", "database": "disconnected"}), 503
+        return jsonify({"status": "healthy", "database": "connected"}), 200
+
+    @app.route("/ready")
+    def ready():
+        """Readiness endpoint: the process is ready only when the database is reachable."""
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:
+            return jsonify({"ready": False}), 503
+        return jsonify({"ready": True}), 200
 
     @app.route("/api/version")
     def version():
@@ -746,7 +732,11 @@ def create_app():
                         return jsonify({"success": False, "message": "Subscription expired"}), 403
                     return redirect(url_for("auth.login"))
             except Exception:
-                pass
+                from utils.errlog import log_exc
+                log_exc("app.enforce-company-license")
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "Subscription validation unavailable"}), 503
+                return redirect(url_for("auth.login"))
             return
         try:
             is_valid, err = validate_license()
@@ -757,6 +747,9 @@ def create_app():
         except Exception:
             from utils.errlog import log_exc
             log_exc("app.enforce-license")
+            if _is_api_path():
+                return jsonify({"success": False, "message": "License validation unavailable"}), 503
+            return redirect(url_for("auth.login"))
 
     @app.before_request
     def enforce_password_change():
@@ -779,7 +772,10 @@ def create_app():
                             return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
                         return redirect(url_for("pages.change_password"))
             except Exception:
-                pass
+                current_app.logger.error("Password-change enforcement failed closed", exc_info=True)
+                if request.path.startswith("/api/"):
+                    return jsonify({"success": False, "message": "تعذر التحقق من حالة كلمة المرور", "code": "password_guard_unavailable"}), 503
+                return _error_html("503", "تعذر التحقق من حالة كلمة المرور"), 503
 
     return app
 

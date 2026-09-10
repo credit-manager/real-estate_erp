@@ -7,7 +7,7 @@ import time
 from datetime import datetime, date
 from decimal import Decimal
 from flask import Blueprint, request, jsonify, Response
-from sqlalchemy import Date, DateTime
+from sqlalchemy import Date, DateTime, Numeric, text
 from database import db
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -154,7 +154,8 @@ def _dump():
                 if isinstance(val, (datetime, date)):
                     val = val.isoformat()
                 elif isinstance(val, Decimal):
-                    val = float(val)
+                    # Preserve exact financial precision; JSON restores it as Decimal.
+                    val = format(val, "f")
                 row[col.name] = val
             rows.append(row)
         out[key] = rows
@@ -232,42 +233,46 @@ def _decrypt_payload(container, password):
 
 
 def _restore(data):
-    for key, model in _TABLES:
-        db.session.query(model).delete()
-    db.session.commit()
-
-    for key, model in reversed(_TABLES):
-        for row in _sorted_rows(model, data.get(key, [])):
-            obj = model()
-            for col in model.__table__.columns:
-                name = col.name
-                if name not in row or row[name] is None:
-                    continue
-                val = row[name]
-                if isinstance(col.type, DateTime):
-                    val = datetime.fromisoformat(val)
-                elif isinstance(col.type, Date):
-                    val = date.fromisoformat(val)
-                setattr(obj, name, val)
-            db.session.add(obj)
-        db.session.commit()
-
-    # إعادة تعيين تسلسل المعرفات (PostgreSQL sequences)
+    """Restore the complete dataset in one transaction."""
     try:
-        for key, model in _TABLES:
-            pk = model.__table__.primary_key.columns.keys()[0]
-            max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()
-            if max_id:
-                seq_name = f"{model.__tablename__}_{pk}_seq"
-                db.session.execute(
-                    db.text(
-                        "SELECT setval(:seq, :n, true)"
-                    ),
-                    {"seq": seq_name, "n": int(max_id)},
-                )
+        for _, model in _TABLES:
+            db.session.query(model).delete()
+
+        for key, model in reversed(_TABLES):
+            for row in _sorted_rows(model, data.get(key, [])):
+                obj = model()
+                for col in model.__table__.columns:
+                    name = col.name
+                    if name not in row or row[name] is None:
+                        continue
+                    val = row[name]
+                    if isinstance(col.type, DateTime):
+                        val = datetime.fromisoformat(val)
+                    elif isinstance(col.type, Date):
+                        val = date.fromisoformat(val)
+                    elif isinstance(col.type, Numeric):
+                        val = Decimal(str(val))
+                    setattr(obj, name, val)
+                db.session.add(obj)
+
+        # Re-align PostgreSQL sequences after explicit primary-key restoration.
+        if db.engine.dialect.name == "postgresql":
+            for _, model in _TABLES:
+                pk_columns = list(model.__table__.primary_key.columns)
+                if not pk_columns:
+                    continue
+                pk = pk_columns[0].name
+                max_id = db.session.query(db.func.max(getattr(model, pk))).scalar()
+                if max_id:
+                    seq_name = f"{model.__tablename__}_{pk}_seq"
+                    db.session.execute(
+                        text("SELECT setval(:seq, :n, true)"),
+                        {"seq": seq_name, "n": int(max_id)},
+                    )
         db.session.commit()
     except Exception:
         db.session.rollback()
+        raise
 
 
 @backup_bp.route("/export")

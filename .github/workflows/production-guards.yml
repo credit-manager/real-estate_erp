@@ -1,0 +1,93 @@
+name: Production Guards
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  security-and-release-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Block committed secrets and legacy credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          tracked="$(git ls-files)"
+          if printf '%s\n' "$tracked" | grep -Eiq '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)$'; then
+            echo "Potential secret-bearing file is tracked by git:" >&2
+            printf '%s\n' "$tracked" | grep -Ei '(^|/)(\.env|\.env\..*|.*\.pem|.*\.key)$' >&2
+            exit 1
+          fi
+          if git grep -nEi 'generate_password_hash\(["'"']admin123["'"']\)|password_hash\s*=\s*["'"']admin123["'"']|DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD\s*=\s*["'"'][^"'"']+["'"']' -- . ':(exclude)production-guards.yml'; then
+            echo "Legacy/default credential or hard-coded bootstrap password detected." >&2
+            exit 1
+          fi
+          if git grep -nEi '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9]{20,})' -- .; then
+            echo "Potential private key or credential material detected." >&2
+            exit 1
+          fi
+
+      - name: Verify browser session security contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'withCredentials: true' frontend/src/lib/api.ts
+          grep -F 'X-CSRF-Token' frontend/src/lib/api.ts
+          ! grep -R -nE 'localStorage\.(getItem|setItem)\(["'"'](access_token|refresh_token)' frontend/src
+          ! grep -R -nE 'sessionStorage\.setItem\(["'"'](access_token|refresh_token)' frontend/src
+
+      - name: Verify production container hardening contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'USER dynamicpro' Dockerfile
+          for service in postgres redis app frontend nginx backup; do
+            grep -A35 "^  ${service}:" docker-compose.yml | grep -F 'no-new-privileges:true'
+          done
+
+      - name: Verify migration and frontend source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d migrations/versions
+          test -f migrations/env.py
+          test -f migrations/versions/0008_seal_cancelled_journals.py
+          test -f frontend/package-lock.json
+          test -f frontend/next.config.js || test -f frontend/next.config.ts || test -f frontend/next.config.mjs
+          test -d frontend/src
+          ! test -d frontend/node_modules
+
+      - name: Verify financial journal immutability contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "status IN ('posted', 'draft', 'cancelled')" models/accounting.py
+          grep -F "Journal entries are never physically deleted" migrations/versions/0007_harden_journal_delete_guards.py
+          grep -F "Cancelled journal entries are immutable" migrations/versions/0008_seal_cancelled_journals.py
+
+      - name: Verify mobile geolocation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -F 'geolocation=()' deployment/nginx/nginx.conf
+          grep -F 'geolocation=(self)' deployment/nginx/nginx.conf
+
+      - name: Verify production schema discipline
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'alembic upgrade head' deployment/deploy.sh
+          grep -F 'DYNAMICPRO_ENV: production' docker-compose.yml
+          grep -F 'migrations before starting' deployment/deploy.sh || true
+
+      - name: Python syntax smoke
+        run: python -m compileall -q app.py config.py runtime_hardening.py licensing security routes migrations

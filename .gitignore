@@ -8,6 +8,7 @@ venv/
 env/
 
 # Secrets — لا ترفع المفاتيح أو الشهادات أبداً
+audit.secret
 .secret_key
 .secret_key_*
 .db_password
@@ -22,6 +23,8 @@ certs/
 # مثيل قاعدة البيانات المحلية ومجلدات التشغيل
 instance/
 logs/
+%APPDATA%/
+Dynamic Pro ERP/
 
 # سجلات التشغيل
 *.log

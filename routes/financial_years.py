@@ -1,7 +1,10 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from database import db
-from models import FinancialYear, Company, Invoice, PurchaseOrder, RentalContract, PaymentPlan
+from models import (
+    FinancialYear, Company, Invoice, PurchaseOrder, RentalContract,
+    PaymentPlan, JournalEntry,
+)
 from permissions import require_api
 from auditlog import log_action
 
@@ -23,6 +26,7 @@ def _summary(year):
         "orders": PurchaseOrder.query.filter_by(financial_year_id=year.id).count(),
         "contracts": RentalContract.query.filter_by(financial_year_id=year.id).count(),
         "plans": PaymentPlan.query.filter_by(financial_year_id=year.id).count(),
+        "journal_entries": JournalEntry.query.filter_by(financial_year_id=year.id, deleted_at=None).count(),
     }
 
 
@@ -32,20 +36,39 @@ def _year_dict(year):
     return data
 
 
-def _validate(data, partial=False):
+def _validate(data, partial=False, existing=None):
+    company_id = data.get("company_id") if "company_id" in data else (existing.company_id if existing else None)
+    name = (data.get("name") if "name" in data else (existing.name if existing else "")) or ""
+    start = _parse_date(data.get("start_date")) if "start_date" in data else (existing.start_date if existing else None)
+    end = _parse_date(data.get("end_date")) if "end_date" in data else (existing.end_date if existing else None)
+
     if not partial or "company_id" in data:
-        company = db.session.get(Company, data.get("company_id"))
+        company = db.session.get(Company, company_id)
         if not company:
             return "financialYears.companyRequired"
     if not partial or "name" in data:
-        if not (data.get("name") or "").strip():
+        if not str(name).strip():
             return "financialYears.nameRequired"
     if not partial or "start_date" in data:
-        if not _parse_date(data.get("start_date")):
+        if not start:
             return "financialYears.datesRequired"
     if not partial or "end_date" in data:
-        if not _parse_date(data.get("end_date")):
+        if not end:
             return "financialYears.datesRequired"
+    if start and end and end <= start:
+        return "financialYears.invalidDateRange"
+
+    if start and end and company_id:
+        query = FinancialYear.query.filter(
+            FinancialYear.company_id == company_id,
+            FinancialYear.start_date <= end,
+            FinancialYear.end_date >= start,
+        )
+        if existing is not None:
+            query = query.filter(FinancialYear.id != existing.id)
+        if query.first() is not None:
+            return "financialYears.overlap"
+
     return None
 
 
@@ -78,22 +101,25 @@ def create_year():
     err = _validate(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
-    dup = FinancialYear.query.filter_by(
-        company_id=data["company_id"], name=data["name"].strip()).first()
+    normalized_name = str(data["name"]).strip()
+    dup = FinancialYear.query.filter_by(company_id=data["company_id"], name=normalized_name).first()
     if dup:
         return jsonify({"message": "financialYears.duplicate", "error_key": "financialYears.duplicate"}), 400
     year = FinancialYear(
-        company_id=data["company_id"],
-        name=data["name"].strip(),
-        start_date=_parse_date(data.get("start_date")),
-        end_date=_parse_date(data.get("end_date")),
-        is_active=bool(data.get("is_active", False)),
-        is_closed=bool(data.get("is_closed", False)),
+        company_id=data["company_id"], name=normalized_name,
+        start_date=_parse_date(data.get("start_date")), end_date=_parse_date(data.get("end_date")),
+        is_active=bool(data.get("is_active", False)), is_closed=bool(data.get("is_closed", False)),
     )
+    if year.is_active and year.is_closed:
+        return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
     if year.is_active:
         _clear_active(year.company_id)
     db.session.add(year)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"message": "financialYears.saveFailed", "error_key": "financialYears.saveFailed"}), 409
     log_action("create", "financial_year", year.id, f"سنة مالية: {year.name}")
     return jsonify({"success": True, "year": _year_dict(year)}), 201
 
@@ -101,28 +127,44 @@ def create_year():
 @financial_years_bp.route("/<int:year_id>", methods=["PUT"])
 @require_api("financial_years", "edit")
 def update_year(year_id):
-    year = FinancialYear.query.get_or_404(year_id)
+    year = db.session.get(FinancialYear, year_id)
+    if not year:
+        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
     data = request.get_json(silent=True) or {}
-    err = _validate(data, partial=True)
+    err = _validate(data, partial=True, existing=year)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
+
+    target_company_id = data.get("company_id", year.company_id)
+    target_start = _parse_date(data["start_date"]) if "start_date" in data else year.start_date
+    target_end = _parse_date(data["end_date"]) if "end_date" in data else year.end_date
+    target_closed = bool(data.get("is_closed")) if "is_closed" in data else bool(year.is_closed)
+    target_active = bool(data.get("is_active")) if "is_active" in data else bool(year.is_active)
+    target_name = str(data["name"]).strip() if "name" in data else year.name
+
+    if target_active and target_closed:
+        return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
+    if year.is_closed and (
+        target_company_id != year.company_id or target_start != year.start_date
+        or target_end != year.end_date or target_name != year.name
+    ):
+        return jsonify({"message": "financialYears.closedImmutable", "error_key": "financialYears.closedImmutable"}), 409
+
     if "company_id" in data:
-        company = db.session.get(Company, data["company_id"])
-        if not company:
-            return jsonify({"message": "financialYears.companyRequired", "error_key": "financialYears.companyRequired"}), 400
-        year.company_id = data["company_id"]
+        year.company_id = target_company_id
     if "name" in data:
-        year.name = data["name"].strip()
+        year.name = target_name
     if "start_date" in data:
-        year.start_date = _parse_date(data["start_date"])
+        year.start_date = target_start
     if "end_date" in data:
-        year.end_date = _parse_date(data["end_date"])
+        year.end_date = target_end
     if "is_active" in data:
-        year.is_active = bool(data["is_active"])
+        year.is_active = target_active
         if year.is_active:
             _clear_active(year.company_id, exclude=year.id)
     if "is_closed" in data:
-        year.is_closed = bool(data["is_closed"])
+        year.is_closed = target_closed
+
     db.session.commit()
     log_action("update", "financial_year", year.id, f"سنة مالية: {year.name}")
     return jsonify({"success": True, "year": _year_dict(year)})
@@ -131,10 +173,22 @@ def update_year(year_id):
 @financial_years_bp.route("/<int:year_id>", methods=["DELETE"])
 @require_api("financial_years", "delete")
 def delete_year(year_id):
-    year = FinancialYear.query.get_or_404(year_id)
+    year = db.session.get(FinancialYear, year_id)
+    if not year:
+        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+    summary = _summary(year)
+    if any(summary.values()):
+        return jsonify({
+            "message": "financialYears.hasTransactions", "error_key": "financialYears.hasTransactions",
+            "summary": summary,
+        }), 409
     name = year.name
     db.session.delete(year)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"message": "financialYears.deleteFailed", "error_key": "financialYears.deleteFailed"}), 409
     log_action("delete", "financial_year", year_id, f"سنة مالية: {name}")
     return jsonify({"success": True})
 
@@ -142,8 +196,11 @@ def delete_year(year_id):
 @financial_years_bp.route("/<int:year_id>/close", methods=["POST"])
 @require_api("financial_years", "edit")
 def close_year(year_id):
-    year = FinancialYear.query.get_or_404(year_id)
+    year = db.session.get(FinancialYear, year_id)
+    if not year:
+        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
     year.is_closed = True
+    year.is_active = False
     db.session.commit()
     log_action("update", "financial_year", year.id, f"إقفال سنة مالية: {year.name}")
     return jsonify({"success": True, "year": _year_dict(year)})
@@ -152,7 +209,9 @@ def close_year(year_id):
 @financial_years_bp.route("/<int:year_id>/open", methods=["POST"])
 @require_api("financial_years", "edit")
 def open_year(year_id):
-    year = FinancialYear.query.get_or_404(year_id)
+    year = db.session.get(FinancialYear, year_id)
+    if not year:
+        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
     year.is_closed = False
     db.session.commit()
     log_action("update", "financial_year", year.id, f"إعادة فتح سنة مالية: {year.name}")
@@ -162,7 +221,9 @@ def open_year(year_id):
 @financial_years_bp.route("/<int:year_id>/activate", methods=["POST"])
 @require_api("financial_years", "edit")
 def activate_year(year_id):
-    year = FinancialYear.query.get_or_404(year_id)
+    year = db.session.get(FinancialYear, year_id)
+    if not year:
+        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
     _clear_active(year.company_id)
     year.is_active = True
     year.is_closed = False
@@ -172,9 +233,10 @@ def activate_year(year_id):
 
 
 def _clear_active(company_id, exclude=None):
-    for y in FinancialYear.query.filter_by(company_id=company_id, is_active=True).all():
-        if exclude and y.id == exclude:
-            continue
+    q = FinancialYear.query.filter_by(company_id=company_id, is_active=True)
+    if exclude:
+        q = q.filter(FinancialYear.id != exclude)
+    for y in q.all():
         y.is_active = False
 
 

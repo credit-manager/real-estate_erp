@@ -1,36 +1,39 @@
 # Dynamic Pro ERP — نظام الإدارة المتكامل
 
-نظام ERP متكامل للعقارات والمقاولات وإدارة الشركات: محاسبة، مخازن، موظفون، أصول، مبيعات، مشتريات، تأجير، تصنيع، CRM، واجهة موبايل (PWA) وتقارير PDF.
-
----
+منصة ERP متعددة الأنشطة للعقارات والمقاولات وإدارة الشركات، تشمل المحاسبة، المخازن، الموارد البشرية والرواتب، المبيعات والمشتريات، التأجير، التصنيع، CRM، المشاريع، سير العمل، الأصول، التقارير، PWA وGPS.
 
 ## المتطلبات
 
-- **Windows** 10/11
-- **Python 3.11+** (مثبت على المسار أو في `%LOCALAPPDATA%\Programs\Python`)
-- **PostgreSQL** (الإعدادات الافتراضية في `config.py`)
+- **Windows 10/11** لنسخة سطح المكتب.
+- **Python 3.12+**.
+- **PostgreSQL 16** للنشر السحابي.
+- **Redis** للتحديد الموزع للمعدل والجلسات/الحماية في الإنتاج.
 
-### إعداد قاعدة البيانات (أول مرة)
+## إعداد الإنتاج
 
-أنشئ قاعدة البيانات والمستخدم في PostgreSQL، مع **كلمة مرور قوية من اختيارك** (لا تُستخدم كلمة مرور معروفة مكتوبة في الكود):
+بيانات الاعتماد والأسرار يجب توفيرها من مدير أسرار خارجي وعدم وضعها داخل Git. يلزم في البيئة السحابية: `DB_USER` و`DB_PASSWORD` و`DB_HOST` و`DB_PORT` و`DB_NAME` و`SECRET_KEY` وRedis.
 
-```sql
-CREATE USER mokawlat_user WITH PASSWORD '<كلمة مرور قوية>';
-CREATE DATABASE system_db OWNER mokawlat_user;
+لا توجد كلمة مرور مدير ثابتة منشورة في المشروع. يمكن استخدام `DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD` أثناء التهيئة الأولى فقط، ويجب تفعيل 2FA لحساب Control Center ثم إزالة سر التهيئة.
+
+## قاعدة البيانات والمهاجرات
+
+إدارة مخطط PostgreSQL تتم عبر **Alembic**. سلسلة المهاجرات الحالية تصل إلى:
+
+`0000_initial_schema → 0001_accounting_integrity → 0002_legacy_schema_alignment → 0003_financial_safety_checks → 0004_journal_cancelled_status → 0005_financial_year_integrity → 0006_journal_entry_immutability → 0007_harden_journal_delete_guards → 0008_seal_cancelled_journals`
+
+يجب تطبيق:
+
+```bat
+alembic upgrade head
 ```
 
-> ⚠️ **أمان:** لا توجد كلمة مرور افتراضية في الكود. اضبطها عبر متغير البيئة `DB_PASSWORD`
-> ليطابق النظام قاعدة بياناتك الفعلية. إن لم تُضبط، يولّد النظام كلمة مرور عشوائية ويحفظها
-> في ملف محلي `.db_password` (لا يُرفع إلى Git) — وفي هذه الحالة يجب أن تكون مطابقة لكلمة
-> مرور المستخدم الفعلية في PostgreSQL.
+قبل تشغيل workers في الإنتاج. لا تعدّل migration تاريخية بعد اعتمادها؛ أضف migration جديدة لكل تغيير.
 
-يمكن تغيير الاتصال عبر متغيرات البيئة: `DB_USER`، `DB_PASSWORD`، `DB_HOST`، `DB_PORT`، `DB_NAME`.
-
----
+القيود المالية الأساسية أصبحت على مستوى قاعدة البيانات أيضًا: صحة السنوات المالية، توازن القيود، منع القيم السالبة، وعدم تعديل أو حذف القيود المنشورة أو الملغاة بشكل مباشر.
 
 ## التشغيل
 
-### مباشر من الكود
+### التطوير
 
 ```bat
 start.bat
@@ -43,111 +46,66 @@ pip install -r requirements.txt
 python app.py
 ```
 
-ثم افتح:
-
-- على نفس الجهاز: `http://localhost:5000`
-- على الشبكة: `http://<عنوان-الجهاز>:5000`
-
-### نافذة سطح المكتب (pywebview)
+### سطح المكتب
 
 ```bat
 python desktop.py
-python desktop.py --background   :: خادم فقط بدون نافذة (بدء تلقائي مع ويندوز)
-python desktop.py --dev          :: خادم مع نافذة كونسول
+python desktop.py --background
+python desktop.py --dev
 ```
 
-### تسجيل الدخول
+### الإنتاج عبر Docker
 
-| المستخدم | كلمة المرور |
+استخدم `deployment/deploy.sh` بعد تجهيز `.env` وشهادة TLS موثوقة. سكربت النشر يطبّق migrations قبل تشغيل التطبيق ويتحقق من readiness وPostgreSQL وRedis.
+
+## الأمان
+
+يتضمن المشروع:
+
+- جلسات Flask قابلة للإلغاء.
+- MFA/2FA للـControl Center مع pending session قبل OTP.
+- Redis distributed login throttling في الإنتاج.
+- CSRF للطلبات التي تغيّر الحالة.
+- CORS مقيد.
+- Security headers وHSTS وCSP.
+- حاويات non-root و`no-new-privileges`.
+- سجل تدقيق وأحداث أمنية.
+- حماية tenant/company lifecycle وRBAC.
+
+## الموبايل وGPS
+
+يجب تشغيل GPS عبر HTTPS. سياسة المتصفح تسمح الآن بـ`geolocation=(self)` للواجهة من نفس الأصل، مع منع الكاميرا والميكروفون افتراضيًا.
+
+## الواجهة
+
+الواجهة الحديثة الرسمية موجودة في `frontend/` باستخدام Next.js، بينما `templates/` و`static/` تغطي الواجهات التقليدية والنسخة المحلية.
+
+## الجودة وCI/CD
+
+يجب أن يمر الإصدار التجاري بجميع بوابات CI/CD: lint، compilation، dependency audit، backend tests، migration smoke، frontend build/typecheck/audit، Docker build، اختبارات الأمن، واختبارات artifacts ونسخة Windows.
+
+نجاح unit tests وحده لا يعني Commercial Ready.
+
+## البنية الرئيسية
+
+| المسار | الغرض |
 |---|---|
-| `admin` | `admin123` (يُطلب تغييرها أول مرة) |
+| `app.py` | إنشاء التطبيق وتسجيل الوحدات |
+| `config.py` | إعدادات التشغيل والأسرار |
+| `runtime_hardening.py` | حواجز الإنتاج وسلامة البيانات المالية |
+| `models/` | نماذج ERP |
+| `routes/` | API وصفحات الوحدات |
+| `frontend/` | واجهة Next.js الحديثة |
+| `licensing/` | الترخيص والاشتراكات وControl Center |
+| `security/` | RBAC و2FA والجلسات والتدقيق |
+| `migrations/` | مخطط Alembic |
+| `deployment/` | Docker/Nginx والنشر |
+| `desktop.py` | تطبيق سطح المكتب |
 
-> **ERP Control Center** (المالك): `/admin/` — `admin@dynamicpro.com` / `admin123` (حساب `LicMasterUser`، يُغيّر عبر صفحة "أمان المدير").
+## مبدأ التطوير
 
-> نُسي كلمة مرور المدير؟ شغّل `python reset_admin_password.py` لإعادة تعيينها.
+تسلسل التطوير المعتمد:
 
----
+**CI → Core Hardening → Metadata Platform → Security → Financial Core → Workflow → Industry Packs → AI → Integrations → Globalization → UX → Production Scale**
 
-## HTTPS والموقع الجغرافي (GPS) من الموبايل
-
-المتصفحات تمنع Geolocation عبر HTTP (تتطلب secure context). لتشغيل GPS الحقيقي من الهاتف:
-
-1. **ولّد الشهادة الذاتية** (مرة واحدة — تشمل عنوان IP الشبكة الحالي تلقائيًا):
-
-   ```bat
-   python scripts\generate_ssl_cert.py
-   ```
-
-2. **فعّل HTTPS** من صفحة إعدادات الخادم `/server-settings` (أو اضبط `https_enabled: true` في `%APPDATA%\DynamicPro\server_config.json`).
-
-3. أعد تشغيل الخادم، ثم من الهاتف (نفس شبكة Wi-Fi) افتح:
-
-   ```
-   https://<عنوان-الجهاز>:5443/mobile
-   ```
-
-   عند أول فتح فقط، تجاوز تحذير الشهادة الذاتية ("Advanced → Continue") وسيعمل التحديد الدقيق للموقع.
-
-> إذا تغيّر عنوان IP الخاص بالجهاز، أعد توليد الشهادة.
-
----
-
-## الملفات الرئيسية
-
-| الملف | الغرض |
-|---|---|
-| `app.py` | إنشاء التطبيق وتسجيل الوحدات وتشغيل الخادم (HTTP + HTTPS) |
-| `config.py` | إعدادات قاعدة البيانات والمفتاح السري (يدعم `.env`) |
-| `server_config.py` | إعدادات المنفذ وكلمة مرور الوصول والتشغيل التلقائي |
-| `database.py` | كائن SQLAlchemy |
-| `models/` | نماذج البيانات لكل وحدة |
-| `routes/` | واجهات البرمجة وصفحات الوحدات |
-| `templates/` + `static/` | الواجهة (RTL عربي/إنجليزي) |
-| `licensing/` | الترخيص والإدارة: خطط، شركات، اشتراكات، تراخيص، قواعد بيانات، مستخدمون |
-| `templates/admin_panel.html` | **ERP Control Center** — لوحة مدير المنصة (Companies, Plans, Subscriptions, Licenses, Payments, Databases, Reports, Users, Activity, Settings, Security) |
-| `audit/` `billing/` `security/` `notifications/` `modules/` | بنية الأرشيتكتشر الجديدة (Foundation — تُملأ في مراحلها) |
-| `docs/ARCHITECTURE.md` | خارطة المعمارية والمراحل |
-| `docker-compose.yml` | بنية PostgreSQL الرئيسية للنشر |
-| `desktop.py` | نافذة سطح المكتب |
-| `seed.py` / `seed_fy_demo.py` | بيانات تجريبية |
-| `reset_admin_password.py` | استرداد كلمة مرور المدير |
-| `scripts\generate_ssl_cert.py` | توليد شهادة HTTPS ذاتية التوقيع |
-| `build.bat` / `build_installer.bat` | بناء نسخة مجمّدة وملف تثبيت |
-
----
-
-## ERP Control Center (لوحة مدير المنصة)
-
-تُدار من `/admin/` وهي **لوحة مالك البرنامج فقط** — العميل لا يدخل إليها:
-
-- **Dashboard**: شركات، إيراد، مستخدمون، تنبيهات، آخر الشركات، آخر النشاطات
-- **الشركات**: قائمة + تأسيس (إنشاء شركة → قاعدة بيانات → مدير → باقة → تجربة)
-- **الباقات / الاشتراكات / التراخيص**: دورة حياة كاملة (تجريبي/نشط/سماح/منتهي/ملغى)
-- **قواعد بيانات الشركات**: حالة الاستعداد وحجم كل DB (بلا كشف كلمات المرور)
-- **الفوترة / التقارير / المستخدمون / سجل النشاط / إعدادات النظام / أمان المدير**
-
-التفاصيل في `docs/ARCHITECTURE.md`.
-
----
-
-## الوحدات
-
-- لوحة المعلومات والتقارير
-- المحاسبة (دفتر اليومية، الحسابات، مراكز التكلفة، الأصول الثابتة، الموازنات)
-- المخازن (أصناف، بضائع، دفعات، أرقام تسلسلية، جرد، تحويلات)
-- الموارد البشرية والرواتب (موظفون، حضور، إجازات، سلف، تأمينات، نهاية خدمة)
-- الأصول (تجهيزات، صيانة، حركات، عهدة، إهلاك)
-- المبيعات والمشتريات والمقاولات
-- التأجير والعقارات (وحدات، عقود، أقساط، تجديدات)
-- التصنيع (أوامر إنتاج، BOM، مراكز عمل، جودة)
-- CRM وإدارة المشاريع وسير العمل (موافقات)
-- المستخدمون والأدوار والصلاحيات، سجل التدقيق، النسخ الاحتياطي
-- واجهة موبايل (PWA) مع موقع جغرافي دقيق عبر HTTPS
-
----
-
-## التطوير
-
-- عند التشغيل بـ `python app.py` يبقى **auto-reload** مفعّلًا: أي تعديل على ملفات Python أو القوالب يُطبَّق فورًا.
-- ترجمة الواجهة في `i18n.py` (مفاتيح `ar` و`en`).
-- `requirements.txt` يحتوي كل الحزم المثبتة.
+لا يتوقف الإصدار عند عبارة «الفحص ناجح»؛ الهدف هو منصة ERP قابلة للتشغيل التجاري الفعلي مع سلامة البيانات، الأمن، قابلية الاسترجاع، وتكرارية النشر.

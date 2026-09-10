@@ -13,6 +13,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dynamicpro} -d ${DB_NAME:-dynamicpro}"]
       interval: 10s
@@ -27,6 +29,8 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -57,6 +61,10 @@ services:
     volumes:
       - ./logs:/app/logs
       - app_uploads:/app/uploads
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
       interval: 30s
@@ -72,6 +80,10 @@ services:
     container_name: dp-frontend
     restart: unless-stopped
     depends_on: [app]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
     networks: [dp-network]
 
   nginx:
@@ -86,6 +98,11 @@ services:
       - ./deployment/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deployment/nginx/ssl:/etc/nginx/ssl:ro
       - ./logs/nginx:/var/log/nginx
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx:size=32m,noexec,nosuid,nodev
+      - /var/run:size=8m,noexec,nosuid,nodev
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
       interval: 30s
@@ -104,6 +121,7 @@ services:
       DB_NAME: ${DB_NAME:-dynamicpro}
       DB_HOST: postgres
       BACKUP_RETENTION: ${BACKUP_RETENTION:-30}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +129,15 @@ services:
       - ./backups:/backups
       - ./deployment/backup/backup.sh:/backup.sh:ro
     entrypoint: ["/bin/sh", "/backup.sh"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid,nodev
+    healthcheck:
+      test: ["CMD-SHELL", "test -n \"$(find /backups -maxdepth 1 -type f -name 'dp_*.sql.gz' -mmin -2880 -print -quit)\""]
+      interval: 1h
+      timeout: 10s
+      retries: 3
     networks: [dp-network]
 
 volumes:
