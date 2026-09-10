@@ -172,13 +172,11 @@ def main():
             text_select=True,
         )
 
-        def on_loaded():
-            try:
-                apply_light_titlebar(window)
-            except Exception:
-                pass
-
-        window.events.before_loaded += on_loaded
+        try:
+            # Hooks window.events.shown internally (exists in all pywebview 4/5/6)
+            apply_light_titlebar(window)
+        except Exception:
+            pass
         log.info("Opening window...")
         webview.start(debug=False)
 
