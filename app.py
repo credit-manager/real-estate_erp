@@ -611,6 +611,11 @@ def create_app():
             "api": "v1",
         })
 
+    @app.route("/favicon.ico")
+    def favicon():
+        """Serve the brand favicon (avoids 404 noise in logs)."""
+        return current_app.send_static_file("img/favicon.svg")
+
     # إنشاء الجداول + مستخدم وادوار افتراضية
     # HIGH #9: company instances لا تُشغّل الترحيلات العامة
     _is_company = bool(config.COMPANY_ID)
