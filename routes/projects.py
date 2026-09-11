@@ -141,6 +141,8 @@ def list_projects():
 @require_api("projects", "create")
 def create_project():
     data = request.get_json() or {}
+    if not data.get("name", "").strip():
+        return jsonify({"success": False, "message": "اسم المشروع مطلوب", "error_key": "projects.nameRequired"}), 400
     project = Project(
         name=data.get("name"),
         description=data.get("description"),

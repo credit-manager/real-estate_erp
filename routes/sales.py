@@ -128,6 +128,8 @@ def list_orders():
 @require_api("sales", "create")
 def create_order():
     data = request.get_json() or {}
+    if not data.get("customer_id"):
+        return jsonify({"success": False, "message": "عميل مطلوب", "error_key": "sales.customerRequired"}), 400
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
@@ -282,6 +284,8 @@ def list_sales_invoices():
 @require_api("sales", "create")
 def create_sales_invoice():
     data = request.get_json() or {}
+    if not data.get("customer_id"):
+        return jsonify({"success": False, "message": "عميل مطلوب", "error_key": "sales.customerRequired"}), 400
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400

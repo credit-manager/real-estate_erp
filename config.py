@@ -96,6 +96,13 @@ else:
 
     SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "20")),
+        "pool_timeout": int(os.environ.get("DB_POOL_TIMEOUT", "30")),
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "1800")),
+        "pool_pre_ping": True,
+    }
 
 # Session signing secret: explicit in Cloud production, durable local secret for
 # development/Desktop only. Never create a production secret in the repository.
@@ -124,8 +131,12 @@ SEND_FILE_MAX_AGE_DEFAULT = 0
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = bool(IS_PRODUCTION and not IS_FROZEN)
-PERMANENT_SESSION_LIFETIME = 8 * 3600
-MAX_LOGIN_ATTEMPTS = 5
+PERMANENT_SESSION_LIFETIME = int(os.environ.get("SESSION_LIFETIME_SEC", str(8 * 3600)))
+MAX_LOGIN_ATTEMPTS = int(os.environ.get("MAX_LOGIN_ATTEMPTS", "5"))
+LOGIN_LOCK_SECONDS = int(os.environ.get("LOGIN_LOCK_SECONDS", "900"))
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "110"))
+DEFAULT_RATE_LIMIT = os.environ.get("DEFAULT_RATE_LIMIT", "200 per minute")
+LOGIN_RATE_LIMIT = os.environ.get("LOGIN_RATE_LIMIT", "10 per minute")
 
 # Redis-backed rate limiting is mandatory for production multi-instance Cloud.
 # Frozen desktop builds are single-user (local SQLite) and always use memory.

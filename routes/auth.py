@@ -18,7 +18,7 @@ import server_config
 auth_bp = Blueprint("auth", __name__)
 
 MAX_LOGIN_ATTEMPTS = config.MAX_LOGIN_ATTEMPTS
-LOGIN_LOCK_SECONDS = 900
+LOGIN_LOCK_SECONDS = config.LOGIN_LOCK_SECONDS
 _LOGIN_FAILURES = {}
 _cleanup_lock = threading.Lock()
 _REDIS_CLIENT = None

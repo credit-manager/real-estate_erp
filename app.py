@@ -392,8 +392,8 @@ def create_app():
     configure_logging()
     logging.getLogger("dynamicpro.app").info("Applying app configuration")
 
-    # حد أقصى لحجم الطلبات المرفوعة (110MB للسماح بـ 100MB نسخ احتياطي + هامش)
-    app.config["MAX_CONTENT_LENGTH"] = 110 * 1024 * 1024
+    # حد أقصى لحجم الطلبات المرفوعة
+    app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
 
     # إعدادات الخادم المحلي (منفذ + كلمة مرور الوصول)
     _server_cfg = server_config.load_config()
@@ -434,7 +434,7 @@ def create_app():
     limiter = Limiter(
         get_remote_address,
         app=app,
-        default_limits=["200 per minute", "50 per second"],
+        default_limits=[config.DEFAULT_RATE_LIMIT, "50 per second"],
         storage_uri=_rate_storage,
         strategy="fixed-window",
         key_prefix="rl:",
@@ -491,8 +491,8 @@ def create_app():
     from security.routes import security_bp
 
     app.register_blueprint(auth_bp)
-    # Rate-limit the login endpoint: 10 per minute per IP
-    limiter.limit("10 per minute")(app.view_functions["auth.login"])
+    # Rate-limit the login endpoint
+    limiter.limit(config.LOGIN_RATE_LIMIT)(app.view_functions["auth.login"])
     app.register_blueprint(projects_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(pages_bp)
