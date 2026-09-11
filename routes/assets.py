@@ -400,7 +400,7 @@ def depreciate(item_id):
             financial_year_id=int(fy_id) if fy_id not in (None, "", 0) else None,
             source="depreciation", ref_type="asset", ref_id=item.id)
     except ValueError as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     item.accumulated_depreciation = float(item.accumulated_depreciation or 0) + amount
     db.session.add(DepreciationRecord(
         asset_id=item.id, entry_id=entry.id, period=period, date=date, amount=amount))

@@ -555,7 +555,7 @@ def create_invoice():
                     is_receipt=invoice.invoice_type == "sales",
                     description=invoice.invoice_number)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -609,7 +609,7 @@ def update_invoice(invoice_id):
                     is_receipt=invoice.invoice_type == "sales",
                     description=invoice.invoice_number)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -704,7 +704,7 @@ def create_purchase_order():
         try:
             acct.post_purchase_order_entries(po)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -747,7 +747,7 @@ def update_purchase_order(po_id):
         try:
             acct.post_purchase_order_entries(po)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -841,7 +841,7 @@ def create_rental_contract():
         try:
             acct.post_contract_entries(contract)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -883,7 +883,7 @@ def update_rental_contract(contract_id):
         try:
             acct.post_contract_entries(contract)
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -1632,7 +1632,7 @@ def pay_installment(installment_id):
                 is_receipt=True,
                 description=f"قسط {inst.installment_number}")
         except ValueError as e:
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500

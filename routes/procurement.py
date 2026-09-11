@@ -650,7 +650,7 @@ def create_supplier_invoice():
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
@@ -715,7 +715,7 @@ def update_supplier_invoice(invoice_id):
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500

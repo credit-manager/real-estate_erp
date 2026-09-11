@@ -270,6 +270,11 @@ def _restore(data):
                         {"seq": seq_name, "n": int(max_id)},
                     )
         db.session.commit()
+        # Update statistics for query planner after bulk restore
+        try:
+            db.session.execute(text("ANALYZE"))
+        except Exception:
+            pass
     except Exception:
         db.session.rollback()
         raise
@@ -361,7 +366,6 @@ def import_backup():
         return jsonify({
             "message": "فشلت الاستعادة",
             "error_key": "backup.restoreFailed",
-            "detail": str(e),
         }), 400
     return jsonify({"success": True})
 

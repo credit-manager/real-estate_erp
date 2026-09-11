@@ -190,7 +190,7 @@ def create_account():
         db.session.commit()
     except ValueError as e:
         db.session.rollback()
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "internal server error"}), 500
@@ -415,7 +415,7 @@ def create_journal():
             source="manual",
         )
     except ValueError as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     _log("create", "journal", entry.id, f"قيد {entry.entry_number}")
     return jsonify({"success": True, "entry": _entry_dict(entry)})
 
@@ -550,7 +550,7 @@ def cash_bank_op(kind):
             financial_year_id=int(fy_id) if fy_id not in (None, "", 0) else None,
             source=kind, ref_type=kind, ref_id=int(account_id))
     except ValueError as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     _log("create", "journal", entry.id, f"{'قبض' if direction == 'receive' else 'صرف'} {amount} - {acc.name}")
     return jsonify({"success": True, "entry": _entry_dict(entry)})
 
@@ -761,7 +761,7 @@ def _create_inc_exp(etype):
             financial_year_id=int(fy_id) if fy_id not in (None, "", 0) else None,
             source="manual")
     except ValueError as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     _log("create", "journal", entry.id, f"{'مصروف' if etype == 'expense' else 'إيراد'} {amount}")
     return jsonify({"success": True, "entry": _entry_dict(entry)})
 
@@ -1051,7 +1051,7 @@ def depreciate(asset_id):
             financial_year_id=int(fy_id) if fy_id not in (None, "", 0) else None,
             source="depreciation", ref_type="asset", ref_id=asset.id)
     except ValueError as e:
-        return jsonify({"message": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     asset.accumulated_depreciation = float(asset.accumulated_depreciation or 0) + amount
     db.session.add(DepreciationRecord(
         asset_id=asset.id, entry_id=entry.id, period=period, date=date, amount=amount))

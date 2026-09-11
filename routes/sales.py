@@ -263,7 +263,7 @@ def order_to_invoice(order_id):
             # Soft-delete: mark invoice as cancelled instead of actual deletion
             invoice.status = "cancelled"
             db.session.commit()
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
     order.status = "completed"
     db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
@@ -323,7 +323,7 @@ def create_sales_invoice():
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
     db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict()), 201
@@ -370,7 +370,7 @@ def update_sales_invoice(invoice_id):
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"message": str(e), "error_key": str(e)}), 400
+            return jsonify({"success": False, "message": "invalid input"}), 400
     db.session.commit()
     _log("update", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict())
@@ -560,7 +560,7 @@ def pay_invoice(invoice_id):
             description=invoice.invoice_number)
     except ValueError as e:
         db.session.rollback()
-        return jsonify({"message": str(e), "error_key": str(e)}), 400
+        return jsonify({"success": False, "message": "invalid input"}), 400
     db.session.commit()
     _log("update", "invoice", invoice.id, f"تحصيل {amount}")
     return jsonify(invoice.to_dict())

@@ -205,8 +205,8 @@ def send_request(rid):
         else:
             result = _send_local(sig_req)
     except Exception as e:
-        _log_audit(sig_req, "error", {"error": str(e)})
-        return jsonify({"message": f"فشل الإرسال: {e}"}), 500
+        _log_audit(sig_req, "error", {"error": "internal error"})
+        return jsonify({"message": "فشل الإرسال"}), 500
 
     if result.get("success"):
         sig_req.external_id = result.get("external_id")
