@@ -249,19 +249,35 @@ def cancel_request(rid):
 @esign_bp.route("/webhook/<provider_name>", methods=["POST"])
 def webhook(provider_name):
     """استقبال callback من DocuSign/Na3am مع التحقق من webhook secret."""
+    import hmac as _hmac
     data = request.get_json(silent=True) or {}
 
     provider = SignatureProvider.query.filter_by(name=provider_name).first()
     if not provider:
         return jsonify({"success": False, "message": "provider not found"}), 404
 
-    webhook_secret = provider.webhook_secret_encrypted or ""
     sig_header = request.headers.get("X-Webhook-Signature") or request.args.get("signature")
-    if not webhook_secret or not sig_header:
+    verified = False
+
+    # Try provider-specific webhook secret first
+    if provider.webhook_secret_encrypted:
+        try:
+            from utils.crypto import decrypt_field
+            decrypted_secret = decrypt_field(provider.webhook_secret_encrypted)
+            if decrypted_secret and sig_header:
+                verified = _hmac.compare_digest(decrypted_secret, sig_header)
+        except Exception:
+            pass
+
+    # Fallback: server access password
+    if not verified:
         from flask import current_app
         fallback = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
-        if not fallback or sig_header != fallback:
-            return jsonify({"success": False, "message": "unauthorized"}), 401
+        if fallback and sig_header:
+            verified = _hmac.compare_digest(fallback, sig_header)
+
+    if not verified:
+        return jsonify({"success": False, "message": "unauthorized"}), 401
 
     external_id = data.get("envelope_id") or data.get("external_id") or data.get("id")
     if not external_id:

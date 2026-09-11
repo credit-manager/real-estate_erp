@@ -1769,6 +1769,10 @@ def ai_query():
                 return jsonify({"success": False, "message": "غير مسموح إلا بـ SELECT"})
             # Block dangerous SQL patterns
             _SQL_BLOCKED_COLS = {"password_hash", "password", "secret"}
+            _SQL_SENSITIVE_COLS = {
+                "salary", "national_id", "bank_account", "passport_number",
+                "iban", "tax_id", "nationality_id",
+            }
             _SQL_BLOCKED_KW = [";--", "/*", "*/", "@@", "pg_", "information_schema",
                                "pg_catalog", "intersect", "except", "pg_read_file",
                                "pg_write_file", "copy", "lo_import", "lo_export"]
@@ -1779,19 +1783,26 @@ def ai_query():
             for kw in _SQL_BLOCKED_KW:
                 if kw in lower_sql:
                     return jsonify({"success": False, "message": "است thống غير مسموح (نمط محظور)"}), 403
-            # Table whitelist
-            _SQL_ALLOW = {
-                "employees", "customers", "suppliers", "projects", "invoices",
-                "invoice_items", "purchase_orders", "rental_contracts", "rental_payments",
-                "rental_renewals", "real_estate_units", "real_estate_buildings",
-                "real_estate_floors", "unit_types", "real_estate_owners",
-                "unit_reservations", "unit_allocations", "sales_contracts",
-                "commissions", "unit_deliveries", "maintenance_requests", "unit_shares",
-                "items", "item_stocks", "warehouses", "accounts", "journal_entries",
-                "journal_entry_lines", "installments", "payment_plans", "hr_departments",
-                "hr_positions", "hr_attendance", "hr_leaves", "cost_centers",
-                "fixed_assets", "project_phases", "project_wbs_items", "project_boq_items",
+            # Column-level whitelist per table
+            _SQL_ALLOWED_COLUMNS = {
+                "employees": {"id", "full_name", "phone", "email", "address", "department", "position", "status", "hire_date", "birth_date", "gender"},
+                "customers": {"id", "name", "phone", "email", "address", "company", "status"},
+                "suppliers": {"id", "name", "phone", "email", "address", "company", "status"},
+                "projects": {"id", "name", "description", "location", "status", "priority", "budget", "spent", "completion"},
+                "invoices": {"id", "invoice_number", "invoice_type", "amount", "paid_amount", "status", "issue_date", "due_date", "customer_id"},
+                "rental_contracts": {"id", "contract_number", "tenant_name", "monthly_rent", "status", "start_date", "end_date"},
+                "real_estate_units": {"id", "unit_code", "unit_type_id", "floor_id", "building_id", "status", "area"},
+                "items": {"id", "name", "code", "category", "unit", "cost_price", "sell_price"},
+                "accounts": {"id", "code", "name", "type", "group_name"},
+                "journal_entries": {"id", "entry_number", "entry_date", "description", "source_type"},
+                "installments": {"id", "plan_id", "installment_number", "amount", "paid_amount", "status", "due_date"},
+                "payment_plans": {"id", "plan_number", "total_amount", "status", "customer_name"},
+                "fixed_assets": {"id", "asset_number", "name", "category", "purchase_date", "cost", "status"},
+                "hr_departments": {"id", "name", "manager_name"},
+                "hr_positions": {"id", "name", "department_name"},
             }
+            # Table whitelist
+            _SQL_ALLOW = set(_SQL_ALLOWED_COLUMNS.keys())
             tables_in_sql = set(_re.findall(r'(?:from|join)\s+"?(\w+)"?', lower_sql))
             unknown = tables_in_sql - _SQL_ALLOW
             if unknown:
@@ -1799,6 +1810,14 @@ def ai_query():
                                 "message": f"جداول غير مسموحة: {', '.join(sorted(unknown))}"}), 403
             if not tables_in_sql:
                 return jsonify({"success": False, "message": "الاستعلام لا يحدد جدولاً مسموحاً"}), 400
+            # Check for sensitive column references
+            for tbl in tables_in_sql:
+                allowed = _SQL_ALLOWED_COLUMNS.get(tbl, set())
+                if not allowed:
+                    continue
+                for col in _SQL_SENSITIVE_COLS:
+                    if col in lower_sql and col not in allowed:
+                        return jsonify({"success": False, "message": f"عمود حساس غير مسموح: {col}"}), 403
             if _re.search(r'\bunion\b', lower_sql) or stripped.count(";") > 1:
                 return jsonify({"success": False, "message": "UNION وتعدد العبارات غير مسموح"}), 403
             if _re.search(r'\bsubquery|cte|with\s+\w+\s+as', lower_sql):

@@ -367,7 +367,11 @@ def list_calls():
 @crm_bp.route("/calls", methods=["POST"])
 @require_api("crm", "create")
 def create_call():
+    from utils.validation import validate_input
     data = request.get_json() or {}
+    err = validate_input(data, [("notes", {"max_len": 5000})])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     call = CallLog(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,

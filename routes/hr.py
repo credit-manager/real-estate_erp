@@ -238,9 +238,19 @@ def list_employees():
 @hr_bp.route("/employees", methods=["POST"])
 @require_api("hr", "create")
 def create_employee():
+    from utils.validation import validate_input
     data = request.get_json(silent=True) or {}
-    if not (data.get("full_name") or "").strip():
-        return jsonify({"message": "اسم الموظف مطلوب"}), 400
+    err = validate_input(data, [
+        ("full_name", {"required": True, "max_len": 200}),
+        ("national_id", {"max_len": 50}),
+        ("phone", {"max_len": 50}),
+        ("email", {"max_len": 254}),
+        ("address", {"max_len": 1000}),
+        ("department", {"max_len": 200}),
+        ("position", {"max_len": 200}),
+    ])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     emp = Employee(
         full_name=data["full_name"].strip(),
         national_id=(data.get("national_id") or "").strip(),

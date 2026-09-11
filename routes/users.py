@@ -18,7 +18,15 @@ def list_users():
 @users_bp.route("", methods=["POST"])
 @require_api("users", "create")
 def create_user():
+    from utils.validation import validate_input
     data = request.get_json() or {}
+    err = validate_input(data, [
+        ("username", {"required": True, "max_len": 100}),
+        ("full_name", {"required": True, "max_len": 200}),
+        ("email", {"max_len": 254}),
+    ])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     username = (data.get("username") or "").strip()
     full_name = (data.get("full_name") or "").strip()
     email = (data.get("email") or "").strip()

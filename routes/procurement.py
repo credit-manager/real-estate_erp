@@ -47,7 +47,16 @@ def list_purchase_requests():
 @procurement_bp.route("/purchase-requests", methods=["POST"])
 @require_api("procurement", "create")
 def create_purchase_request():
+    from utils.validation import validate_input
     data = request.get_json() or {}
+    err = validate_input(data, [
+        ("title", {"required": True, "max_len": 200}),
+        ("requester", {"max_len": 200}),
+        ("department", {"max_len": 200}),
+        ("notes", {"max_len": 5000}),
+    ])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     pr = PurchaseRequest(
         pr_number=data.get("pr_number") or _next_number("PR", PurchaseRequest, "pr_number"),
         title=data.get("title"),

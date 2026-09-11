@@ -32,7 +32,11 @@ def list_roles():
 @roles_bp.route("", methods=["POST"])
 @require_api("roles", "create")
 def create_role():
+    from utils.validation import validate_input
     data = request.get_json(silent=True) or {}
+    err = validate_input(data, [("name", {"required": True, "max_len": 200}), ("description", {"max_len": 500})])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     name = (data.get("name") or "").strip()
     description = (data.get("description") or "").strip()
 

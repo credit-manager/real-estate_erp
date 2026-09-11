@@ -159,7 +159,7 @@ def list_accounts():
 @accounting_bp.route("/api/accounts", methods=["POST"])
 @require_api("accounting", "create")
 def create_account():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
@@ -242,7 +242,7 @@ def update_account(account_id):
     acc = db.session.get(Account, account_id)
     if not acc:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     dup = Account.query.filter(Account.code == code, Account.id != account_id).first()
@@ -297,7 +297,7 @@ def delete_account(account_id):
 @accounting_bp.route("/api/accounts/defaults", methods=["POST"])
 @require_api("accounting", "edit")
 def save_defaults():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     for key in acct.DEFAULT_ACCOUNT_MAP:
         if key in data:
             val = data.get(key)
@@ -317,7 +317,7 @@ def list_cost_centers():
 @accounting_bp.route("/api/cost-centers", methods=["POST"])
 @require_api("accounting", "create")
 def create_cost_center():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
@@ -337,7 +337,7 @@ def update_cost_center(cc_id):
     cc = db.session.get(CostCenter, cc_id)
     if not cc:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     dup = CostCenter.query.filter(CostCenter.code == code, CostCenter.id != cc_id).first()
@@ -397,7 +397,7 @@ def list_journal():
 @accounting_bp.route("/api/journal", methods=["POST"])
 @require_api("accounting", "create")
 def create_journal():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     date = _d(data.get("date"))
     if not date:
         return jsonify({"message": "accounting.dateRequired"}), 400
@@ -507,7 +507,7 @@ def list_banks():
 def cash_bank_op(kind):
     if kind not in ("cash", "bank"):
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     account_id = data.get("account_id")
     amount = float(data.get("amount") or 0)
     direction = data.get("direction")  # receive | pay
@@ -697,7 +697,7 @@ def create_revenue():
 
 
 def _create_inc_exp(etype):
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     account_id = data.get("account_id")
     amount = float(data.get("amount") or 0)
     date = _d(data.get("date")) or datetime.date.today()
@@ -801,7 +801,7 @@ def reconciliations():
 @accounting_bp.route("/api/reconciliations/reconcile", methods=["POST"])
 @require_api("accounting", "edit")
 def reconcile():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     line_ids = data.get("line_ids") or []
     for lid in line_ids:
         line = db.session.get(JournalEntryLine, int(lid))
@@ -816,7 +816,7 @@ def reconcile():
 @accounting_bp.route("/api/reconciliations/undo", methods=["POST"])
 @require_api("accounting", "edit")
 def reconcile_undo():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     line_ids = data.get("line_ids") or []
     for lid in line_ids:
         line = db.session.get(JournalEntryLine, int(lid))
@@ -851,7 +851,7 @@ def budget():
 @accounting_bp.route("/api/budget", methods=["POST"])
 @require_api("accounting", "create")
 def save_budget():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     year_id = data.get("financial_year_id")
     lines = data.get("lines") or []
     if year_id in (None, "", 0):
@@ -895,7 +895,7 @@ def list_assets():
 @accounting_bp.route("/api/assets", methods=["POST"])
 @require_api("accounting", "create")
 def create_asset():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("asset_code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
@@ -964,7 +964,7 @@ def update_asset(asset_id):
     asset = db.session.get(FixedAsset, asset_id)
     if not asset:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("asset_code") or "").strip()
     dup = FixedAsset.query.filter(FixedAsset.asset_code == code, FixedAsset.id != asset_id).first()
     if dup:
@@ -1022,7 +1022,7 @@ def depreciate(asset_id):
     asset = db.session.get(FixedAsset, asset_id)
     if not asset:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     period = str(data.get("period") or datetime.date.today().strftime("%Y-%m"))
     date = _d(data.get("date")) or datetime.date.today()
     if DepreciationRecord.query.filter_by(asset_id=asset_id, period=period).first():

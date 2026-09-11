@@ -140,9 +140,15 @@ def list_projects():
 @projects_bp.route("", methods=["POST"])
 @require_api("projects", "create")
 def create_project():
+    from utils.validation import validate_input
     data = request.get_json() or {}
-    if not data.get("name", "").strip():
-        return jsonify({"success": False, "message": "اسم المشروع مطلوب", "error_key": "projects.nameRequired"}), 400
+    err = validate_input(data, [
+        ("name", {"required": True, "max_len": 200}),
+        ("description", {"max_len": 5000}),
+        ("location", {"max_len": 500}),
+    ])
+    if err:
+        return jsonify({"success": False, "message": err}), 400
     project = Project(
         name=data.get("name"),
         description=data.get("description"),

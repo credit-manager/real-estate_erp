@@ -118,7 +118,7 @@ def list_categories():
 @assets_bp.route("/api/categories", methods=["POST"])
 @require_api("accounting", "create")
 def create_category():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
@@ -145,7 +145,7 @@ def update_category(cat_id):
     cat = db.session.get(AssetCategory, cat_id)
     if not cat:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     dup = AssetCategory.query.filter(AssetCategory.code == code, AssetCategory.id != cat_id).first()
@@ -207,7 +207,7 @@ def list_items():
 @assets_bp.route("/api/items", methods=["POST"])
 @require_api("accounting", "create")
 def create_item():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
@@ -287,7 +287,7 @@ def update_item(item_id):
     item = db.session.get(AssetItem, item_id)
     if not item:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     dup = AssetItem.query.filter(AssetItem.code == code, AssetItem.id != item_id).first()
     if dup:
@@ -373,7 +373,7 @@ def depreciate(item_id):
     item = db.session.get(AssetItem, item_id)
     if not item:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     period = str(data.get("period") or datetime.date.today().strftime("%Y-%m"))
     date = _d(data.get("date")) or datetime.date.today()
     from models import DepreciationRecord
@@ -425,7 +425,7 @@ def list_maintenance():
 @assets_bp.route("/api/maintenance", methods=["POST"])
 @require_api("accounting", "create")
 def create_maintenance():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     asset_id = data.get("asset_id")
     maintenance_date = _d(data.get("maintenance_date"))
     if not asset_id or not maintenance_date:
@@ -461,7 +461,7 @@ def update_maintenance(rec_id):
     rec = db.session.get(AssetMaintenance, rec_id)
     if not rec:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     if "maintenance_date" in data:
         rec.maintenance_date = _d(data.get("maintenance_date")) or rec.maintenance_date
     if "maintenance_type" in data:
@@ -517,7 +517,7 @@ def list_movements():
 @assets_bp.route("/api/movements", methods=["POST"])
 @require_api("accounting", "create")
 def create_movement():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     asset_id = data.get("asset_id")
     movement_date = _d(data.get("movement_date"))
     movement_type = data.get("movement_type")
@@ -583,7 +583,7 @@ def list_custody():
 @assets_bp.route("/api/custody", methods=["POST"])
 @require_api("accounting", "create")
 def create_custody():
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     asset_id = data.get("asset_id")
     employee_id = data.get("employee_id")
     custody_date = _d(data.get("custody_date"))
@@ -617,7 +617,7 @@ def return_custody(rec_id):
     rec = db.session.get(AssetCustody, rec_id)
     if not rec:
         return jsonify({"message": "common.notFound"}), 404
-    data = request.get_json(force=True) or {}
+    data = request.get_json(silent=True) or {}
     return_date = _d(data.get("return_date")) or datetime.date.today()
     rec.status = "returned"
     rec.return_date = return_date
