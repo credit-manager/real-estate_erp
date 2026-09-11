@@ -8,6 +8,7 @@ Allows the master server to manage offline clients:
 - Config: push remote configuration updates
 """
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta
 from functools import wraps
@@ -56,20 +57,24 @@ def _generate_client_secret():
 # ── CLIENT ENDPOINTS (called by desktop clients) ────────────
 
 _HEARTBEAT_THROTTLE = {}
-_HEARTBEAT_MIN_INTERVAL = 5  # seconds between heartbeats per client
+def _heartbeat_min_interval():
+    try:
+        return max(0, int(os.environ.get("REMOTE_HEARTBEAT_MIN_INTERVAL_SEC", "5") or 5))
+    except (TypeError, ValueError):
+        return 5
+
+
+_HEARTBEAT_MIN_INTERVAL = 5  # default; evaluated per-request via _heartbeat_min_interval()
 
 
 @remote_api_bp.route("/heartbeat", methods=["POST"])
 def client_heartbeat():
-    """Client sends heartbeat with its status."""
+    """Client sends heartbeat with its status.
+
+    Auth and suspension are ALWAYS enforced; throttling only skips the
+    expensive command-collection path for authenticated clients.
+    """
     import time as _time
-    _data_peek = request.get_json(silent=True) or {}
-    _peek_id = _data_peek.get("client_id") or request.remote_addr
-    _now = _time.time()
-    _last = _HEARTBEAT_THROTTLE.get(_peek_id, 0)
-    if _now - _last < _HEARTBEAT_MIN_INTERVAL:
-        return jsonify({"ok": True, "throttled": True}), 200
-    _HEARTBEAT_THROTTLE[_peek_id] = _now
     data = request.get_json(silent=True) or {}
     client_id = data.get("client_id")
     company_id = data.get("company_id")
@@ -124,6 +129,15 @@ def client_heartbeat():
             })
         else:
             return jsonify({"error": "Client not found. Register first without Authorization header."}), 404
+
+    # Throttle: authenticated clients only (post-auth, so it can never
+    # bypass authentication or suspension enforcement).
+    import time as _time2
+    _now = _time2.time()
+    _last = _HEARTBEAT_THROTTLE.get(client_id, 0)
+    if _now - _last < _heartbeat_min_interval():
+        return jsonify({"ok": True, "throttled": True}), 200
+    _HEARTBEAT_THROTTLE[client_id] = _now
 
     # Update status
     client.last_heartbeat = datetime.utcnow()
@@ -263,7 +277,23 @@ def list_clients():
 
     db.session.commit()
 
-    return jsonify([c.to_dict() for c in clients])
+    # Pending-command counts in ONE aggregate query (no per-client N+1)
+    from sqlalchemy import func as _func
+    _counts = dict(
+        db.session.query(
+            RemoteCommand.client_id, _func.count(RemoteCommand.id)
+        ).filter(
+            RemoteCommand.client_id.in_([c.id for c in clients]),
+            RemoteCommand.status.in_(["pending", "sent"]),
+        ).group_by(RemoteCommand.client_id).all()
+    ) if clients else {}
+
+    out = []
+    for c in clients:
+        d = c.to_dict()
+        d["pending_commands_count"] = _counts.get(c.id, 0)
+        out.append(d)
+    return jsonify(out)
 
 
 @remote_api_bp.route("/clients/<int:client_db_id>", methods=["GET"])

@@ -95,6 +95,12 @@ class RemoteSyncAgent:
         self._data_dir = _get_data_dir()
         self._secret_file = self._data_dir / "remote_secret.json"
         self._lock_file = self._data_dir / "remote_lock.json"
+        self._inbox_dir = self._data_dir / "sync_inbox"
+        self._inbox_dir.mkdir(parents=True, exist_ok=True)
+
+        # Suspended backoff (server 403): poll rarely until reactivated
+        self._backoff_until = 0.0
+        self._backoff_interval = 600
 
         # Load persisted state
         self._load_secret()
@@ -190,7 +196,12 @@ class RemoteSyncAgent:
         """Main loop: heartbeat + execute commands."""
         while self._running:
             try:
-                self._heartbeat()
+                now = time.time()
+                if now >= self._backoff_until:
+                    self._heartbeat()
+                else:
+                    time.sleep(min(30, self._backoff_until - now))
+                    continue
             except Exception as e:
                 log.error(f"Heartbeat failed: {e}")
             time.sleep(self.heartbeat_interval)
@@ -219,6 +230,8 @@ class RemoteSyncAgent:
 
         if resp.status_code == 200:
             data = resp.json()
+            # (Re)activated or healthy: clear any suspend backoff
+            self._backoff_until = 0.0
             # First-time registration: store the returned secret
             if data.get("client_secret"):
                 self._save_secret(data["client_secret"])
@@ -235,6 +248,12 @@ class RemoteSyncAgent:
             self._client_secret = None
             if self._secret_file.exists():
                 self._secret_file.unlink()
+        elif resp.status_code == 403:
+            # Suspended by admin: back off polling until reactivated.
+            # The 200 path below clears the backoff automatically.
+            self._backoff_until = time.time() + self._backoff_interval
+            log.warning(
+                f"Client suspended by server; backing off for {self._backoff_interval}s")
         else:
             log.warning(f"Heartbeat returned {resp.status_code}")
 
@@ -297,9 +316,59 @@ class RemoteSyncAgent:
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _handle_sync_data(self, payload):
-        """Sync data with the server."""
-        log.info("Sync data command received")
-        # Override this method for custom sync logic
+        """Persist server-pushed records to the local sync inbox.
+
+        The host application consumes them via drain_inbox()/ack_inbox().
+        Register a custom handler for fully custom logic.
+        """
+        records = payload.get("records", []) if isinstance(payload, dict) else []
+        cmd_tag = str(payload.get("batch_id") or int(time.time())) if isinstance(payload, dict) else str(int(time.time()))
+        safe_tag = "".join(c for c in cmd_tag if c.isalnum() or c in "-_")[:40] or "batch"
+        try:
+            path = self._inbox_dir / f"{safe_tag}.json"
+            path.write_text(json.dumps({
+                "received_at": datetime.utcnow().isoformat(),
+                "records": records,
+            }, ensure_ascii=False), encoding="utf-8")
+            log.info(f"Sync batch stored in inbox: {path.name} ({len(records)} records)")
+            self._prune_inbox()
+        except Exception as e:
+            log.error(f"Failed to store sync batch: {e}")
+            raise
+
+    def _prune_inbox(self, keep=100):
+        """Keep only the newest inbox files (disk safety)."""
+        try:
+            files = sorted(self._inbox_dir.glob("*.json"),
+                           key=lambda p: p.stat().st_mtime)
+            for stale in files[:-keep]:
+                stale.unlink()
+        except Exception:
+            pass
+
+    def drain_inbox(self):
+        """Yield (filename, payload) for each pending inbox batch, oldest first."""
+        try:
+            files = sorted(self._inbox_dir.glob("*.json"),
+                           key=lambda p: p.stat().st_mtime)
+        except Exception:
+            return
+        for path in files:
+            try:
+                yield path.name, json.loads(path.read_text(encoding="utf-8"))
+            except Exception as e:
+                log.error(f"Unreadable inbox file {path.name}: {e}")
+
+    def ack_inbox(self, filename):
+        """Remove an inbox batch after the application applied it."""
+        try:
+            target = self._inbox_dir / filename
+            if target.parent == self._inbox_dir and target.suffix == ".json":
+                target.unlink()
+                return True
+        except Exception as e:
+            log.error(f"Failed to ack inbox file {filename}: {e}")
+        return False
 
     # ── Public API ───────────────────────────────────────────
 

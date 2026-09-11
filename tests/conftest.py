@@ -25,6 +25,9 @@ def set_test_env():
     os.environ["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "test-secret-key-for-testing-only-32chars!!")
     os.environ["SECRET_KEY"] = os.environ.get("SECRET_KEY", "test-application-secret-key-for-testing-only")
     os.environ["DYNAMICPRO_ENV"] = os.environ.get("DYNAMICPRO_ENV", "test")
+    # Disable heartbeat throttling in tests (sequential heartbeats per test)
+    os.environ["REMOTE_HEARTBEAT_MIN_INTERVAL_SEC"] = os.environ.get(
+        "REMOTE_HEARTBEAT_MIN_INTERVAL_SEC", "0")
 
 
 @pytest.fixture(scope="session")
