@@ -1,0 +1,8 @@
+[project]
+name = "dynamicpro-erp"
+version = "2.0.0"
+description = "DynamicPro ERP - Real Estate Management System"
+requires-python = "~=3.12.0"
+
+# Runtime dependencies remain in requirements.txt so the existing
+# deployment and desktop workflows keep using the same dependency source.
