@@ -523,3 +523,23 @@ def save_backup_settings():
     db.session.commit()
     log_action("edit", "backup", None, "تعديل إعدادات النسخ الاحتياطي التلقائي")
     return jsonify({"success": True})
+
+
+@backup_bp.route("/health", methods=["GET"])
+@require_api("settings", "view")
+def backup_health():
+    """Check auto-backup scheduler health."""
+    import utils.settings as _s
+    last_run = _s.get("backup_last_run") or "never"
+    last_ok = _s.get("backup_last_success") or "never"
+    last_err = _s.get("backup_last_error")
+    folder = _s.get("backup_auto_folder") or ""
+    schedule = _s.get("backup_auto_interval") or "off"
+    return jsonify({
+        "scheduler_running": _scheduler_started,
+        "last_run": last_run,
+        "last_success": last_ok,
+        "last_error": last_err,
+        "folder": folder,
+        "schedule": schedule,
+    })

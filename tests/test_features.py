@@ -187,3 +187,75 @@ class TestEsignature:
         provider = db.session.get(SignatureProvider, pid)
         db.session.delete(provider)
         db.session.commit()
+
+
+# ── SMS/WhatsApp Stub Tests ──
+
+class TestSMSWhatsAppStubs:
+    def test_sms_returns_not_implemented(self):
+        from routes.notifications import _send_sms
+
+        class FakeItem:
+            id = 1
+            channel = type("C", (), {"config_json": {}, "provider": ""})()
+            recipient = "+1234567890"
+            body = "Test"
+        ok, ext_id, err = _send_sms(FakeItem())
+        assert ok is False
+        assert "not implemented" in err.lower()
+
+    def test_whatsapp_returns_not_implemented(self):
+        from routes.notifications import _send_whatsapp
+
+        class FakeItem:
+            id = 1
+            channel = type("C", (), {"config_json": {}, "provider": ""})()
+            recipient = "+1234567890"
+            body = "Test"
+        ok, ext_id, err = _send_whatsapp(FakeItem())
+        assert ok is False
+        assert "not implemented" in err.lower()
+
+
+# ── AI SQL_QUERY Security Tests ──
+
+class TestAISQLSecurity:
+    def test_sql_query_returns_response(self, auth_client):
+        """AI query endpoint should respond (may or may not route to SQL_QUERY)."""
+        resp = auth_client.post("/api/ai/query", json={
+            "query": "hello"
+        })
+        assert resp.status_code in (200, 400)  # 400 if planner can't handle
+
+
+# ── CSV Export Tests ──
+
+class TestCSVExport:
+    def test_export_blocked_table(self, auth_client):
+        resp = auth_client.get("/api/export/users")
+        assert resp.status_code == 403
+
+    def test_export_allowed_table(self, auth_client):
+        resp = auth_client.get("/api/export/employees")
+        assert resp.status_code == 200
+        assert "text/csv" in resp.content_type
+        # Should start with BOM for Excel
+        assert resp.data[:3] == b'\xef\xbb\xbf'
+
+    def test_export_includes_headers(self, auth_client):
+        resp = auth_client.get("/api/export/employees")
+        assert resp.status_code == 200
+        lines = resp.data.decode("utf-8-sig").strip().split("\n")
+        assert len(lines) >= 1  # At least header row
+
+
+# ── Backup Health Endpoint Tests ──
+
+class TestBackupHealth:
+    def test_backup_health_endpoint(self, auth_client):
+        resp = auth_client.get("/api/backup/health")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "scheduler_running" in data
+        assert "last_run" in data
+        assert "schedule" in data

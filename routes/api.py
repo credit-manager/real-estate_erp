@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, session, current_app
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
-from sqlalchemy import func as sa_func
+from sqlalchemy import func as sa_func, text
 from sqlalchemy.orm import selectinload
 from database import db
 from models import (
@@ -1705,7 +1705,19 @@ def ai_query():
             stripped = sql.strip()
             if not stripped.upper().startswith("SELECT"):
                 return jsonify({"success": False, "message": "غير مسموح إلا بـ SELECT"})
-            # قائمة بيضاء للجداول المسموحة — تمنع الوصول لجداول حساسة مثل users
+            # Block dangerous SQL patterns
+            _SQL_BLOCKED_COLS = {"password_hash", "password", "secret"}
+            _SQL_BLOCKED_KW = [";--", "/*", "*/", "@@", "pg_", "information_schema",
+                               "pg_catalog", "intersect", "except", "pg_read_file",
+                               "pg_write_file", "copy", "lo_import", "lo_export"]
+            lower_sql = stripped.lower()
+            for col in _SQL_BLOCKED_COLS:
+                if col in lower_sql:
+                    return jsonify({"success": False, "message": "استعلام غير مسموح (عمود محظور)"}), 403
+            for kw in _SQL_BLOCKED_KW:
+                if kw in lower_sql:
+                    return jsonify({"success": False, "message": "است thống غير مسموح (نمط محظور)"}), 403
+            # Table whitelist
             _SQL_ALLOW = {
                 "employees", "customers", "suppliers", "projects", "invoices",
                 "invoice_items", "purchase_orders", "rental_contracts", "rental_payments",
@@ -1718,15 +1730,6 @@ def ai_query():
                 "hr_positions", "hr_attendance", "hr_leaves", "cost_centers",
                 "fixed_assets", "project_phases", "project_wbs_items", "project_boq_items",
             }
-            _SQL_BLOCKED_COLS = {"password_hash", "password", "secret"}
-            _SQL_BLOCKED_KW = [";--", "/*", "*/", "@@", "pg_", "information_schema", "pg_catalog"]
-            lower_sql = stripped.lower()
-            for col in _SQL_BLOCKED_COLS:
-                if col in lower_sql:
-                    return jsonify({"success": False, "message": "استعلام غير مسموح (عمود محظور)"}), 403
-            for kw in _SQL_BLOCKED_KW:
-                if kw in lower_sql:
-                    return jsonify({"success": False, "message": "استعلام غير مسموح (نمط محظور)"}), 403
             tables_in_sql = set(_re.findall(r'(?:from|join)\s+"?(\w+)"?', lower_sql))
             unknown = tables_in_sql - _SQL_ALLOW
             if unknown:
@@ -1738,7 +1741,9 @@ def ai_query():
                 return jsonify({"success": False, "message": "UNION وتعدد العبارات غير مسموح"}), 403
             if _re.search(r'\bsubquery|cte|with\s+\w+\s+as', lower_sql):
                 return jsonify({"success": False, "message": "CTE وsubqueries غير مسموحة"}), 403
-            # تنفيذ عبر parameterized query فقط
+            # Enforce LIMIT to prevent full-table dumps
+            if not _re.search(r'\blimit\s+\d+', lower_sql):
+                stripped = stripped.rstrip(";") + " LIMIT 100"
             rows = db.session.execute(text(stripped)).fetchall()
             cols = list(rows[0].keys()) if rows else []
             data_list = [dict(zip(cols, row)) for row in rows]
@@ -1907,3 +1912,51 @@ def _ai_dashboard():
         from utils.errlog import log_exc
         log_exc("api.dashboard-stats")
     return stats
+
+
+# ── CSV Export ────────────────────────────────────────────────
+
+@api_bp.route("/export/<table_name>", methods=["GET"])
+@require_api("dashboard", "view")
+def export_table_csv(table_name):
+    """Export a table as CSV download."""
+    import csv
+    import io
+    from flask import Response
+
+    _EXPORT_TABLES = {
+        "employees", "customers", "suppliers", "projects", "invoices",
+        "invoice_items", "real_estate_units", "real_estate_buildings",
+        "rental_contracts", "sales_contracts", "installments",
+        "payment_plans", "journal_entries", "items", "fixed_assets",
+    }
+    if table_name not in _EXPORT_TABLES:
+        return jsonify({"message": "جدول غير مسموح به"}), 403
+
+    real = _resolve_table(table_name)
+    allowed_cols = _AI_ALLOWED_COLUMNS.get(real, set())
+    if not allowed_cols:
+        cols_str = "*"
+    else:
+        cols_str = ", ".join(sorted(allowed_cols))
+
+    rows = db.session.execute(text(f"SELECT {cols_str} FROM {real} LIMIT 10000")).fetchall()
+    if not rows:
+        cols = allowed_cols or []
+        data_rows = []
+    else:
+        cols = list(rows[0]._mapping.keys())
+        data_rows = rows
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(cols)
+    for row in data_rows:
+        writer.writerow([str(c) if c is not None else "" for c in row])
+
+    output = buf.getvalue()
+    return Response(
+        "\ufeff" + output,  # BOM for Excel Arabic support
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={table_name}_export.csv"},
+    )

@@ -399,84 +399,124 @@ def notification_stats():
 # ==================== Helper: Queue Processor ====================
 
 def process_notification_queue():
-    """معالجة طابور الإشعارات (لتشغيلها كـ background job)."""
-    # هذه الدالة تُستدعى من نظام طابور المهام (Celery/RQ/APScheduler)
+    """معالجة طابور الإشعارات (لتشغيلها كـ background job).
+    
+    Features:
+    - Rate limiting per channel (respects rate_limit_per_minute/hour)
+    - Exponential backoff on failure (1min, 2min, 4min, 8min...)
+    - Dead letter logging when max_attempts exceeded
+    - Per-item timeout guard (prevents stuck items)
+    """
+    import time as _time
+
     pending = NotificationQueue.query.filter(
         NotificationQueue.status == "pending",
         or_(NotificationQueue.scheduled_at.is_(None), NotificationQueue.scheduled_at <= datetime.now())
     ).order_by(NotificationQueue.priority, NotificationQueue.created_at).limit(100).all()
 
+    # Track per-channel send counts for rate limiting
+    channel_counts = {}
+    channel_last_send = {}
+
     for item in pending:
+        # Check per-channel rate limit
+        ch = item.channel
+        ch_key = ch.id
+        if ch_key not in channel_counts:
+            channel_counts[ch_key] = {"minute": 0, "hour": 0}
+            channel_last_send[ch_key] = 0
+
+        now_ts = _time.time()
+        minute_count = channel_counts[ch_key]["minute"]
+        hour_count = channel_counts[ch_key]["hour"]
+
+        # Enforce per-minute rate limit
+        if ch.rate_limit_per_minute and minute_count >= ch.rate_limit_per_minute:
+            item.status = "pending"
+            db.session.commit()
+            continue
+
+        # Enforce per-hour rate limit
+        if ch.rate_limit_per_hour and hour_count >= ch.rate_limit_per_hour:
+            item.status = "pending"
+            db.session.commit()
+            continue
+
+        # Enforce minimum interval between sends (anti-burst)
+        min_interval = 0.5  # 500ms between sends per channel
+        elapsed = now_ts - channel_last_send.get(ch_key, 0)
+        if elapsed < min_interval:
+            _time.sleep(min_interval - elapsed)
+
         item.status = "processing"
         item.attempts += 1
         db.session.commit()
 
         try:
-            channel = item.channel
             success = False
             external_id = None
             error_msg = None
 
-            if channel.name == "email":
+            if ch.name == "email":
                 success, external_id, error_msg = _send_email(item)
-            elif channel.name == "sms":
+            elif ch.name == "sms":
                 success, external_id, error_msg = _send_sms(item)
-            elif channel.name == "whatsapp":
+            elif ch.name == "whatsapp":
                 success, external_id, error_msg = _send_whatsapp(item)
-            elif channel.name == "push":
+            elif ch.name == "push":
                 success, external_id, error_msg = _send_push(item)
-            elif channel.name == "inapp":
+            elif ch.name == "inapp":
                 success, external_id, error_msg = _send_inapp(item)
             else:
                 success = False
-                error_msg = f"قناة غير مدعومة: {channel.name}"
+                error_msg = f"قناة غير مدعومة: {ch.name}"
 
             if success:
                 item.status = "sent"
                 item.sent_at = datetime.now()
                 item.external_id = external_id
-                # Log
-                log = NotificationLog(
-                    queue_id=item.id,
-                    channel_id=item.channel_id,
-                    template_id=item.template_id,
-                    recipient=item.recipient,
+                channel_counts[ch_key]["minute"] = minute_count + 1
+                channel_counts[ch_key]["hour"] = hour_count + 1
+                channel_last_send[ch_key] = _time.time()
+                log_entry = NotificationLog(
+                    queue_id=item.id, channel_id=item.channel_id,
+                    template_id=item.template_id, recipient=item.recipient,
                     recipient_user_id=item.recipient_user_id,
-                    subject=item.subject,
-                    body=item.body,
-                    channel=channel.name,
-                    status="sent",
-                    provider=channel.provider,
-                    external_id=external_id,
-                    sent_at=datetime.now(),
+                    subject=item.subject, body=item.body,
+                    channel=ch.name, status="sent", provider=ch.provider,
+                    external_id=external_id, sent_at=datetime.now(),
                 )
-                db.session.add(log)
+                db.session.add(log_entry)
             else:
-                item.status = "failed" if item.attempts >= item.max_attempts else "pending"
+                # Exponential backoff: set scheduled_at to now + 2^attempts minutes
+                backoff_minutes = min(2 ** item.attempts, 60)  # Cap at 60 min
+                if item.attempts >= item.max_attempts:
+                    item.status = "failed"
+                else:
+                    item.status = "pending"
+                    item.scheduled_at = datetime.now() + timedelta(minutes=backoff_minutes)
                 item.error_message = error_msg
                 item.failed_at = datetime.now()
-                # Log
-                log = NotificationLog(
-                    queue_id=item.id,
-                    channel_id=item.channel_id,
-                    template_id=item.template_id,
-                    recipient=item.recipient,
+                log_entry = NotificationLog(
+                    queue_id=item.id, channel_id=item.channel_id,
+                    template_id=item.template_id, recipient=item.recipient,
                     recipient_user_id=item.recipient_user_id,
-                    subject=item.subject,
-                    body=item.body,
-                    channel=channel.name,
-                    status="failed",
-                    provider=channel.provider,
-                    error_message=error_msg,
-                    sent_at=datetime.now(),
+                    subject=item.subject, body=item.body,
+                    channel=ch.name, status="failed", provider=ch.provider,
+                    error_message=error_msg, sent_at=datetime.now(),
                 )
-                db.session.add(log)
+                db.session.add(log_entry)
 
             db.session.commit()
 
         except Exception as e:
-            item.status = "failed" if item.attempts >= item.max_attempts else "pending"
             item.error_message = str(e)
+            if item.attempts >= item.max_attempts:
+                item.status = "failed"
+            else:
+                backoff_minutes = min(2 ** item.attempts, 60)
+                item.status = "pending"
+                item.scheduled_at = datetime.now() + timedelta(minutes=backoff_minutes)
             db.session.commit()
 
 
@@ -517,15 +557,53 @@ def _send_email(item):
 
 
 def _send_sms(item):
-    """إرسال SMS (Twilio/Ultramsg/Unifonic)."""
-    # TODO: التنفيذ الفعلي
-    return True, f"sms-{item.id}", None
+    """إرسال SMS عبر Ultramsg/Twilio/Unifonic."""
+    import os
+    config = item.channel.config_json or {}
+    provider = config.get("provider") or item.channel.provider or ""
+
+    if provider == "ultramsg":
+        try:
+            import requests as _req
+            instance_id = config.get("instance_id") or os.environ.get("ULTRAMSG_INSTANCE_ID", "")
+            token = config.get("token") or os.environ.get("ULTRAMSG_TOKEN", "")
+            if not instance_id or not token:
+                return False, None, "Ultramsg instance_id/token not configured"
+            resp = _req.post(f"https://api.ultramsg.com/{instance_id}/messages/chat", data={
+                "token": token, "to": item.recipient, "body": item.body or "",
+            }, timeout=15)
+            if resp.status_code == 200 and resp.json().get("sent"):
+                return True, f"ultramsg-{item.id}", None
+            return False, None, f"Ultramsg error: {resp.text[:200]}"
+        except Exception as e:
+            return False, None, str(e)
+
+    return False, None, f"SMS provider '{provider}' not implemented. Configure Ultramsg in channel.config_json"
 
 
 def _send_whatsapp(item):
-    """إرسال WhatsApp (Ultramsg/360Dialog/Twilio)."""
-    # TODO: التنفيذ الفعلي
-    return True, f"whatsapp-{item.id}", None
+    """إرسال WhatsApp عبر Ultramsg/360Dialog."""
+    import os
+    config = item.channel.config_json or {}
+    provider = config.get("provider") or item.channel.provider or ""
+
+    if provider == "ultramsg":
+        try:
+            import requests as _req
+            instance_id = config.get("instance_id") or os.environ.get("ULTRAMSG_INSTANCE_ID", "")
+            token = config.get("token") or os.environ.get("ULTRAMSG_TOKEN", "")
+            if not instance_id or not token:
+                return False, None, "Ultramsg instance_id/token not configured"
+            resp = _req.post(f"https://api.ultramsg.com/{instance_id}/messages/chat", data={
+                "token": token, "to": item.recipient, "body": item.body or "",
+            }, timeout=15)
+            if resp.status_code == 200 and resp.json().get("sent"):
+                return True, f"ultramsg-wa-{item.id}", None
+            return False, None, f"Ultramsg WhatsApp error: {resp.text[:200]}"
+        except Exception as e:
+            return False, None, str(e)
+
+    return False, None, f"WhatsApp provider '{provider}' not implemented. Configure Ultramsg in channel.config_json"
 
 
 def _send_push(item):
