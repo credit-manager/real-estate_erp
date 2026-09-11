@@ -1,4 +1,6 @@
 """بوابات الدفع — Moyasar / PayTabs / STC Pay."""
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app, redirect
 from sqlalchemy import or_
@@ -560,6 +562,19 @@ def _initiate_stcpay(txn):
 
 # ==================== Webhook Handlers ====================
 
+def _verify_webhook_signature(gateway, data, signature):
+    """Verify HMAC signature from payment gateway. Returns True if valid."""
+    if not signature:
+        return False
+    secret = gateway.api_secret or current_app.config.get("PAYMENT_WEBHOOK_SECRET", "")
+    if not secret:
+        return False
+    import json as _json
+    payload = _json.dumps(data, sort_keys=True, separators=(",", ":"))
+    expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
 @payments_bp.route("/webhook/<gateway_name>", methods=["POST"])
 def webhook(gateway_name):
     """استقبال callback من بوابات الدفع."""
@@ -570,7 +585,8 @@ def webhook(gateway_name):
     if not gateway:
         return jsonify({"success": False, "message": "بوابة غير موجودة"}), 404
 
-    # TODO: التحقق من التوقيع (signature verification)
+    if not _verify_webhook_signature(gateway, data, signature):
+        return jsonify({"success": False, "message": "توقيع غير صالح"}), 401
 
     external_id = data.get("id") or data.get("payment_id") or data.get("transaction_id")
     if not external_id:

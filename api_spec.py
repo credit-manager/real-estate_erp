@@ -85,7 +85,7 @@ class PaginationSchema(Schema):
 
 class LoginSchema(Schema):
     username = fields.Str(required=True, metadata={"example": "admin"})
-    password = fields.Str(required=True, load_only=True, metadata={"example": "admin123"})
+    password = fields.Str(required=True, load_only=True, metadata={"example": "your-secure-password"})
     access_password = fields.Str(load_only=True, metadata={"example": "optional_server_password"})
 
 

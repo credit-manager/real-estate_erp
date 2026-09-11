@@ -125,6 +125,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = bool(IS_PRODUCTION and not IS_FROZEN)
 PERMANENT_SESSION_LIFETIME = 8 * 3600
+MAX_LOGIN_ATTEMPTS = 5
 
 # Redis-backed rate limiting is mandatory for production multi-instance Cloud.
 # Frozen desktop builds are single-user (local SQLite) and always use memory.

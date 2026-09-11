@@ -175,7 +175,8 @@ def list_units():
     if project_id:
         q = q.filter_by(project_id=project_id)
     if search:
-        q = q.filter(RealEstateUnit.unit_code.ilike("%" + search + "%"))
+        safe = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        q = q.filter(RealEstateUnit.unit_code.ilike(f"%{safe}%", escape="\\"))
     # Eager-load to_dict() relationships (avoids 5N queries on list pages)
     q = q.options(
         selectinload(RealEstateUnit.project),

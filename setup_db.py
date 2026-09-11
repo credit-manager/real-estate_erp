@@ -39,7 +39,7 @@ try:
     for seq in sequences:
         try:
             cur.execute(f"ALTER SEQUENCE {seq[0]} OWNER TO mokawlat_user")
-        except:
+        except Exception:
             pass
     
     cur.close()

@@ -1,5 +1,11 @@
+import os
 import psycopg2
-conn = psycopg2.connect(user='postgres', password='0100', host='127.0.0.1')
+
+conn = psycopg2.connect(
+    user=os.environ.get("DB_USER", "postgres"),
+    password=os.environ.get("DB_PASSWORD", ""),
+    host=os.environ.get("DB_HOST", "127.0.0.1"),
+)
 conn.autocommit = True
 cur = conn.cursor()
 cur.execute("SELECT datname FROM pg_database")

@@ -23,7 +23,7 @@ try:
                 if isinstance(target, ast.Name) and target.id == 'TRANSLATIONS':
                     print(f'TRANSLATIONS dict has {len(node.value.keys)} keys')
                     break
-except:
+except Exception:
     print('Could not parse TRANSLATIONS dict structure')
 
 # Show first few lines

@@ -1,4 +1,5 @@
 """نظام الإشعارات الموحد — SMS/Email/WhatsApp/Push/In-app."""
+import json
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func, or_
@@ -519,9 +520,9 @@ def send_notification(channel_name, template_name, recipient, data=None, user_id
     if not channel or not template:
         return False
 
-    from jinja2 import Template
-    subject = Template(template.subject_template or "").render(**(data or {})) if template.subject_template else ""
-    body = Template(template.body_template).render(**(data or {}))
+    from flask import render_template_string
+    subject = render_template_string(template.subject_template or "", **(data or {})) if template.subject_template else ""
+    body = render_template_string(template.body_template, **(data or {}))
 
     queue_item = NotificationQueue(
         channel_id=channel.id,
@@ -531,7 +532,7 @@ def send_notification(channel_name, template_name, recipient, data=None, user_id
         recipient_user_id=user_id,
         subject=subject,
         body=body,
-        data_json=data or {},
+        data_json=json.dumps(data or {}, ensure_ascii=False),
         status="pending",
         scheduled_at=scheduled_at,
     )

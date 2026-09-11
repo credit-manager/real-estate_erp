@@ -79,4 +79,5 @@ _demo_onboarding.py
 _test_api.py
 _test_multitenant.py
 _test_phase2b.py
+_test_rbac.py
 test_sidebar_nav.py

@@ -166,12 +166,12 @@ def list_documents():
         q = q.filter_by(entity_id=entity_id)
     q_param = request.args.get("q")
     if q_param:
-        # بحث نصي بسيط (يمكن تحسينه بـ PostgreSQL tsvector)
-        like = f"%{q_param}%"
+        safe = q_param.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        like = f"%{safe}%"
         q = q.filter(db.or_(
-            Document.title.ilike(like),
-            Document.description.ilike(like),
-            Document.ocr_text.ilike(like)
+            Document.title.ilike(like, escape="\\"),
+            Document.description.ilike(like, escape="\\"),
+            Document.ocr_text.ilike(like, escape="\\")
         ))
     ocr_status = request.args.get("ocr_status")
     if ocr_status:

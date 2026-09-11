@@ -12,11 +12,12 @@ from werkzeug.security import check_password_hash
 from database import db
 from i18n import DEFAULT_LANG, make_t
 from models import User
+import config
 import server_config
 
 auth_bp = Blueprint("auth", __name__)
 
-MAX_LOGIN_ATTEMPTS = 5
+MAX_LOGIN_ATTEMPTS = config.MAX_LOGIN_ATTEMPTS
 LOGIN_LOCK_SECONDS = 900
 _LOGIN_FAILURES = {}
 _cleanup_lock = threading.Lock()

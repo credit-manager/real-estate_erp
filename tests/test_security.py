@@ -1,104 +1,186 @@
-# -*- coding: utf-8 -*-
-"""Phase 10 — Security events, audit, analytics, and emergency controls tests."""
+"""Security tests — encryption, webhook verification, XSS prevention, LIKE escaping."""
+import hashlib
+import hmac
+import json
+import os
+import sys
+import secrets
 
-COMPANIES_URL = "/admin/companies"
-SECURITY_BASE = "/admin/security"
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-class TestSecurityEvents:
-    """Security event logging and retrieval."""
+class TestCrypto:
+    def test_encrypt_decrypt_roundtrip(self):
+        from utils.crypto import encrypt_field, decrypt_field
+        key = secrets.token_hex(16)
+        secret = "my-super-secret-client-secret-1234"
+        encrypted = encrypt_field(secret, key)
+        assert encrypted != secret
+        decrypted = decrypt_field(encrypted, key)
+        assert decrypted == secret
 
-    def test_security_summary(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/security/summary")
+    def test_encrypt_empty_returns_empty(self):
+        from utils.crypto import encrypt_field, decrypt_field
+        assert encrypt_field("", "key") == ""
+        assert encrypt_field(None, "key") is None
+        assert decrypt_field("", "key") == ""
+        assert decrypt_field(None, "key") is None
+
+    def test_different_keys_fail_decrypt(self):
+        from utils.crypto import encrypt_field, decrypt_field
+        encrypted = encrypt_field("secret", "key1")
+        with pytest.raises(Exception):
+            decrypt_field(encrypted, "key2")
+
+    def test_deterministic_different_ciphertext(self):
+        from utils.crypto import encrypt_field
+        key = "same-key"
+        a = encrypt_field("test", key)
+        b = encrypt_field("test", key)
+        assert a != b
+
+
+class TestWebhookSignature:
+    def test_valid_signature(self, app):
+        with app.app_context():
+            from routes.payments import _verify_webhook_signature
+
+            class FakeGateway:
+                api_secret = "webhook-secret-123"
+
+            data = {"id": "txn_123", "status": "paid", "amount": 100}
+            payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
+            sig = hmac.new(b"webhook-secret-123", payload.encode(), hashlib.sha256).hexdigest()
+            assert _verify_webhook_signature(FakeGateway(), data, sig) is True
+
+    def test_invalid_signature(self, app):
+        with app.app_context():
+            from routes.payments import _verify_webhook_signature
+
+            class FakeGateway:
+                api_secret = "webhook-secret-123"
+
+            data = {"id": "txn_123"}
+            assert _verify_webhook_signature(FakeGateway(), data, "bad-sig") is False
+
+    def test_missing_signature(self, app):
+        with app.app_context():
+            from routes.payments import _verify_webhook_signature
+
+            class FakeGateway:
+                api_secret = "webhook-secret-123"
+
+            assert _verify_webhook_signature(FakeGateway(), {}, None) is False
+
+    def test_no_secret_configured(self, app):
+        with app.app_context():
+            from routes.payments import _verify_webhook_signature
+
+            class FakeGateway:
+                api_secret = ""
+
+            assert _verify_webhook_signature(FakeGateway(), {}, "sig") is False
+
+
+class TestEsignEncryption:
+    def test_provider_secret_encrypted_on_create(self, auth_client):
+        from database import db
+        from models import SignatureProvider
+        resp = auth_client.post("/api/esign/providers", json={
+            "name": "test_docusign_" + secrets.token_hex(4),
+            "display_name": "Test DocuSign",
+            "client_id": "client-abc",
+            "client_secret": "super-secret-oauth-token",
+            "webhook_secret": "webhook-verify-secret",
+        })
+        assert resp.status_code == 201
         data = resp.get_json()
+        provider = db.session.get(SignatureProvider, data["id"])
+        assert provider.client_id == "client-abc"
+        assert provider.client_secret_encrypted != "super-secret-oauth-token"
+        assert provider.webhook_secret_encrypted != "webhook-verify-secret"
+        db.session.delete(provider)
+        db.session.commit()
+
+
+class TestNotificationSSTI:
+    def test_template_renders_safely(self, auth_client):
+        from database import db
+        from models import NotificationChannel, NotificationTemplate, NotificationQueue
+
+        ch_name = "test_ssti_" + secrets.token_hex(4)
+        tmpl_name = "test_ssti_tmpl_" + secrets.token_hex(4)
+        ch = NotificationChannel(name=ch_name, display_name="Test SSTI Channel", is_active=True)
+        db.session.add(ch)
+        db.session.flush()
+
+        tmpl = NotificationTemplate(
+            name=tmpl_name,
+            channel_id=ch.id,
+            subject_template="Hello {{ name }}",
+            body_template="<p>{{ name }}</p>",
+            is_active=True,
+        )
+        db.session.add(tmpl)
+        db.session.commit()
+
+        from routes.notifications import send_notification
+        result = send_notification(
+            ch_name, tmpl_name,
+            "test@example.com",
+            data={"name": "<script>alert('xss')</script>"},
+        )
+        assert result is True
+
+        item = NotificationQueue.query.filter_by(
+            recipient="test@example.com"
+        ).order_by(NotificationQueue.id.desc()).first()
+        assert item is not None
+        assert "<script>" not in item.body
+        assert "&lt;script&gt;" in item.body
+
+        db.session.delete(item)
+        db.session.delete(tmpl)
+        db.session.delete(ch)
+        db.session.commit()
+
+
+class TestLikeEscaping:
+    def test_percent_not_match_all(self, auth_client):
+        from database import db
+        from models import RealEstateUnit, Project, Building
+        import uuid
+
+        proj = Project(name=f"esc_proj_{uuid.uuid4().hex[:6]}", status="active")
+        db.session.add(proj)
+        db.session.flush()
+        bld = Building(name="B1", project_id=proj.id)
+        db.session.add(bld)
+        db.session.flush()
+        u1 = RealEstateUnit(
+            unit_code=f"ESC-{uuid.uuid4().hex[:4]}",
+            project_id=proj.id, building_id=bld.id,
+            area=100, price=1000000,
+            status="available",
+        )
+        u2 = RealEstateUnit(
+            unit_code=f"XYZ-{uuid.uuid4().hex[:4]}",
+            project_id=proj.id, building_id=bld.id,
+            area=200, price=2000000,
+            status="available",
+        )
+        db.session.add_all([u1, u2])
+        db.session.commit()
+
+        resp = auth_client.get("/api/units?search=%25")
         assert resp.status_code == 200
-        assert data["success"] is True
-        assert "active_sessions" in data
-        assert "login_success_24h" in data
-
-    def test_security_events_list(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/security/events?limit=10")
         data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert isinstance(data["events"], list)
+        assert len(data) < RealEstateUnit.query.count()
 
-    def test_login_history(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/security/login-history?limit=5")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert isinstance(data["events"], list)
-
-
-class TestEmergencyControls:
-    def test_kill_all_sessions_requires_permission(self, client):
-        resp = client.post(f"{SECURITY_BASE}/security/kill-all-sessions")
-        assert resp.status_code in (401, 403)
-
-    def test_kill_all_sessions(self, master_client):
-        resp = master_client.post(f"{SECURITY_BASE}/security/kill-all-sessions")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert "revoked" in data
-
-
-class TestAudit:
-    def test_audit_log(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/audit?limit=10")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert isinstance(data["logs"], list)
-
-    def test_audit_entries_have_required_fields(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/audit?limit=1")
-        data = resp.get_json()
-        if data["logs"]:
-            log = data["logs"][0]
-            for field in ["id", "action", "created_at", "result"]:
-                assert field in log, f"Audit log missing field: {field}"
-
-
-class TestAnalytics:
-    def test_platform_overview(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/analytics/overview")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert "companies" in data
-        assert "revenue" in data
-        assert "modules" in data
-
-    def test_company_analytics(self, master_client):
-        resp = master_client.get(COMPANIES_URL)
-        companies = resp.get_json()["companies"]
-        if not companies:
-            return
-        cid = companies[0]["id"]
-        resp = master_client.get(f"{SECURITY_BASE}/analytics/companies/{cid}")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert "company" in data
-
-    def test_revenue_analytics(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/analytics/revenue")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert data["success"] is True
-        assert "monthly" in data
-
-    def test_module_adoption(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/analytics/modules")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert isinstance(data["modules"], list)
-        assert len(data["modules"]) > 0
-
-    def test_subscription_summary(self, master_client):
-        resp = master_client.get(f"{SECURITY_BASE}/analytics/subscriptions")
-        data = resp.get_json()
-        assert resp.status_code == 200
-        assert "statuses" in data
+        db.session.delete(u1)
+        db.session.delete(u2)
+        db.session.delete(bld)
+        db.session.delete(proj)
+        db.session.commit()

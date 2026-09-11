@@ -21,9 +21,10 @@ from database import db
 from licensing.models import LicCompany, LicCompanyUser, LicMasterUser
 from licensing.engine import can_access
 from licensing.db_manager import get_company_engine
+import config
 
 log = logging.getLogger(__name__)
-MAX_LOGIN_ATTEMPTS = 5
+MAX_LOGIN_ATTEMPTS = config.MAX_LOGIN_ATTEMPTS
 LOGIN_LOCK_SECONDS = 900
 _LOGIN_FAILURES = {}
 _REDIS_CLIENT = None

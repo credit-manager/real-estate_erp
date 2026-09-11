@@ -7,6 +7,19 @@ from database import db
 from models import SignatureProvider, SignatureRequest, SignatureAuditLog, SalesContract, User
 from permissions import require_api
 from auditlog import log_action
+from utils.crypto import encrypt_field, decrypt_field
+
+
+def _esign_secret_key():
+    return current_app.config.get("SECRET_KEY", "fallback-key")
+
+
+def _encrypt_secret(val):
+    return encrypt_field(val, _esign_secret_key())
+
+
+def _decrypt_secret(val):
+    return decrypt_field(val, _esign_secret_key())
 
 esign_bp = Blueprint("esign", __name__, url_prefix="/api/esign")
 
@@ -34,8 +47,8 @@ def create_provider():
         display_name=data["display_name"],
         api_base_url=data.get("api_base_url"),
         client_id=data.get("client_id"),
-        client_secret_encrypted=data.get("client_secret"),  # TODO: تشفير
-        webhook_secret_encrypted=data.get("webhook_secret"),
+        client_secret_encrypted=_encrypt_secret(data["client_secret"]) if data.get("client_secret") else None,
+        webhook_secret_encrypted=_encrypt_secret(data["webhook_secret"]) if data.get("webhook_secret") else None,
         is_active=data.get("is_active", True),
         is_default=data.get("is_default", False),
         config_json=data.get("config"),
@@ -61,9 +74,9 @@ def update_provider(pid):
         if field in data:
             setattr(provider, field, data[field])
     if "client_secret" in data:
-        provider.client_secret_encrypted = data["client_secret"]
+        provider.client_secret_encrypted = _encrypt_secret(data["client_secret"])
     if "webhook_secret" in data:
-        provider.webhook_secret_encrypted = data["webhook_secret"]
+        provider.webhook_secret_encrypted = _encrypt_secret(data["webhook_secret"])
     if "config" in data:
         provider.config_json = data["config"]
     db.session.commit()

@@ -18,10 +18,11 @@ import pyotp
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database import db
+import config
 
 log = logging.getLogger(__name__)
 ISSUER = "ERP Control Center"
-MFA_MAX_ATTEMPTS = 5
+MFA_MAX_ATTEMPTS = config.MAX_LOGIN_ATTEMPTS
 MFA_LOCK_SECONDS = 300
 _MFA_FAILURES = {}
 _REDIS_CLIENT = None
