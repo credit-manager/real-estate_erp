@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from sqlalchemy import func as sa_func, text
 from sqlalchemy.orm import selectinload
+import time
 from database import db
 from models import (
     Project, RealEstateUnit, Employee, Customer, Supplier,
@@ -62,11 +63,33 @@ def _guard_closed_year(financial_year_id):
 
 
 # ============ لوحة التحكم ============
+_dashboard_cache = {}
+_DASHBOARD_CACHE_TTL = 30  # seconds
+
+
+def _get_cached_dashboard():
+    """Return cached dashboard data if fresh, otherwise compute and cache."""
+    import time as _time
+    now = _time.time()
+    cached = _dashboard_cache.get("stats")
+    if cached and (now - cached["ts"]) < _DASHBOARD_CACHE_TTL:
+        return cached["data"]
+    return None
+
+
+def _set_cached_dashboard(data):
+    _dashboard_cache["stats"] = {"data": data, "ts": time.time()}
+
 
 @api_bp.route("/dashboard/stats")
 @require_api("dashboard", "view")
 def dashboard_stats():
     from sqlalchemy import func as sqlfunc
+
+    # Return cached data if fresh
+    cached = _get_cached_dashboard()
+    if cached is not None:
+        return jsonify(cached)
 
     def _sum_inv(inv_type):
         return float(db.session.query(sqlfunc.coalesce(sqlfunc.sum(Invoice.amount), 0))
@@ -133,7 +156,7 @@ def dashboard_stats():
     pending_reqs = [r for r in ApprovalRequest.query.filter_by(
         status="pending").all() if user_is_approver(r)]
 
-    return jsonify({
+    result = {
         "projects_count": Project.query.count(),
         "active_projects": Project.query.filter_by(status="active").count(),
         "units_count": RealEstateUnit.query.count(),
@@ -158,7 +181,9 @@ def dashboard_stats():
             s: Project.query.filter_by(status=s).count() for s in statuses
         },
         "recent_activity": [l.to_dict() for l in logs],
-    })
+    }
+    _set_cached_dashboard(result)
+    return jsonify(result)
 
 
 # ============ الوحدات العقارية ============
@@ -1622,6 +1647,38 @@ _AI_DAILY_LIMIT = 40
 _AI_QUOTA = {}
 _AI_MINUTE_LIMIT = 10
 _AI_MINUTE = {}
+
+# ── AI Quota Cleanup Timer (prune stale entries every 10 min) ──
+import threading as _threading
+_ai_cleanup_lock = _threading.Lock()
+_today_str = datetime.utcnow().strftime("%Y-%m-%d")
+
+
+def _schedule_ai_cleanup():
+    """Periodically prune stale AI quota/minute entries to prevent memory leak."""
+    def _cleanup():
+        while True:
+            _threading.Event().wait(600)
+            now = datetime.utcnow()
+            today = now.strftime("%Y-%m-%d")
+            current_minute = now.strftime("%Y-%m-%d %H:%M")
+            with _ai_cleanup_lock:
+                # Remove daily quota entries older than today
+                stale_days = [k for k in _AI_QUOTA if not k.endswith(today)]
+                for k in stale_days:
+                    _AI_QUOTA.pop(k, None)
+                # Remove minute entries older than current minute
+                stale_ips = [ip for ip, v in _AI_MINUTE.items() if v[0] != current_minute]
+                for ip in stale_ips:
+                    _AI_MINUTE.pop(ip, None)
+    t = _threading.Thread(target=_cleanup, daemon=True, name="ai-quota-cleanup")
+    t.start()
+
+
+try:
+    _schedule_ai_cleanup()
+except Exception:
+    pass
 
 
 def _ai_quota_consume():

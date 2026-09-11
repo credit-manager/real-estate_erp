@@ -2,6 +2,8 @@ import json
 import os
 import sys
 import logging
+import time
+import uuid
 from datetime import datetime
 from flask import Flask, redirect, url_for, request, session, jsonify, current_app
 from flask_cors import CORS
@@ -599,13 +601,43 @@ def create_app():
 
     @app.route("/health")
     def health():
-        """Liveness/health endpoint with a real database probe."""
+        """Liveness/health endpoint with real DB + Redis probes."""
         from sqlalchemy import text
+        import psutil
+        status = "healthy"
+        checks = {}
+
+        # Database check
         try:
             db.session.execute(text("SELECT 1"))
+            checks["database"] = "connected"
         except Exception:
-            return jsonify({"status": "unhealthy", "database": "disconnected"}), 503
-        return jsonify({"status": "healthy", "database": "connected"}), 200
+            status = "unhealthy"
+            checks["database"] = "disconnected"
+
+        # Redis check (production only)
+        if not getattr(config, "IS_FROZEN", False):
+            redis_uri = getattr(config, "RATELIMIT_STORAGE_URI", "")
+            if redis_uri:
+                try:
+                    import redis as _redis
+                    _r = _redis.from_url(redis_uri, socket_timeout=3)
+                    _r.ping()
+                    checks["redis"] = "connected"
+                except Exception:
+                    status = "degraded"
+                    checks["redis"] = "disconnected"
+
+        # Memory usage
+        try:
+            proc = psutil.Process()
+            mem_mb = round(proc.memory_info().rss / 1024 / 1024, 1)
+            checks["memory_mb"] = mem_mb
+        except Exception:
+            pass
+
+        code = 200 if status == "healthy" else 503
+        return jsonify({"status": status, **checks}), code
 
     @app.route("/ready")
     def ready():
@@ -676,6 +708,30 @@ def create_app():
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
+        return response
+
+    # ── Request Logging Middleware ────────────────────────────────
+    _request_log = logging.getLogger("dynamicpro.requests")
+
+    @app.before_request
+    def _start_request_timer():
+        request._start_time = time.time()
+        request._request_id = str(uuid.uuid4())[:8]
+
+    @app.after_request
+    def _log_request(response):
+        if request.path.startswith("/static"):
+            return response
+        duration_ms = int((time.time() - getattr(request, "_start_time", time.time())) * 1000)
+        rid = getattr(request, "_request_id", "-")
+        status = response.status_code
+        level = logging.WARNING if status >= 400 else logging.INFO
+        _request_log.log(
+            level,
+            "%s %s %s %dms rid=%s",
+            request.method, request.path, status, duration_ms, rid,
+        )
+        response.headers["X-Request-ID"] = rid
         return response
 
     def _is_api_path():
