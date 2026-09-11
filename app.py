@@ -731,6 +731,11 @@ def create_app():
             return
         if request.path in ("/login", "/logout"):
             return
+        # Exempt external webhook callbacks (HMAC-verified, no session/CSRF token)
+        if (request.path.startswith("/api/payments/webhook/")
+                or request.path.startswith("/api/esign/webhook/")
+                or "/ocr-result" in request.path):
+            return
         if not _csrf_valid():
             return jsonify({"success": False, "message": "invalid-csrf-token"}), 403
 

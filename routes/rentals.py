@@ -204,13 +204,14 @@ def create_renewal():
     contract.monthly_rent = new_rent
     if contract.status == "expired":
         contract.status = "active"
-    db.session.commit()
+    db.session.flush()
     from utils import accounting as acct
     try:
         acct.post_contract_entries(contract)
     except Exception:
         db.session.rollback()
         return jsonify({"message": "accounting.failed"}), 500
+    db.session.commit()
     _log("create", "renewal", renewal.id, renewal.renewal_number)
     out = renewal.to_dict()
     if escalation_applied:

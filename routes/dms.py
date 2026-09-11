@@ -36,6 +36,45 @@ def _is_safe_upload(filename, mimetype):
     return True
 
 
+# Magic byte signatures for common file types (first 16 bytes)
+_MAGIC_BYTES = {
+    "application/pdf": b"%PDF",
+    "image/png": b"\x89PNG",
+    "image/jpeg": b"\xff\xd8\xff",
+    "image/gif": b"GIF8",
+    "image/webp": b"RIFF",
+    "application/zip": b"PK",
+    "application/vnd.openxmlformats-officedocument": b"PK",
+    "application/msword": b"\xd0\xcf\x11\xe0",
+    "application/vnd.ms-excel": b"\xd0\xcf\x11\xe0",
+}
+
+
+def _detect_content_type(file_obj):
+    """Read file header and detect actual content type from magic bytes."""
+    file_obj.seek(0)
+    header = file_obj.read(16)
+    file_obj.seek(0)
+    if not header:
+        return None
+    for mime, sig in _MAGIC_BYTES.items():
+        if header.startswith(sig):
+            return mime
+    return None
+
+
+def _verify_upload_content(file_obj, claimed_mime):
+    """Verify file content matches claimed MIME type via magic bytes."""
+    detected = _detect_content_type(file_obj)
+    if not detected:
+        return True
+    if detected == claimed_mime:
+        return True
+    if claimed_mime in ("application/octet-stream", "application/x-empty"):
+        return False
+    return detected == claimed_mime
+
+
 def _safe_stored_path(stored_name):
     base = os.path.basename(stored_name)
     path = os.path.abspath(os.path.join(UPLOAD_FOLDER, base))
@@ -200,6 +239,10 @@ def create_document():
     # تحقق من النوع (الامتداد + MIME معاً لمنع التزوير)
     if not _is_safe_upload(file.filename, file.mimetype):
         return jsonify({"message": "نوع الملف غير مدعوم"}), 400
+
+    # تحقق من المحتوى الفعلي عبر magic bytes (يمنع polyglot files)
+    if not _verify_upload_content(file, file.mimetype):
+        return jsonify({"message": "محتوى الملف لا يتطابق مع نوعه"}), 400
 
     # بيانات النموذج
     title = request.form.get("title") or file.filename

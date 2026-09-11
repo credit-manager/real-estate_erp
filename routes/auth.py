@@ -107,16 +107,17 @@ def _check_login_lock(key):
         lock_key = _redis_key("lock", key)
         remaining = store.ttl(lock_key)
         return max(int(remaining), 0)
-    rec = _LOGIN_FAILURES.get(key)
-    if not rec:
+    with _cleanup_lock:
+        rec = _LOGIN_FAILURES.get(key)
+        if not rec:
+            return 0
+        lock_until = rec.get("lock_until") or 0
+        remaining = int(lock_until - time.time())
+        if remaining > 0:
+            return remaining
+        if lock_until:
+            _LOGIN_FAILURES.pop(key, None)
         return 0
-    lock_until = rec.get("lock_until") or 0
-    remaining = int(lock_until - time.time())
-    if remaining > 0:
-        return remaining
-    if lock_until:
-        _LOGIN_FAILURES.pop(key, None)
-    return 0
 
 
 def _register_login_failure(key):
@@ -131,12 +132,16 @@ def _register_login_failure(key):
         if count >= 3:
             time.sleep(min(0.3 * (count - 2), 2.0))
         return
-    rec = _LOGIN_FAILURES.setdefault(key, {"count": 0, "lock_until": 0})
-    rec["count"] += 1
-    if rec["count"] >= MAX_LOGIN_ATTEMPTS:
-        rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
-    if rec["count"] >= 3:
-        time.sleep(min(0.3 * (rec["count"] - 2), 2.0))
+    sleep_seconds = 0
+    with _cleanup_lock:
+        rec = _LOGIN_FAILURES.setdefault(key, {"count": 0, "lock_until": 0})
+        rec["count"] += 1
+        if rec["count"] >= MAX_LOGIN_ATTEMPTS:
+            rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
+        if rec["count"] >= 3:
+            sleep_seconds = min(0.3 * (rec["count"] - 2), 2.0)
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
 
 
 def _reset_login_failures(key):
@@ -144,7 +149,8 @@ def _reset_login_failures(key):
     if store is not None:
         store.delete(_redis_key("count", key), _redis_key("lock", key))
         return
-    _LOGIN_FAILURES.pop(key, None)
+    with _cleanup_lock:
+        _LOGIN_FAILURES.pop(key, None)
 
 
 def login_required(f):

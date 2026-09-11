@@ -49,6 +49,8 @@ def create_role():
     )
     db.session.add(role)
     db.session.commit()
+    from auditlog import log_action
+    log_action("create", "role", role.id, f"role={role.name}")
     return jsonify(role.to_dict()), 201
 
 
@@ -76,6 +78,11 @@ def update_role(role_id):
         role.permissions = clean
 
     db.session.commit()
+    from auditlog import log_action
+    desc = f"role={role.name}"
+    if "permissions" in data:
+        desc += " (permissions updated)"
+    log_action("update", "role", role.id, desc)
     return jsonify(role.to_dict())
 
 
@@ -96,4 +103,6 @@ def delete_role(role_id):
 
     db.session.delete(role)
     db.session.commit()
+    from auditlog import log_action
+    log_action("delete", "role", role_id, f"role={role.name}")
     return jsonify({"success": True})

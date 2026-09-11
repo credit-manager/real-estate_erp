@@ -625,7 +625,7 @@ def create_supplier_invoice():
     if computed is not None:
         invoice.amount = round(computed, 2)
     db.session.add(invoice)
-    db.session.commit()
+    db.session.flush()
     from utils.workflow import submit_document_for_approval
     submit_document_for_approval("invoice", invoice.id)
     if invoice.approval_status == "not_required":
@@ -640,12 +640,14 @@ def create_supplier_invoice():
                     is_receipt=False,
                     description=invoice.invoice_number)
         except ValueError as e:
+            db.session.rollback()
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
+    db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict()), 201
 
@@ -687,7 +689,7 @@ def update_supplier_invoice(invoice_id):
         computed = invoice.items_total()
         if computed is not None:
             invoice.amount = round(computed, 2)
-    db.session.commit()
+    db.session.flush()
     from utils.workflow import submit_document_for_approval
     if invoice.approval_status == "rejected":
         submit_document_for_approval("invoice", invoice.id)
@@ -703,12 +705,14 @@ def update_supplier_invoice(invoice_id):
                     is_receipt=False,
                     description=invoice.invoice_number)
         except ValueError as e:
+            db.session.rollback()
             return jsonify({"message": str(e), "error_key": str(e)}), 400
         except Exception as e:
             db.session.rollback()
             return jsonify({"message": "internal server error"}), 500
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
+    db.session.commit()
     _log("update", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict())
 

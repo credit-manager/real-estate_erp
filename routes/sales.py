@@ -307,7 +307,7 @@ def create_sales_invoice():
     else:
         invoice.amount = parse_float(data.get("amount"))
     db.session.add(invoice)
-    db.session.commit()
+    db.session.flush()
     from utils.workflow import submit_document_for_approval
     submit_document_for_approval("invoice", invoice.id)
     if invoice.approval_status == "not_required":
@@ -322,7 +322,9 @@ def create_sales_invoice():
                     is_receipt=True,
                     description=invoice.invoice_number)
         except ValueError as e:
+            db.session.rollback()
             return jsonify({"message": str(e), "error_key": str(e)}), 400
+    db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict()), 201
 
@@ -351,7 +353,7 @@ def update_sales_invoice(invoice_id):
         computed = invoice.items_total()
         if computed is not None:
             invoice.amount = round(computed, 2)
-    db.session.commit()
+    db.session.flush()
     from utils.workflow import submit_document_for_approval
     if invoice.approval_status == "rejected":
         submit_document_for_approval("invoice", invoice.id)
@@ -367,7 +369,9 @@ def update_sales_invoice(invoice_id):
                     is_receipt=True,
                     description=invoice.invoice_number)
         except ValueError as e:
+            db.session.rollback()
             return jsonify({"message": str(e), "error_key": str(e)}), 400
+    db.session.commit()
     _log("update", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict())
 
@@ -555,6 +559,7 @@ def pay_invoice(invoice_id):
             is_receipt=True,
             description=invoice.invoice_number)
     except ValueError as e:
+        db.session.rollback()
         return jsonify({"message": str(e), "error_key": str(e)}), 400
     db.session.commit()
     _log("update", "invoice", invoice.id, f"تحصيل {amount}")
