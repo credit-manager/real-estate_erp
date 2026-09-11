@@ -24,6 +24,8 @@ def validate_license():
             return False, " expired"
         return True, None
     except Exception:
+        import logging
+        logging.getLogger(__name__).exception("License validation failed")
         return True, None  # Graceful if table doesn't exist yet
 
 
@@ -32,6 +34,8 @@ def get_active_license():
     try:
         return License.query.filter_by(is_active=True).first()
     except Exception:
+        import logging
+        logging.getLogger(__name__).exception("License lookup failed")
         return None
 
 

@@ -481,9 +481,39 @@ def process_notification_queue():
 
 
 def _send_email(item):
-    """إرسال بريد إلكتروني (SendGrid/Mailgun/SMTP)."""
-    # TODO: تنفيذ الإرسال الفعلي
-    return True, f"email-{item.id}", None
+    """إرسال بريد إلكتروني عبر SMTP."""
+    import os
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    config = item.channel.config_json or {}
+    host = config.get("smtp_host") or os.environ.get("SMTP_HOST", "")
+    port = int(config.get("smtp_port") or os.environ.get("SMTP_PORT", 587))
+    user = config.get("smtp_user") or os.environ.get("SMTP_USER", "")
+    password = config.get("smtp_password") or os.environ.get("SMTP_PASSWORD", "")
+    from_addr = config.get("from_email") or os.environ.get("SMTP_FROM", user)
+    use_tls = config.get("smtp_tls", True)
+
+    if not host:
+        return False, None, "SMTP_HOST not configured"
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = from_addr
+        msg["To"] = item.recipient
+        msg["Subject"] = item.subject or ""
+        msg.attach(MIMEText(item.body or "", "html", "utf-8"))
+
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            if use_tls:
+                server.starttls()
+            if user and password:
+                server.login(user, password)
+            server.sendmail(from_addr, [item.recipient], msg.as_string())
+        return True, f"smtp-{item.id}", None
+    except Exception as e:
+        return False, None, str(e)
 
 
 def _send_sms(item):
@@ -499,9 +529,36 @@ def _send_whatsapp(item):
 
 
 def _send_push(item):
-    """إرسال Push Notification (FCM/APNs)."""
-    # TODO: التنفيذ الفعلي
-    return True, f"push-{item.id}", None
+    """إرسال Push Notification عبر FCM (HTTP v1 API)."""
+    import os
+    import json as _json
+    try:
+        import requests
+    except ImportError:
+        return False, None, "requests library not installed"
+
+    config = item.channel.config_json or {}
+    fcm_key = config.get("fcm_server_key") or os.environ.get("FCM_SERVER_KEY", "")
+    fcm_url = "https://fcm.googleapis.com/v1/projects/{}/messages:send".format(
+        config.get("fcm_project_id") or os.environ.get("FCM_PROJECT_ID", ""))
+
+    if not fcm_key and not fcm_url:
+        return False, None, "FCM not configured"
+
+    payload = {
+        "message": {
+            "token": item.recipient,
+            "notification": {"title": item.subject or "", "body": item.body or ""},
+        }
+    }
+    try:
+        headers = {"Authorization": f"Bearer {fcm_key}", "Content-Type": "application/json"}
+        resp = requests.post(fcm_url, json=payload, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            return True, f"fcm-{item.id}", None
+        return False, None, f"FCM error {resp.status_code}: {resp.text[:200]}"
+    except Exception as e:
+        return False, None, str(e)
 
 
 def _send_inapp(item):

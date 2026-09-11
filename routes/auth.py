@@ -89,7 +89,8 @@ def _schedule_cleanup():
         t.start()
         _cleanup_old_failures()
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).exception("Login cleanup timer failed")
 
 
 _schedule_cleanup()

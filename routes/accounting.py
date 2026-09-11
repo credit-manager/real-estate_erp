@@ -953,6 +953,8 @@ def _post_asset_purchase(asset, cost, data):
             financial_year_id=year_id,
             source="asset", ref_type="asset", ref_id=asset.id)
     except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Failed to create journal entry for asset %s", asset.asset_code)
         db.session.rollback()
 
 

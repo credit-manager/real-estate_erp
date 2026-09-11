@@ -137,6 +137,18 @@ INDEXES = {
     "remote_clients": ["company_id", "status"],
     "remote_commands": ["client_id", "status"],
     "remote_sync_log": ["client_id", "status"],
+    # مدفوعات
+    "payment_transactions": ["customer_id", "status", "entity_type", "entity_id"],
+    "payment_refunds": ["transaction_id", "status"],
+    "payment_method_tokens": ["customer_id", "is_active"],
+    "payment_plan_installments": ["gateway_id", "next_charge_at", "auto_charge"],
+    # إشعارات
+    "notification_queue": ["status", "priority", "scheduled_at"],
+    "notification_logs": ["channel_id", "recipient"],
+    # توقيع إلكتروني
+    "signature_providers": ["name", "is_active"],
+    "signature_requests": ["provider_id", "status", "external_id"],
+    "signature_audit_logs": ["request_id", "action"],
 }
 
 
