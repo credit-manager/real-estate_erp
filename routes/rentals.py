@@ -79,10 +79,13 @@ def notifications_page():
 @require_api("rentals", "view")
 def list_tenants():
     """قائمة المستأجرين (العملاء المرتبطين بعقود إيجار) مع إحصائياتهم."""
+    from sqlalchemy.orm import selectinload
     customers = Customer.query.order_by(Customer.full_name).all()
     result = []
     for c in customers:
-        contracts = RentalContract.query.filter_by(customer_id=c.id).all()
+        contracts = RentalContract.query.options(
+            selectinload(RentalContract.unit)
+        ).filter_by(customer_id=c.id).all()
         active = [x for x in contracts if x.status == "active"]
         result.append({
             "id": c.id,

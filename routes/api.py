@@ -1226,7 +1226,9 @@ def notifications():
                 num=rc.contract_number, date=rc.end_date.isoformat()),
         })
 
-    for u in RealEstateUnit.query.filter_by(status="available").limit(10).all():
+    for u in RealEstateUnit.query.options(
+        selectinload(RealEstateUnit.project)
+    ).filter_by(status="available").limit(10).all():
         project = u.project.name if u.project else ""
         notifs.append({
             "type": "vacant_unit",
@@ -1236,12 +1238,15 @@ def notifications():
             "message": L["vacant_msg"].format(code=u.unit_code, project=project),
         })
 
-    for inst in Installment.query.filter(
+    from sqlalchemy.orm import joinedload
+    for inst in Installment.query.options(
+        joinedload(Installment.plan)
+    ).filter(
         Installment.status.in_(["pending", "partial", "overdue"]),
         Installment.due_date.isnot(None),
         Installment.due_date < today,
     ).limit(10).all():
-        plan = db.session.get(PaymentPlan, inst.plan_id)
+        plan = inst.plan
         if not plan:
             continue
         days = (today - inst.due_date).days

@@ -240,6 +240,7 @@ def login():
         session["username"] = user.username
         session["full_name"] = user.full_name
         session["role"] = user.role
+        session["must_change_password"] = bool(user.must_change_password)
         csrf_token = _csrf_token()
         from auditlog import log_action
         log_action("login", "user", user.id, user.username)

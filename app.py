@@ -491,6 +491,8 @@ def create_app():
     from security.routes import security_bp
 
     app.register_blueprint(auth_bp)
+    # Rate-limit the login endpoint: 10 per minute per IP
+    limiter.limit("10 per minute")(app.view_functions["auth.login"])
     app.register_blueprint(projects_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(pages_bp)
@@ -774,29 +776,26 @@ def create_app():
 
     @app.before_request
     def enforce_password_change():
-        """Redirect users with must_change_password=True to the password change page."""
+        """Redirect users with must_change_password=True to the password change page.
+        
+        Uses session cache to avoid DB query on every request. The flag is set
+        at login and cleared after password change.
+        """
         if current_app.config.get("TESTING"):
             return
         if request.path.startswith("/static"):
             return
         if request.path in ("/login", "/logout", "/api/language"):
             return
-        # Check employee session
+        # Check employee session — use cached flag from login
         user_id = session.get("user_id")
         if user_id:
-            try:
-                from models import User
-                user = db.session.get(User, user_id)
-                if user and user.must_change_password:
-                    if request.path != "/change-password" and not request.path.startswith("/api/change-password"):
-                        if request.path.startswith("/api/"):
-                            return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
-                        return redirect(url_for("pages.change_password"))
-            except Exception:
-                current_app.logger.error("Password-change enforcement failed closed", exc_info=True)
-                if request.path.startswith("/api/"):
-                    return jsonify({"success": False, "message": "تعذر التحقق من حالة كلمة المرور", "code": "password_guard_unavailable"}), 503
-                return _error_html("503", "تعذر التحقق من حالة كلمة المرور"), 503
+            must_change = session.get("must_change_password")
+            if must_change:
+                if request.path != "/change-password" and not request.path.startswith("/api/change-password"):
+                    if request.path.startswith("/api/"):
+                        return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
+                    return redirect(url_for("pages.change_password"))
 
     return app
 

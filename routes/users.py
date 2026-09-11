@@ -195,6 +195,7 @@ def change_password():
 
     user.password_hash = generate_password_hash(new_password)
     user.must_change_password = False
+    session["must_change_password"] = False
     db_session_add(user)
     from auditlog import log_action
     log_action("update", "user", user.id, "password_changed")

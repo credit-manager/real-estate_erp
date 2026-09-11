@@ -162,11 +162,12 @@ def delete_template(tid):
 # ==================== Queue (Send Notifications) ====================
 
 def _render_template(template, data):
-    """عرض القالب مع البيانات."""
-    from jinja2 import Template
+    """عرض القالب مع البيانات — باستخدام SandboxedEnvironment لمنع SSTI."""
+    from jinja2.sandbox import SandboxedEnvironment
+    env = SandboxedEnvironment(autoescape=True)
     try:
-        subject = Template(template.subject_template or "").render(**data) if template.subject_template else ""
-        body = Template(template.body_template).render(**data)
+        subject = env.from_string(template.subject_template or "").render(**data) if template.subject_template else ""
+        body = env.from_string(template.body_template).render(**data)
         return subject, body
     except Exception as e:
         return "", f"Template error: {e}"
@@ -655,9 +656,10 @@ def send_notification(channel_name, template_name, recipient, data=None, user_id
     if not channel or not template:
         return False
 
-    from flask import render_template_string
-    subject = render_template_string(template.subject_template or "", **(data or {})) if template.subject_template else ""
-    body = render_template_string(template.body_template, **(data or {}))
+    from jinja2.sandbox import SandboxedEnvironment
+    _env = SandboxedEnvironment(autoescape=True)
+    subject = _env.from_string(template.subject_template or "").render(**(data or {})) if template.subject_template else ""
+    body = _env.from_string(template.body_template).render(**(data or {}))
 
     queue_item = NotificationQueue(
         channel_id=channel.id,
