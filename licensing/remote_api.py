@@ -19,7 +19,7 @@ from sqlalchemy import or_
 from database import db
 from licensing.models import (
     RemoteClient, RemoteCommand, RemoteSyncLog,
-    LicCompany, LicCompanyUser
+    LicActivityLog, LicCompany, LicCompanyUser
 )
 
 log = logging.getLogger(__name__)
@@ -52,6 +52,29 @@ def _generate_client_id():
 
 def _generate_client_secret():
     return secrets.token_urlsafe(32)
+
+
+VALID_COMMANDS = [
+    "set_role", "update_modules", "suspend", "reactivate",
+    "sync_data", "update_config", "push_permissions",
+    "lock", "unlock", "restart", "update_password",
+]
+
+
+def _log_remote(user, action, target_type=None, target_id=None, details=None):
+    """Audit trail for remote-management admin actions (never breaks the call)."""
+    try:
+        db.session.add(LicActivityLog(
+            actor_id=getattr(user, "id", None),
+            actor_email=getattr(user, "email", None),
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            details=details,
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 # ── CLIENT ENDPOINTS (called by desktop clients) ────────────
@@ -331,13 +354,8 @@ def send_command(client_db_id):
     if not command:
         return jsonify({"error": "command required"}), 400
 
-    valid_commands = [
-        "set_role", "update_modules", "suspend", "reactivate",
-        "sync_data", "update_config", "push_permissions",
-        "lock", "unlock", "restart", "update_password"
-    ]
-    if command not in valid_commands:
-        return jsonify({"error": f"Invalid command. Valid: {valid_commands}"}), 400
+    if command not in VALID_COMMANDS:
+        return jsonify({"error": f"Invalid command. Valid: {VALID_COMMANDS}"}), 400
 
     user = _get_master_user()
     cmd = RemoteCommand(
@@ -352,6 +370,8 @@ def send_command(client_db_id):
     db.session.commit()
 
     log.info(f"Command '{command}' queued for client {client.client_id}")
+    _log_remote(user, "remote_command", "remote_client", client.id,
+                {"command": command, "client_id": client.client_id})
 
     return jsonify({"ok": True, "command": cmd.to_dict()})
 
@@ -380,6 +400,8 @@ def update_config(client_db_id):
     )
     db.session.add(cmd)
     db.session.commit()
+    _log_remote(_get_master_user(), "remote_config_push", "remote_client",
+                client.id, {"keys": sorted(data.keys())})
 
     return jsonify({"ok": True, "remote_config": client.remote_config})
 
@@ -405,6 +427,8 @@ def suspend_client(client_db_id):
     )
     db.session.add(cmd)
     db.session.commit()
+    _log_remote(_get_master_user(), "remote_client_suspended", "remote_client",
+                client.id, {"client_id": client.client_id})
 
     return jsonify({"ok": True})
 
@@ -430,6 +454,8 @@ def reactivate_client(client_db_id):
     )
     db.session.add(cmd)
     db.session.commit()
+    _log_remote(_get_master_user(), "remote_client_reactivated", "remote_client",
+                client.id, {"client_id": client.client_id})
 
     return jsonify({"ok": True})
 
@@ -445,6 +471,8 @@ def broadcast_command():
 
     if not command:
         return jsonify({"error": "command required"}), 400
+    if command not in VALID_COMMANDS:
+        return jsonify({"error": f"Invalid command. Valid: {VALID_COMMANDS}"}), 400
 
     q = RemoteClient.query.filter_by(status="active")
     if company_id:
@@ -467,6 +495,8 @@ def broadcast_command():
         count += 1
 
     db.session.commit()
+    _log_remote(user, "remote_broadcast", None, None,
+                {"command": command, "company_id": company_id, "commands_sent": count})
 
     return jsonify({"ok": True, "commands_sent": count})
 

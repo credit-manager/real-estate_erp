@@ -163,6 +163,45 @@ def test_invalid_command_rejected(master_client, client, sample_company):
     assert resp.status_code == 400
 
 
+def test_broadcast_reaches_all_active(master_client, client, sample_company):
+    cids = [_register(client, sample_company["id"])[0] for _ in range(2)]
+    resp = master_client.post("/api/remote/broadcast", json={
+        "company_id": sample_company["id"],
+        "command": "sync_data", "payload": {"records": []},
+    })
+    assert resp.status_code == 200
+    assert resp.get_json()["commands_sent"] == 2
+    for cid in cids:
+        dbid = _db_id(master_client, cid)
+        det = master_client.get(f"/api/remote/clients/{dbid}").get_json()
+        assert any(c["command"] == "sync_data" and c["status"] == "pending"
+                   for c in det["commands"])
+
+
+def test_broadcast_validates_command(master_client):
+    resp = master_client.post("/api/remote/broadcast", json={"command": "rm_rf"})
+    assert resp.status_code == 400
+    resp = master_client.post("/api/remote/broadcast", json={})
+    assert resp.status_code == 400
+
+
+def test_remote_actions_are_audited(master_client, client, sample_company, app):
+    from database import db
+    from licensing.models import LicActivityLog
+
+    cid, _secret = _register(client, sample_company["id"])
+    dbid = _db_id(master_client, cid)
+    master_client.post(f"/api/remote/clients/{dbid}/command",
+                       json={"command": "lock", "payload": {}})
+    master_client.post("/api/remote/broadcast",
+                       json={"command": "unlock", "payload": {}})
+    with app.app_context():
+        actions = {a.action for a in LicActivityLog.query.filter(
+            LicActivityLog.action.in_(["remote_command", "remote_broadcast"])).all()}
+    assert "remote_command" in actions
+    assert "remote_broadcast" in actions
+
+
 class TestAgentInbox:
     """Sync-inbox behavior (no server needed)."""
 
