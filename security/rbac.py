@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """RBAC — explicit role/permission authorization for the control center."""
 import logging
+import threading
 import time as _time
 
 from database import db
@@ -9,26 +10,30 @@ log = logging.getLogger(__name__)
 
 # ── RBAC Permissions Cache (in-memory, 60s TTL) ─────────────────
 _rbac_cache = {}
+_rbac_lock = threading.Lock()
 _RbacCacheTTL = 60
 
 
 def _rbac_cache_get(master_user_id):
-    entry = _rbac_cache.get(master_user_id)
-    if entry and (_time.time() - entry["ts"]) < _RbacCacheTTL:
-        return entry["perms"]
+    with _rbac_lock:
+        entry = _rbac_cache.get(master_user_id)
+        if entry and (_time.time() - entry["ts"]) < _RbacCacheTTL:
+            return entry["perms"]
     return None
 
 
 def _rbac_cache_set(master_user_id, perms):
-    _rbac_cache[master_user_id] = {"perms": perms, "ts": _time.time()}
+    with _rbac_lock:
+        _rbac_cache[master_user_id] = {"perms": perms, "ts": _time.time()}
 
 
 def invalidate_rbac_cache(master_user_id=None):
     """Invalidate RBAC cache for a user or all users."""
-    if master_user_id is not None:
-        _rbac_cache.pop(master_user_id, None)
-    else:
-        _rbac_cache.clear()
+    with _rbac_lock:
+        if master_user_id is not None:
+            _rbac_cache.pop(master_user_id, None)
+        else:
+            _rbac_cache.clear()
 
 PERMISSION_CATALOG = [
     ("dashboard.view", "عرض لوحة التحكم"),

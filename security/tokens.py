@@ -37,7 +37,8 @@ def _secret():
     try:
         os.makedirs(os.path.dirname(key_file), exist_ok=True)
         if os.path.isfile(key_file):
-            key = open(key_file, "r", encoding="utf-8").read().strip()
+            with open(key_file, "r", encoding="utf-8") as fh:
+                key = fh.read().strip()
             if len(key) >= 32:
                 return key
         key = secrets.token_hex(32)

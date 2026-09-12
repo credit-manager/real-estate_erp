@@ -11,6 +11,7 @@ import logging
 import os
 import secrets
 import sys
+import threading
 import time
 from datetime import datetime
 
@@ -25,6 +26,7 @@ ISSUER = "ERP Control Center"
 MFA_MAX_ATTEMPTS = config.MAX_LOGIN_ATTEMPTS
 MFA_LOCK_SECONDS = 300
 _MFA_FAILURES = {}
+_mfa_lock = threading.Lock()
 _REDIS_CLIENT = None
 _REDIS_UNAVAILABLE = False
 
@@ -86,7 +88,8 @@ def _mfa_attempt_allowed(master_user_id):
     lock_until = rec.get("lock_until", 0)
     if lock_until > time.time():
         return False
-    _MFA_FAILURES.pop(master_user_id, None)
+    with _mfa_lock:
+        _MFA_FAILURES.pop(master_user_id, None)
     return True
 
 
@@ -100,10 +103,11 @@ def _register_mfa_failure(master_user_id):
         if count >= MFA_MAX_ATTEMPTS:
             store.set(f"{key}:lock", "1", ex=MFA_LOCK_SECONDS)
         return
-    rec = _MFA_FAILURES.setdefault(master_user_id, {"count": 0, "lock_until": 0})
-    rec["count"] += 1
-    if rec["count"] >= MFA_MAX_ATTEMPTS:
-        rec["lock_until"] = time.time() + MFA_LOCK_SECONDS
+    with _mfa_lock:
+        rec = _MFA_FAILURES.setdefault(master_user_id, {"count": 0, "lock_until": 0})
+        rec["count"] += 1
+        if rec["count"] >= MFA_MAX_ATTEMPTS:
+            rec["lock_until"] = time.time() + MFA_LOCK_SECONDS
 
 
 def _reset_mfa_failures(master_user_id):
@@ -112,7 +116,8 @@ def _reset_mfa_failures(master_user_id):
         key = _mfa_key(master_user_id)
         store.delete(f"{key}:count", f"{key}:lock")
         return
-    _MFA_FAILURES.pop(master_user_id, None)
+    with _mfa_lock:
+        _MFA_FAILURES.pop(master_user_id, None)
 
 
 def enroll(master_user_id, user_email):

@@ -1676,7 +1676,7 @@ _AI_MINUTE = {}
 # ── AI Quota Cleanup Timer (prune stale entries every 10 min) ──
 import threading as _threading
 _ai_cleanup_lock = _threading.Lock()
-_today_str = datetime.utcnow().strftime("%Y-%m-%d")
+_today_str = datetime.utcnow().strftime("%Y-%m-%d")  # noqa: F841 (kept for compatibility)
 
 
 def _schedule_ai_cleanup():
@@ -1688,11 +1688,9 @@ def _schedule_ai_cleanup():
             today = now.strftime("%Y-%m-%d")
             current_minute = now.strftime("%Y-%m-%d %H:%M")
             with _ai_cleanup_lock:
-                # Remove daily quota entries older than today
                 stale_days = [k for k in _AI_QUOTA if not k.endswith(today)]
                 for k in stale_days:
                     _AI_QUOTA.pop(k, None)
-                # Remove minute entries older than current minute
                 stale_ips = [ip for ip, v in _AI_MINUTE.items() if v[0] != current_minute]
                 for ip in stale_ips:
                     _AI_MINUTE.pop(ip, None)
@@ -1710,24 +1708,26 @@ def _ai_quota_consume():
     """سجل استهلاك للكوتا اليومية لكل مستخدم (في الذاكرة)."""
     uid = session.get("user_id") or "anon"
     key = f"{uid}:{datetime.utcnow().strftime('%Y-%m-%d')}"
-    used = _AI_QUOTA.get(key, 0)
-    if used >= _AI_DAILY_LIMIT:
-        return False, 0
-    _AI_QUOTA[key] = used + 1
-    return True, _AI_DAILY_LIMIT - used - 1
+    with _ai_cleanup_lock:
+        used = _AI_QUOTA.get(key, 0)
+        if used >= _AI_DAILY_LIMIT:
+            return False, 0
+        _AI_QUOTA[key] = used + 1
+        return True, _AI_DAILY_LIMIT - used - 1
 
 
 def _ai_minute_allow(ip):
     """حد 10 طلبات/دقيقة لكل IP (عداد في الذاكرة بدقة دقيقة)."""
     minute = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-    cur = _AI_MINUTE.get(ip)
-    if cur and cur[0] == minute:
-        if cur[1] >= _AI_MINUTE_LIMIT:
-            return False
-        cur[1] += 1
+    with _ai_cleanup_lock:
+        cur = _AI_MINUTE.get(ip)
+        if cur and cur[0] == minute:
+            if cur[1] >= _AI_MINUTE_LIMIT:
+                return False
+            cur[1] += 1
+            return True
+        _AI_MINUTE[ip] = [minute, 1]
         return True
-    _AI_MINUTE[ip] = [minute, 1]
-    return True
 
 
 @api_bp.route("/ai/query", methods=["POST"])

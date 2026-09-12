@@ -1,4 +1,5 @@
 """بوابة العميل — Portal للعميل لعرض عقوده وأقساطه وصيانته."""
+import threading
 from datetime import datetime
 from flask import Blueprint, request, jsonify, render_template, session, current_app
 from database import db
@@ -17,6 +18,7 @@ def portal_page():
 
 # بحث برقم العقد (بدون تسجيل دخول — للعميل) مع تحديد معدل
 _portal_lookups = {}
+_portal_lock = threading.Lock()
 
 
 def _get_limiter():
@@ -31,21 +33,20 @@ def lookup():
     ip = request.remote_addr or "unknown"
     key = f"{ip}"
     now = time.time()
-    # حد بسيط: 10 محاولات / دقيقة
-    hist = _portal_lookups.get(key, [])
-    hist = [t for t in hist if now - t < 60]
-    if len(hist) >= 10:
-        return jsonify({"message": "محاولات كثيرة — حاول بعد دقيقة", "error_key": "portal.rateLimited"}), 429
-    hist.append(now)
-    _portal_lookups[key] = hist
-    # تنظيف الذاكرة: إزالة المدخلات المنتهية إذا كبر القاموس
-    if len(_portal_lookups) > 1000:
-        for k in list(_portal_lookups.keys()):
-            _portal_lookups[k] = [t for t in _portal_lookups[k] if now - t < 60]
-            if not _portal_lookups[k]:
-                del _portal_lookups[k]
-            if len(_portal_lookups) <= 500:
-                break
+    with _portal_lock:
+        hist = _portal_lookups.get(key, [])
+        hist = [t for t in hist if now - t < 60]
+        if len(hist) >= 10:
+            return jsonify({"message": "محاولات كثيرة — حاول بعد دقيقة", "error_key": "portal.rateLimited"}), 429
+        hist.append(now)
+        _portal_lookups[key] = hist
+        if len(_portal_lookups) > 1000:
+            for k in list(_portal_lookups.keys()):
+                _portal_lookups[k] = [t for t in _portal_lookups[k] if now - t < 60]
+                if not _portal_lookups[k]:
+                    del _portal_lookups[k]
+                if len(_portal_lookups) <= 500:
+                    break
 
     contract_number = (request.args.get("contract_number") or "").strip()
     phone = (request.args.get("phone") or "").strip()

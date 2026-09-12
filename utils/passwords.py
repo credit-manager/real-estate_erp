@@ -32,8 +32,9 @@ def validate_password(password):
 def generate_strong_password(length=14):
     """Generate a strong random password (letters+digits)."""
     alphabet = string.ascii_letters + string.digits + "!@#%"
-    while True:
+    for _ in range(1000):
         pw = "".join(secrets.choice(alphabet) for _ in range(length))
         ok, _ = validate_password(pw)
         if ok and pw.lower() not in WEAK_PASSWORDS:
             return pw
+    raise RuntimeError("Failed to generate a strong password after 1000 attempts")
