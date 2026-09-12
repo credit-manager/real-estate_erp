@@ -42,7 +42,9 @@ def _configure_bootstrap_admin(mapper, connection, target):
         from config import IS_FROZEN, IS_PRODUCTION, USER_DATA_DIR
     except Exception:
         return
-    if not IS_PRODUCTION:
+    if not IS_PRODUCTION or IS_FROZEN:
+        # Frozen desktop is single-user with a local DB: keep the documented
+        # default credential (forced to change on first login).
         return
 
     from werkzeug.security import generate_password_hash

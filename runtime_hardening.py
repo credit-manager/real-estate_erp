@@ -70,7 +70,7 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
     from config import IS_FROZEN, IS_PRODUCTION, USER_DATA_DIR
 
     for obj in list(session.new):
-        if _is_default_user(obj) and IS_PRODUCTION:
+        if _is_default_user(obj) and IS_PRODUCTION and not IS_FROZEN:
             password = secure_bootstrap_admin(generate_random=IS_FROZEN)
             if password is None:
                 session.expunge(obj)
@@ -80,7 +80,7 @@ def _harden_new_objects(session: Session, _flush_context: Any, _instances: Any) 
                 if IS_FROZEN:
                     _persist_first_run_password(str(USER_DATA_DIR), password, "FIRST_RUN_ADMIN.txt")
 
-        if _is_default_master(obj) and IS_PRODUCTION:
+        if _is_default_master(obj) and IS_PRODUCTION and not IS_FROZEN:
             password = secure_bootstrap_admin(generate_random=IS_FROZEN)
             if password is None:
                 session.expunge(obj)

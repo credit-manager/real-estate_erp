@@ -12,68 +12,41 @@ import config
 import server_config
 import permissions
 from i18n import TRANSLATIONS, DEFAULT_LANG, LANG_CODES, get_lang, make_t
-import os
-import getpass
 
-def _get_default_admin_username():
-    """
-    Determine the default admin username.
-    Priority order:
-    1. Environment variable DYNAMICPRO_ADMIN_USERNAME
-    2. Config file {app_dir}/admin_username.cfg (can be set by installer)
-    3. Default fallback: 'admin'
-    """
-    # Check environment variable
-    env_user = os.environ.get('DYNAMICPRO_ADMIN_USERNAME', '')
-    if env_user and env_user.strip():
-        return env_user.strip()
-    
-    # Check config file (can be set by installer)
-    app_dir = os.path.dirname(os.path.abspath(__file__))
-    config_file = os.path.join(app_dir, 'admin_username.cfg')
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, 'r') as f:
-                username = f.read().strip()
-                if username:
-                    return username
-        except Exception:
-            pass
-    
-    # Default fallback
-    return 'admin'
 
-def _ensure_admin_user(app, db):
+def _get_bootstrap_username():
+    """Admin username used for first-run seeding.
+
+    Priority: DYNAMICPRO_ADMIN_USERNAME env, then admin_username.cfg next to
+    the executable (written by the installer), then the copy in USER_DATA_DIR,
+    default "admin".
     """
-    Ensure an admin user exists. If not, create one with temporary password.
-    This runs on every app start to guarantee an admin user exists.
-    """
-    admin_username = _get_default_admin_username()
-    
+    env_user = (os.environ.get("DYNAMICPRO_ADMIN_USERNAME") or "").strip()
+    if env_user:
+        return env_user[:50]
+    candidates = []
     try:
-        admin_user = User.query.filter_by(username=admin_username).first()
-        
-        if not admin_user:
-            # Create new admin user with temporary password
-            admin_user = User(
-                username=admin_username,
-                password_hash=generate_password_hash('temp_password_123'),
-                is_active=True,
-                must_change_password=True,
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            current_app.logger.info(f'Created new admin user: {admin_username}')
-        elif not admin_user.is_active:
-            admin_user.is_active = True
-            admin_user.must_change_password = True
-            db.session.commit()
-        elif admin_user.must_change_password:
-            # Ensure must_change_password is set
-            admin_user.must_change_password = True
-            db.session.commit()
-    except Exception as e:
-        current_app.logger.error(f'Error ensuring admin user: {e}')
+        base = os.path.dirname(
+            sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
+        )
+        candidates.append(os.path.join(base, "admin_username.cfg"))
+    except Exception:
+        pass
+    try:
+        candidates.append(os.path.join(config.USER_DATA_DIR, "admin_username.txt"))
+    except Exception:
+        pass
+    for path in candidates:
+        try:
+            if path and os.path.isfile(path):
+                with open(path, encoding="utf-8") as fh:
+                    name = (fh.read() or "").strip()
+                if name:
+                    return name[:50]
+        except OSError:
+            continue
+    return "admin"
+
 
 def _run_migrations_and_seeds(app, db):
     """Run all migrations and seed data. Only for master (non-company) instances."""
@@ -84,22 +57,10 @@ def _run_migrations_and_seeds(app, db):
     is_sqlite = "sqlite" in str(db.engine.url).lower()
     insp = inspect(db.engine)
 
-    admin_username = _get_default_admin_username()
-
     if is_sqlite:
-        # ── وضع Desktop (SQLite): Creating tables from Models then Seed only ──
+        # ── وضع Desktop (SQLite): إنشاء الجداول من Models ثم Seed فقط ──
         db.create_all()
         db.session.commit()
-        {---------- Seed admin user with specified username ----------}
-        admin_user = User(
-            username=admin_username,
-            password_hash=generate_password_hash('temp_password_123'),
-            is_active=True,
-            must_change_password=True,
-        )
-        db.session.add(admin_user)
-        db.session.commit()
-        {----------------------------------------------------------------}
     else:
         # ── وضع Cloud (PostgreSQL): migrations كاملة ──
         cols = [c["name"] for c in insp.get_columns("users")]
@@ -115,43 +76,883 @@ def _run_migrations_and_seeds(app, db):
                 db.session.execute(text(
                     f"ALTER TABLE {table} ADD COLUMN financial_year_id INTEGER"
                 ))
-            db.session.commit()
+        db.session.commit()
 
         fk_plan = {
             "invoices": "fk_invoices_financial_year",
             "purchase_orders": "fk_purchase_orders_financial_year",
             "rental_contracts": "fk_rental_contracts_financial_year",
+            "payment_plans": "fk_payment_plans_financial_year",
         }
-        for table, fk in fk_plan.items():
-            existing_fk = db.session.execute(
-                text(f"SELECT constraint_name FROM information_schema.table_constraints WHERE constraint_name = '{fk}' AND table_name = '{table}'")
-            ).scalar()
-            if not existing_fk:
+        existing_tables = set(insp.get_table_names())
+        if "financial_years" in existing_tables:
+            fkinsp = inspect(db.engine)
+            existing_fk_names = {
+                fk["name"]
+                for table in existing_tables
+                for fk in fkinsp.get_foreign_keys(table)
+                if fk.get("name")
+            }
+            for table, con_name in fk_plan.items():
+                if table not in existing_tables or con_name in existing_fk_names:
+                    continue
+                if "financial_year_id" not in [c["name"] for c in fkinsp.get_columns(table)]:
+                    continue
                 db.session.execute(text(
-                    f"ALTER TABLE {table} ADD CONSTRAINT {fk} FOREIGN KEY (financial_year_id) REFERENCES financial_years(id)"
+                    f"DELETE FROM {table} WHERE financial_year_id IS NOT NULL "
+                    f"AND NOT EXISTS (SELECT 1 FROM financial_years "
+                    f"WHERE id = {table}.financial_year_id)"
+                ))
+                db.session.execute(text(
+                    f"ALTER TABLE {table} ADD CONSTRAINT {con_name} "
+                    f"FOREIGN KEY (financial_year_id) REFERENCES financial_years(id) "
+                    f"ON DELETE SET NULL"
                 ))
             db.session.commit()
 
-        {---------- Ensure admin user exists with specified username ----------}
-        admin_user = User.query.filter_by(username=admin_username).first()
-        if not admin_user:
-            admin_user = User(
-                username=admin_username,
-                password_hash=generate_password_hash('temp_password_123'),
+        if "sales_contracts" in insp.get_table_names():
+            sc_cols = [c["name"] for c in insp.get_columns("sales_contracts")]
+            if "vat_rate" not in sc_cols:
+                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_rate FLOAT DEFAULT 0"))
+            if "vat_amount" not in sc_cols:
+                db.session.execute(text("ALTER TABLE sales_contracts ADD COLUMN vat_amount NUMERIC(15,2) DEFAULT 0"))
+        if "commissions" in insp.get_table_names():
+            cm_cols = [c["name"] for c in insp.get_columns("commissions")]
+            if "broker_id" not in cm_cols:
+                db.session.execute(text("ALTER TABLE commissions ADD COLUMN broker_id INTEGER"))
+        for _tbl in ("sales_orders", "journal_entries"):
+            if _tbl in insp.get_table_names():
+                _cols = [c["name"] for c in insp.get_columns(_tbl)]
+                if "deleted_at" not in _cols:
+                    db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                    db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+        if "workflow_templates" in insp.get_table_names():
+            wt_cols = [c["name"] for c in insp.get_columns("workflow_templates")]
+            if "min_amount" not in wt_cols:
+                db.session.execute(text("ALTER TABLE workflow_templates ADD COLUMN min_amount NUMERIC(15, 2)"))
+        if "invoices" in insp.get_table_names():
+            inv_cols = [c["name"] for c in insp.get_columns("invoices")]
+            _einv_cols = {
+                "einv_status": "VARCHAR(20)",
+                "einv_reference": "VARCHAR(120)",
+                "einv_qr": "TEXT",
+                "einv_submitted_at": "TIMESTAMP",
+                "einv_message": "TEXT",
+            }
+            for _c, _t in _einv_cols.items():
+                if _c not in inv_cols:
+                    db.session.execute(text(f"ALTER TABLE invoices ADD COLUMN {_c} {_t}"))
+        db.session.commit()
+
+        unit_cols = [c["name"] for c in insp.get_columns("real_estate_units")]
+        for col in ["building_id", "floor_id", "unit_type_id", "owner_id"]:
+            if col not in unit_cols:
+                db.session.execute(text(f"ALTER TABLE real_estate_units ADD COLUMN {col} INTEGER"))
+        db.session.commit()
+
+        if "employees" in insp.get_table_names():
+            emp_cols = [c["name"] for c in insp.get_columns("employees")]
+            emp_add = {
+                "department_id": "INTEGER",
+                "position_id": "INTEGER",
+                "manager_id": "INTEGER",
+                "gender": "VARCHAR(10)",
+                "birth_date": "DATE",
+                "end_date": "DATE",
+                "employment_type": "VARCHAR(30) DEFAULT 'full_time'",
+            }
+            for col_name, ddl in emp_add.items():
+                if col_name not in emp_cols:
+                    db.session.execute(text(f"ALTER TABLE employees ADD COLUMN {col_name} {ddl}"))
+            db.session.commit()
+
+        if "customers" in insp.get_table_names():
+            cust_cols = [c["name"] for c in insp.get_columns("customers")]
+            for col in ["company", "notes"]:
+                if col not in cust_cols:
+                    db.session.execute(text(f"ALTER TABLE customers ADD COLUMN {col} VARCHAR(255)"))
+            if "is_active" not in cust_cols:
+                db.session.execute(text("ALTER TABLE customers ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
+            db.session.commit()
+
+        for table in ["invoices", "purchase_orders", "rental_contracts"]:
+            cols = [c["name"] for c in insp.get_columns(table)]
+            if "approval_status" not in cols:
+                db.session.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN approval_status VARCHAR(20) DEFAULT 'not_required'"
+                ))
+        db.session.commit()
+
+        if "journal_entry_lines" in insp.get_table_names():
+            cols = [c["name"] for c in insp.get_columns("journal_entry_lines")]
+            if "reconciled" not in cols:
+                db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled BOOLEAN DEFAULT FALSE"))
+            if "reconciled_at" not in cols:
+                db.session.execute(text("ALTER TABLE journal_entry_lines ADD COLUMN reconciled_at TIMESTAMP"))
+            db.session.commit()
+
+        if "invoice_items" in insp.get_table_names():
+            ii_cols = [c["name"] for c in insp.get_columns("invoice_items")]
+            if "item_id" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN item_id INTEGER"))
+            if "warehouse_id" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN warehouse_id INTEGER"))
+            if "expiry_date" not in ii_cols:
+                db.session.execute(text("ALTER TABLE invoice_items ADD COLUMN expiry_date DATE"))
+            db.session.commit()
+
+        # Remote management auth (client_secret) + master forced password change
+        if "remote_clients" in insp.get_table_names():
+            rc_cols = [c["name"] for c in insp.get_columns("remote_clients")]
+            if "client_secret" not in rc_cols:
+                db.session.execute(text("ALTER TABLE remote_clients ADD COLUMN client_secret VARCHAR(100)"))
+                db.session.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_remote_clients_secret "
+                    "ON remote_clients (client_secret)"
+                ))
+            db.session.commit()
+        if "lic_master_users" in insp.get_table_names():
+            mu_cols = [c["name"] for c in insp.get_columns("lic_master_users")]
+            if "must_change_password" not in mu_cols:
+                db.session.execute(text(
+                    "ALTER TABLE lic_master_users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"
+                ))
+            db.session.commit()
+
+        if "hr_attendance" in insp.get_table_names():
+            att_cols = [c["name"] for c in insp.get_columns("hr_attendance")]
+            for col in ["check_in_lat", "check_in_lng", "check_out_lat", "check_out_lng"]:
+                if col not in att_cols:
+                    db.session.execute(text(f"ALTER TABLE hr_attendance ADD COLUMN {col} FLOAT"))
+            db.session.commit()
+
+        if "employees" in insp.get_table_names():
+            emp_cols = [c["name"] for c in insp.get_columns("employees")]
+            if "user_id" not in emp_cols:
+                db.session.execute(text("ALTER TABLE employees ADD COLUMN user_id INTEGER"))
+            db.session.commit()
+
+        for _tbl in ["real_estate_units", "unit_reservations", "sales_contracts", "invoices"]:
+            if _tbl in insp.get_table_names():
+                _cols = [c["name"] for c in insp.get_columns(_tbl)]
+                if "deleted_at" not in _cols:
+                    db.session.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN deleted_at TIMESTAMP"))
+                    db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{_tbl}_deleted_at ON {_tbl} (deleted_at)"))
+                    db.session.commit()
+
+        try:
+            db.session.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_reservation_unit "
+                "ON unit_reservations (unit_id) WHERE status = 'active' AND deleted_at IS NULL"
+            ))
+            db.session.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_sales_contract_unit "
+                "ON sales_contracts (unit_id) WHERE status IN ('active','draft') AND deleted_at IS NULL"
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    # ── Seed Data (مشترك بين SQLite و PostgreSQL) ──
+    from models import TaxType
+    if TaxType.query.count() == 0:
+        db.session.add(TaxType(name="ضريبة القيمة المضافة", rate=15, is_active=True, is_default=True))
+        db.session.add(TaxType(name="معفاة من الضريبة", rate=0, is_active=True, is_default=False))
+        db.session.commit()
+
+    from models import UnitType
+    if UnitType.query.count() == 0:
+        for ut in ["شقة", "فيلا", "بنتهاوس", "محل", "مكتب", "أرض", "مستودع"]:
+            db.session.add(UnitType(name=ut, is_active=True))
+        db.session.commit()
+
+    from models import CrmPipelineStage
+    if CrmPipelineStage.query.count() == 0:
+        for i, (name, prob) in enumerate(
+            [("جديد", 10), ("مؤهل", 30), ("عرض", 50), ("تفاوض", 70), ("مقبول", 100)],
+            start=1,
+        ):
+            db.session.add(CrmPipelineStage(name=name, position=i, probability=prob, is_active=True))
+        db.session.commit()
+
+    from models import SystemSetting
+    import utils.settings as settings_module
+    existing = {s.key for s in SystemSetting.query.all()}
+    for key, default in settings_module.DEFAULTS.items():
+        if key not in existing:
+            db.session.add(SystemSetting(key=key, value=default))
+    db.session.commit()
+
+    from models import WorkflowTemplate, WorkflowStep
+    default_templates = {
+        "invoice": "اعتماد الفواتير",
+        "po": "اعتماد أوامر الشراء",
+        "rental_contract": "اعتماد عقود الإيجار",
+    }
+    for dt, tpl_name in default_templates.items():
+        if not WorkflowTemplate.query.filter_by(doc_type=dt).first():
+            tpl = WorkflowTemplate(doc_type=dt, name=tpl_name, is_active=True)
+            tpl.steps.append(WorkflowStep(position=1, role="admin"))
+            db.session.add(tpl)
+    db.session.commit()
+
+    import utils.accounting as accounting
+    accounting.seed_default_coa()
+
+    if Role.query.count() == 0:
+        db.session.add(Role(name="admin", description="مدير النظام", is_system=True, permissions=permissions.all_true()))
+        db.session.add(Role(name="employee", description="موظف", is_system=True, permissions=permissions.view_only()))
+        db.session.commit()
+
+    _bootstrap_username = _get_bootstrap_username()
+    if not User.query.filter_by(username=_bootstrap_username).first():
+        from runtime_hardening import secure_bootstrap_admin
+        if getattr(config, "IS_FROZEN", False):
+            # Desktop (single-user, local SQLite): documented default credential,
+            # forced to change on first login.
+            bootstrap_password = (
+                os.environ.get("DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD", "").strip() or "admin123"
+            )
+        else:
+            bootstrap_password = secure_bootstrap_admin(generate_random=False)
+            if bootstrap_password is None:
+                if getattr(config, "IS_PRODUCTION", False):
+                    raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
+                # Dev/test only: known bootstrap credential (forces change on login).
+                bootstrap_password = "admin123"
+        if bootstrap_password is not None:
+            admin = User(
+                username=_bootstrap_username, email="admin@mokawlat.com", full_name="مدير النظام",
+                role="admin", password_hash=generate_password_hash(bootstrap_password), must_change_password=True,
+            )
+            db.session.add(admin)
+            db.session.commit()
+
+    # Seed master admin for licensing panel (desktop mode)
+    from licensing.models import LicMasterUser
+    if not LicMasterUser.query.filter_by(email="admin@mokawlat.com").first():
+        from runtime_hardening import secure_bootstrap_admin
+        if getattr(config, "IS_FROZEN", False):
+            bootstrap_password = (
+                os.environ.get("DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD", "").strip() or "admin123"
+            )
+        else:
+            bootstrap_password = secure_bootstrap_admin(generate_random=False)
+            if bootstrap_password is None:
+                if getattr(config, "IS_PRODUCTION", False):
+                    raise RuntimeError("Production bootstrap requires DYNAMICPRO_BOOTSTRAP_ADMIN_PASSWORD.")
+                # Dev/test only: known bootstrap credential (forces change on login).
+                bootstrap_password = "admin123"
+        if bootstrap_password is not None:
+            master = LicMasterUser(
+                email="admin@mokawlat.com",
+                password_hash=generate_password_hash(bootstrap_password),
+                full_name="Super Admin",
+                role="super_admin",
                 is_active=True,
                 must_change_password=True,
             )
-            db.session.add(admin_user)
+            db.session.add(master)
             db.session.commit()
-        elif not admin_user.is_active:
-            admin_user.is_active = True
-            admin_user.must_change_password = True
-            db.session.commit()
-        {----------------------------------------------------------------}
-        {---------- Ensure role permissions exist ----------}
-        from security.rbac import ensure_default_roles
-        ensure_default_roles(db)
-        {----------------------------------------------------------------}
-    {----- Update health endpoint with admin info -----}
-    # Store admin username in config for health endpoint
-    app.config['ADMIN_USERNAME'] = admin_username
+
+    if not is_sqlite:
+        from db_indexes import ensure_indexes
+        ensure_indexes(db.engine, db.session)
+
+    # Phase 1 — seed Master Cloud RBAC (roles + permission catalog). Idempotent.
+    from security.rbac import seed_roles_and_permissions
+    seed_roles_and_permissions()
+
+    # Phase 5 — seed module catalog. Idempotent.
+    from security.modules import seed_module_catalog
+    seed_module_catalog()
+
+
+def _source_dir():
+    """مجلد المصدر الذي يُقرأ منه القوالب والملفات الثابتة.
+
+    عند تشغيل النسخة المجمعة (frozen) يبحث أولاً عن مجلد المصدر الم开办
+    (للتطوير)، ثم يعود إلى مجلد الحزمة (sys._MEIPASS).
+    """
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(sys.executable)
+        marker = os.path.join(exe_dir, "_source_dir.txt")
+        if os.path.isfile(marker):
+            try:
+                with open(marker, encoding="utf-8") as fh:
+                    path = fh.read().strip()
+                if path and os.path.isdir(path):
+                    return path
+            except OSError:
+                pass
+        parent = os.path.abspath(os.path.join(exe_dir, os.pardir))
+        if os.path.isfile(os.path.join(parent, "app.py")) and os.path.isdir(os.path.join(parent, "templates")):
+            return parent
+        # Fall back to the PyInstaller bundle directory
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass and os.path.isdir(os.path.join(meipass, "templates")):
+            return meipass
+        return None
+    return os.path.abspath(os.path.dirname(__file__))
+
+
+def _get_csrf_token():
+    """Returns the CSRF token for the current session (generates one if absent)."""
+    token = session.get("_csrf_token")
+    if not token:
+        import secrets as _secrets
+        token = _secrets.token_hex(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _csrf_valid():
+    """Validates the CSRF token on state-changing requests."""
+    supplied = request.headers.get("X-CSRF-Token")
+    if not supplied:
+        data = request.get_json(silent=True)
+        if data and isinstance(data, dict):
+            supplied = data.get("csrf_token")
+    expected = session.get("_csrf_token")
+    if not expected or not supplied:
+        return False
+    import hmac
+    return hmac.compare_digest(str(expected), str(supplied))
+
+
+def create_app():
+    root = _source_dir()
+    if root:
+        app = Flask(
+            __name__,
+            root_path=root,
+            template_folder=os.path.join(root, "templates"),
+            static_folder=os.path.join(root, "static"),
+        )
+    else:
+        app = Flask(__name__)
+    app.config.from_object(config)
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+    # أساس التسجيل المركزي (Logging Foundation) — كونسول + ملف دوّار
+    from utils.logging_setup import configure_logging
+    configure_logging()
+    logging.getLogger("dynamicpro.app").info("Applying app configuration")
+
+    # حد أقصى لحجم الطلبات المرفوعة
+    app.config["MAX_CONTENT_LENGTH"] = config.MAX_UPLOAD_MB * 1024 * 1024
+
+    # إعدادات الخادم المحلي (منفذ + كلمة مرور الوصول)
+    _server_cfg = server_config.load_config()
+    app.config["SERVER_PORT"] = _server_cfg.get("port", 5000)
+    app.config["SERVER_ACCESS_PASSWORD"] = _server_cfg.get("access_password", "")
+
+    # في وضع الإنتاج مع HTTPS مفعّل: الكوكي يُرسل عبر HTTPS فقط
+    if (os.environ.get("DYNAMICPRO_MODE") == "production"
+            and bool(server_config.get_cert_paths()[0])):
+        app.config["SESSION_COOKIE_SECURE"] = True
+
+    db.init_app(app)
+
+    # CORS
+    _cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:1000", "http://127.0.0.1:1000"]
+    CORS(app, origins=_cors_origins,
+         supports_credentials=True, expose_headers=["Content-Type", "X-CSRF-Token"])
+
+    # تهيئة OpenAPI/Swagger (flask-smorest)
+    from api_spec import api as api_spec
+    api_spec.init_app(app)
+
+    # تهيئة Rate Limiting
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    _rate_storage = getattr(config, "RATELIMIT_STORAGE_URI", "") or "memory://"
+    if (getattr(config, "IS_PRODUCTION", False)
+            and not getattr(config, "IS_FROZEN", False)
+            and _rate_storage == "memory://"):
+        raise RuntimeError("Distributed production rate limiting requires Redis storage.")
+    # In test runs the shared in-memory quota would flake fast test
+    # clients (same IP, no network latency); dedicated throttle logic
+    # (login/MFA) is covered by its own tests.
+    _limiter_testing = (
+        app.config.get("TESTING")
+        or os.environ.get("DYNAMICPRO_ENV", "").strip().lower() in {"test", "testing"}
+    )
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=[config.DEFAULT_RATE_LIMIT, "50 per second"],
+        storage_uri=_rate_storage,
+        strategy="fixed-window",
+        key_prefix="rl:",
+        enabled=not _limiter_testing,
+    )
+    # متاح للوحدات التي تحتاج حدود مخصصة (مثل /api/ai/query)
+    app.config["RATELIMITER"] = limiter
+
+    # لا CORS مفتوح: الواجهة والموبايل يعملان من نفس الأصل،
+    # فلا حاجة لسماح cross-origin (المتصفح يرفض الطلبات الخارجية تلقائياً).
+
+    # تسجيل الـ Blueprints
+    from routes.auth import auth_bp
+    from routes.projects import projects_bp
+    from routes.api import api_bp
+    from routes.pages import pages_bp
+    from routes.users import users_bp
+    from routes.backup import backup_bp
+    from routes.server import server_bp
+    from routes.roles import roles_bp
+    from routes.companies import companies_bp
+    from routes.financial_years import financial_years_bp
+    from routes.currencies import currencies_bp
+    from routes.taxes import taxes_bp
+    from routes.settings import settings_bp
+    from routes.workflow import workflow_bp
+    from routes.accounting import accounting_bp
+    from routes.real_estate_invest import re_bp
+    from routes.escrow import escrow_bp
+    from routes.offplan import offplan_bp
+    from routes.addons import addons_bp
+    from routes.esignature import esign_bp
+    from routes.bi import bi_bp
+    from routes.dms import dms_bp
+    from routes.notifications import notif_bp
+    from routes.payments import payments_bp
+    from routes.portal import portal_bp, portal_api_bp
+    from routes.crm import crm_bp
+    from routes.sales import sales_bp
+    from routes.procurement import procurement_bp
+    from routes.inventory import inventory_bp, pages_bp as inventory_pages_bp
+    from routes.hr import hr_bp, hr_pages_bp
+    from routes.payroll import payroll_bp, payroll_pages_bp
+    from routes.manufacturing import mf_bp, mf_pages_bp
+    from routes.rentals import rental_bp, rental_pages_bp
+    from routes.project_finance import project_finance_bp
+    from routes.assets import assets_bp
+
+    from routes.license import license_bp, validate_license
+    from licensing.routes import admin_lic_bp, company_auth_bp
+    from api_spec import doc_bp
+    # Phase 1 — ensure security/RBAC models are registered before db.create_all()
+    import security.models  # noqa: F401
+    from security.routes import security_bp
+
+    app.register_blueprint(auth_bp)
+    # Rate-limit the login endpoint
+    limiter.limit(config.LOGIN_RATE_LIMIT)(app.view_functions["auth.login"])
+    app.register_blueprint(projects_bp)
+    app.register_blueprint(api_bp)
+    app.register_blueprint(pages_bp)
+    app.register_blueprint(users_bp)
+    app.register_blueprint(backup_bp)
+    app.register_blueprint(server_bp)
+    app.register_blueprint(roles_bp)
+    app.register_blueprint(companies_bp)
+    app.register_blueprint(financial_years_bp)
+    app.register_blueprint(currencies_bp)
+    app.register_blueprint(taxes_bp)
+    app.register_blueprint(settings_bp)
+    app.register_blueprint(workflow_bp)
+    app.register_blueprint(accounting_bp)
+    app.register_blueprint(re_bp)
+    app.register_blueprint(escrow_bp)
+    app.register_blueprint(offplan_bp)
+    app.register_blueprint(addons_bp)
+    app.register_blueprint(esign_bp)
+    app.register_blueprint(bi_bp)
+    app.register_blueprint(dms_bp)
+    app.register_blueprint(notif_bp)
+    app.register_blueprint(payments_bp)
+    app.register_blueprint(portal_bp)
+    app.register_blueprint(portal_api_bp)
+    app.register_blueprint(crm_bp)
+    app.register_blueprint(sales_bp)
+    app.register_blueprint(procurement_bp)
+    app.register_blueprint(inventory_bp)
+    app.register_blueprint(inventory_pages_bp)
+    app.register_blueprint(hr_bp)
+    app.register_blueprint(hr_pages_bp)
+    app.register_blueprint(payroll_bp)
+    app.register_blueprint(payroll_pages_bp)
+    app.register_blueprint(mf_bp)
+    app.register_blueprint(mf_pages_bp)
+    app.register_blueprint(rental_bp)
+    app.register_blueprint(rental_pages_bp)
+    app.register_blueprint(project_finance_bp)
+    app.register_blueprint(assets_bp)
+
+    app.register_blueprint(license_bp)
+    app.register_blueprint(company_auth_bp)
+    app.register_blueprint(doc_bp)
+
+    # CRITICAL #3: Admin routes فقط على الوضع الرئيسي (master port)
+    if not config.COMPANY_ID:
+        app.register_blueprint(admin_lic_bp)
+        app.register_blueprint(security_bp)
+        from licensing.remote_api import remote_api_bp
+        app.register_blueprint(remote_api_bp)
+
+    def get_lang():
+        lang = request.cookies.get("lang", DEFAULT_LANG)
+        if lang not in LANG_CODES:
+            lang = DEFAULT_LANG
+        return lang
+
+    @app.context_processor
+    def inject_i18n():
+        lang = get_lang()
+        import utils.settings as settings_module
+        _settings = settings_module.get_all()
+
+        def t(key):
+            return make_t(lang)(key)
+
+        _server_cfg = server_config.load_config()
+        return {
+            "t": t,
+            "lang": lang,
+            "full_name": session.get("full_name", ""),
+            "role": session.get("role", ""),
+            "csrf_token": _get_csrf_token(),
+            "translations_json": json.dumps(TRANSLATIONS[lang]),
+            "permissions_json": json.dumps(permissions.current_perms(), ensure_ascii=False),
+            "can": permissions.can,
+            "perms": permissions.current_perms,
+            "is_dark": request.cookies.get("theme", "light") == "dark",
+            "is_server_local": request.remote_addr in ("127.0.0.1", "::1"),
+            "system_name": _settings.get("system_name") or "2TO",
+            "system_logo": _settings.get("system_logo") or "",
+            "owner_name": _server_cfg.get("owner_name") or "2TO",
+            "owner_logo": _server_cfg.get("owner_logo") or "",
+            "default_theme": _settings.get("default_theme") or "light",
+            "default_lang": _settings.get("default_lang") or "ar",
+            "doc_footer_text": _settings.get("doc_footer_text") or "",
+            "number_decimals": settings_module.get_int("number_decimals", 2),
+            "app_settings_json": json.dumps(_settings),
+            "year": datetime.now().year,
+        }
+
+    @app.route("/api/language/<lang>", methods=["POST"])
+    def set_language(lang):
+        if lang not in LANG_CODES:
+            lang = DEFAULT_LANG
+        resp = jsonify({"success": True, "lang": lang})
+        resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365)
+        return resp
+
+    @app.route("/")
+    def index():
+        return redirect(url_for("auth.login"))
+
+    @app.route("/health")
+    def health():
+        """Liveness/health endpoint with real DB + Redis probes."""
+        from sqlalchemy import text
+        import psutil
+        status = "healthy"
+        checks = {}
+
+        # Database check
+        try:
+            db.session.execute(text("SELECT 1"))
+            checks["database"] = "connected"
+        except Exception:
+            status = "unhealthy"
+            checks["database"] = "disconnected"
+
+        # Redis check (production only)
+        if not getattr(config, "IS_FROZEN", False):
+            redis_uri = getattr(config, "RATELIMIT_STORAGE_URI", "")
+            if redis_uri:
+                try:
+                    import redis as _redis
+                    _r = _redis.from_url(redis_uri, socket_timeout=3)
+                    _r.ping()
+                    checks["redis"] = "connected"
+                except Exception:
+                    status = "degraded"
+                    checks["redis"] = "disconnected"
+
+        # Memory usage
+        try:
+            proc = psutil.Process()
+            mem_mb = round(proc.memory_info().rss / 1024 / 1024, 1)
+            checks["memory_mb"] = mem_mb
+        except Exception:
+            pass
+
+        code = 200 if status == "healthy" else 503
+        return jsonify({"status": status, **checks}), code
+
+    @app.route("/ready")
+    def ready():
+        """Readiness endpoint: the process is ready only when the database is reachable."""
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:
+            return jsonify({"ready": False}), 503
+        return jsonify({"ready": True}), 200
+
+    @app.route("/api/version")
+    def version():
+        """Public version endpoint for desktop clients / support."""
+        return jsonify({
+            "success": True,
+            "app": "2TO",
+            "version": "1.0.0",
+            "api": "v1",
+        })
+
+    @app.route("/favicon.ico")
+    def favicon():
+        """Serve the brand favicon (avoids 404 noise in logs)."""
+        return current_app.send_static_file("img/favicon.svg")
+
+    # إنشاء الجداول + مستخدم وادوار افتراضية
+    # HIGH #9: company instances لا تُشغّل الترحيلات العامة
+    _is_company = bool(config.COMPANY_ID)
+    with app.app_context():
+        db.create_all()
+        if not _is_company:
+            _run_migrations_and_seeds(app, db)
+
+    # بدء النسخ الاحتياطي التلقائي (خيط خلفي)
+    from routes.backup import schedule_auto_backup
+    schedule_auto_backup(app)
+
+    # منع الكاش تماماً للملفات الثابتة (JS/CSS/Images) لضمان ظهور أي تحديث فوراً
+    @app.after_request
+    def no_cache_static(response):
+        if request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+    # هيدرات أمان على كل الاستجابات
+    @app.after_request
+    def security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        # Ensure UTF-8 charset for HTML responses
+        ct = response.content_type or ""
+        if "text/html" in ct and "charset" not in ct:
+            response.content_type = ct.rstrip(";") + "; charset=utf-8"
+        # CSP أساسي: اسمح بـ self + CDN المحددة فقط (Chart.js + Google Fonts)
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; "
+            "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'",
+        )
+        # HSTS عند تفعيل HTTPS
+        if (server_config.is_https_enabled() and server_config.get_cert_paths()[0]):
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+        return response
+
+    # ── Request Logging Middleware ────────────────────────────────
+    _request_log = logging.getLogger("dynamicpro.requests")
+
+    @app.before_request
+    def _start_request_timer():
+        request._start_time = time.time()
+        request._request_id = str(uuid.uuid4())[:8]
+
+    @app.after_request
+    def _log_request(response):
+        if request.path.startswith("/static"):
+            return response
+        duration_ms = int((time.time() - getattr(request, "_start_time", time.time())) * 1000)
+        rid = getattr(request, "_request_id", "-")
+        status = response.status_code
+        level = logging.WARNING if status >= 400 else logging.INFO
+        _request_log.log(
+            level,
+            "%s %s %s %dms rid=%s",
+            request.method, request.path, status, duration_ms, rid,
+        )
+        response.headers["X-Request-ID"] = rid
+        return response
+
+    def _is_api_path():
+        p = request.path
+        return p.startswith("/api/")
+
+    def _error_html(title, description=""):
+        from markupsafe import escape
+        safe_title = escape(title)
+        safe_desc = escape(description) if description else ""
+        return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{safe_title}</title>
+<style>body{{font-family:'IBM Plex Sans Arabic',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:var(--bg,#f5f5f5);color:var(--fg,#222)}}
+.box{{text-align:center;padding:3rem}}h1{{font-size:3rem;margin:0;color:var(--primary,#4a90d9)}}p{{font-size:1.2rem;color:var(--muted,#666)}}</style></head>
+<body><div class="box"><h1>{safe_title}</h1>{f'<p>{safe_desc}</p>' if safe_desc else ''}</div></body></html>"""
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        current_app.logger.error(f"Unhandled exception: {e}", exc_info=True)
+        if _is_api_path():
+            return jsonify({"success": False, "message": make_t()("common.serverError")}), 500
+        return _error_html(make_t()("common.serverError"), make_t()("common.serverErrorDesc")), 500
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if _is_api_path():
+            return jsonify({"success": False, "message": make_t()("common.notFound")}), 404
+        return _error_html("404", make_t()("common.notFound")), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        if _is_api_path():
+            return jsonify({"success": False, "message": make_t()("common.methodNotAllowed")}), 405
+        return _error_html("405", make_t()("common.methodNotAllowed")), 405
+
+    @app.errorhandler(429)
+    def rate_limit_exceeded(e):
+        return jsonify({"success": False, "message": make_t()("common.rateLimitExceeded")}), 429
+
+    # حماية CSRF: طلبات التغيير (POST/PUT/DELETE) من الجلسات الحية تتطلب رمزاً صالحاً
+    @app.before_request
+    def protect_csrf():
+        if current_app.config.get("TESTING"):
+            return
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return
+        if request.path.startswith("/static"):
+            return
+        # Skip CSRF for unauthenticated requests
+        is_employee = bool(session.get("user_id"))
+        is_company = bool(session.get("lic_company_id"))
+        is_master = bool(session.get("master_user_id"))
+        if not is_employee and not is_company and not is_master:
+            return
+        if request.path in ("/login", "/logout"):
+            return
+        # Exempt external webhook callbacks (HMAC-verified, no session/CSRF token)
+        if (request.path.startswith("/api/payments/webhook/")
+                or request.path.startswith("/api/esign/webhook/")
+                or "/ocr-result" in request.path):
+            return
+        if not _csrf_valid():
+            return jsonify({"success": False, "message": "invalid-csrf-token"}), 403
+
+    # التحقق من صلاحية الترخيص
+    @app.before_request
+    def enforce_license():
+        if request.path.startswith("/static"):
+            return
+        if request.path in ("/login", "/logout"):
+            return
+        if request.path.startswith("/license/"):
+            return
+        if request.path.startswith("/admin/"):
+            return
+        # HIGH #12: Company instances use LicLicense from licensing engine
+        if config.COMPANY_ID:
+            try:
+                from licensing.engine import can_access
+                access = can_access(int(config.COMPANY_ID))
+                if not access["allowed"]:
+                    if _is_api_path():
+                        return jsonify({"success": False, "message": "Subscription expired"}), 403
+                    return redirect(url_for("auth.login"))
+            except Exception:
+                from utils.errlog import log_exc
+                log_exc("app.enforce-company-license")
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "Subscription validation unavailable"}), 503
+                return redirect(url_for("auth.login"))
+            return
+        try:
+            is_valid, err = validate_license()
+            if not is_valid:
+                if _is_api_path():
+                    return jsonify({"success": False, "message": "License expired"}), 403
+                return redirect(url_for("pages.change_password", error="license_expired"))
+        except Exception:
+            from utils.errlog import log_exc
+            log_exc("app.enforce-license")
+            if _is_api_path():
+                return jsonify({"success": False, "message": "License validation unavailable"}), 503
+            return redirect(url_for("auth.login"))
+
+    @app.before_request
+    def enforce_password_change():
+        """Redirect users with must_change_password=True to the password change page.
+        
+        Uses session cache to avoid DB query on every request. The flag is set
+        at login and cleared after password change.
+        """
+        if current_app.config.get("TESTING"):
+            return
+        if request.path.startswith("/static"):
+            return
+        if request.path in ("/login", "/logout", "/api/language"):
+            return
+        # Check employee session — use cached flag from login
+        user_id = session.get("user_id")
+        if user_id:
+            must_change = session.get("must_change_password")
+            if must_change:
+                if request.path != "/change-password" and not request.path.startswith("/api/change-password"):
+                    if request.path.startswith("/api/"):
+                        return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
+                    return redirect(url_for("pages.change_password"))
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    import threading
+    from werkzeug.serving import make_server
+
+    # وضع الإنتاج (يُفعل عند التشغيل عبر desktop.py أو الخدمة):
+    #  - debug معطل تماماً في الإنتاج (لا يعرض الكود أو تتبع الأخطاء)
+    #  - في وضع التطوير: debug يُفعَّل فقط عبر DYNAMICPRO_MODE=dev
+    production = os.environ.get("DYNAMICPRO_MODE", "dev") == "production"
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1" and not production
+
+    def _start_https():
+        cert, key = server_config.get_cert_paths()
+        if not cert or not key:
+            return
+        https_port = server_config.get_https_port()
+        srv = make_server("0.0.0.0", https_port, app,
+                          ssl_context=(cert, key), threaded=True)
+        print(f"[HTTPS] https://0.0.0.0:{https_port} (geolocation available)")
+        srv.serve_forever()
+
+    # مع debug=True يعمل werkzeug reloader في عمليتين (رئيسية + تبعية).
+    # نبدأ خادم HTTPS فقط في العملية التبعية الفعلية حتى لا يتعارض على المنفذ.
+    if (server_config.is_https_enabled()
+            and server_config.get_cert_paths()[0]
+            and (os.environ.get("WERKZEUG_RUN_MAIN") == "true" or production)):
+        threading.Thread(target=_start_https, daemon=True).start()
+
+    import signal, atexit
+    def _shutdown():
+        try:
+            with app.app_context():
+                from database import db as _db
+                _db.session.close()
+        except Exception:
+            pass
+    atexit.register(_shutdown)
+    def _sig_handler(signum, frame):
+        _shutdown()
+        import sys
+        sys.exit(0)
+    try:
+        signal.signal(signal.SIGTERM, _sig_handler)
+        signal.signal(signal.SIGINT, _sig_handler)
+    except (OSError, AttributeError):
+        pass
+
+    app.run(host="127.0.0.1", port=server_config.get_port(),
+            debug=debug, use_reloader=debug, threaded=True)
