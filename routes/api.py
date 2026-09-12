@@ -1701,7 +1701,8 @@ def _schedule_ai_cleanup():
 try:
     _schedule_ai_cleanup()
 except Exception:
-    pass
+    import logging
+    logging.getLogger(__name__).warning("AI quota cleanup timer failed to start", exc_info=True)
 
 
 def _ai_quota_consume():

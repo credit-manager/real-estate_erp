@@ -270,7 +270,8 @@ def webhook(provider_name):
             if decrypted_secret and sig_header:
                 verified = _hmac.compare_digest(decrypted_secret, sig_header)
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning("Webhook HMAC verification failed", exc_info=True)
 
     # Fallback: server access password
     if not verified:

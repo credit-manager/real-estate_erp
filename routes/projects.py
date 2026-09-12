@@ -267,7 +267,9 @@ def _create_initial_cost_entries(project, data):
             )
             cost.journal_entry_id = entry.id if entry else None
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning("Failed to create journal entry for project cost", exc_info=True)
+            db.session.rollback()
 
         db.session.add(cost)
 

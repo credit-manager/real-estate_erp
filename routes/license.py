@@ -70,6 +70,8 @@ def log_license_activity(action, details="", user_id=None, username=None):
         ))
         db.session.commit()
     except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Failed to create audit log", exc_info=True)
         db.session.rollback()
 
 
@@ -83,6 +85,8 @@ def create_owner_notification(title, message, notif_type="user_action", related_
         ))
         db.session.commit()
     except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Failed to create owner notification", exc_info=True)
         db.session.rollback()
 
 

@@ -45,6 +45,8 @@ def _record_movement(item_id, warehouse_id, movement_type, quantity, batch_id=No
             notes=(notes or "")[:300],
         ))
     except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Failed to log stock movement", exc_info=True)
         db.session.rollback()
 
 

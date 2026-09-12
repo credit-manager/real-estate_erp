@@ -274,7 +274,8 @@ def _restore(data):
         try:
             db.session.execute(text("ANALYZE"))
         except Exception:
-            pass
+            import logging
+            logging.getLogger(__name__).warning("ANALYZE after restore failed", exc_info=True)
     except Exception:
         db.session.rollback()
         raise
@@ -464,7 +465,8 @@ def schedule_auto_backup(app):
                                    "خطأ في النسخ الاحتياطي التلقائي: %s" % e)
                         db.session.commit()
                 except Exception:
-                    pass
+                    import logging
+                    logging.getLogger(__name__).warning("Failed to log backup error", exc_info=True)
             time.sleep(60)
 
     t = threading.Thread(target=worker, daemon=True, name="auto-backup")
