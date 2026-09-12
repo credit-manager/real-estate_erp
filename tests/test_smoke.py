@@ -149,21 +149,27 @@ def test_double_reservation_blocked(auth_client):
 
 def test_journal_entry_balanced(auth_client):
     """Creating unbalanced journal entry should fail."""
-    # This would require account setup - skip if no accounts
-    # Just verify the endpoint exists and validates
+    import uuid
+    from models.accounting import Account
+    tag = uuid.uuid4().hex[:6].upper()
+    with auth_client.application.app_context():
+        a1 = Account(code=f'DA{tag}', name='Test Debit', type='asset', is_active=True)
+        a2 = Account(code=f'CA{tag}', name='Test Credit', type='liability', is_active=True)
+        db.session.add_all([a1, a2])
+        db.session.commit()
+        a1_id, a2_id = a1.id, a2.id
     resp = auth_client.post('/accounting/api/journal', json={
         'date': '2026-01-15',
         'description': 'Test entry',
         'lines': [
-            {'account_id': 1, 'debit': 100, 'credit': 0},
-            {'account_id': 2, 'debit': 0, 'credit': 50}  # Unbalanced!
+            {'account_id': a1_id, 'debit': 100, 'credit': 0},
+            {'account_id': a2_id, 'debit': 0, 'credit': 50}  # Unbalanced!
         ]
     })
-    # Should fail with not balanced error
-    assert resp.status_code in (400, 500)
-    if resp.status_code == 400:
-        data = resp.get_json()
-        assert 'balanced' in str(data).lower() or 'notBalanced' in str(data) or 'مُتوازن' in str(data)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    msg = str(data).lower()
+    assert 'balance' in msg or 'مُتوازن' in msg
 
 
 # ==================== Escrow Tests ====================

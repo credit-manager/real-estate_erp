@@ -415,7 +415,7 @@ def create_journal():
             source="manual",
         )
     except ValueError as e:
-        return jsonify({"success": False, "message": "invalid input"}), 400
+        return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
     _log("create", "journal", entry.id, f"قيد {entry.entry_number}")
     return jsonify({"success": True, "entry": _entry_dict(entry)})
 
