@@ -9,6 +9,7 @@ from models import (
 )
 from permissions import require_api, require_api_any
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 crm_bp = Blueprint("crm_api", __name__, url_prefix="/api/crm")
 
@@ -106,7 +107,7 @@ def create_stage():
         is_active=data.get("is_active", True),
     )
     if not stage.name:
-        return jsonify({"error": "invalid_name"}), 400
+        return error_response("invalid_name", 400)
     db.session.add(stage)
     db.session.commit()
     _log("create", "pipeline_stage", stage.id, stage.name)
@@ -131,7 +132,7 @@ def update_stage(stage_id):
 def delete_stage(stage_id):
     stage = CrmPipelineStage.query.get_or_404(stage_id)
     if stage.opportunities:
-        return jsonify({"error": "stage_has_opportunities"}), 400
+        return error_response("stage_has_opportunities", 400)
     name = stage.name
     db.session.delete(stage)
     db.session.commit()
@@ -166,7 +167,7 @@ def create_lead():
         notes=data.get("notes"),
     )
     if not lead.full_name:
-        return jsonify({"error": "invalid_name"}), 400
+        return error_response("invalid_name", 400)
     db.session.add(lead)
     db.session.commit()
     _log("create", "lead", lead.id, lead.full_name)
@@ -192,9 +193,9 @@ def update_lead(lead_id):
 def delete_lead(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     if lead.opportunities:
-        return jsonify({"error": "lead_has_opportunities"}), 400
+        return error_response("lead_has_opportunities", 400)
     if lead.quotes:
-        return jsonify({"error": "lead_has_quotes"}), 400
+        return error_response("lead_has_quotes", 400)
     name = lead.full_name
     for cls in [CallLog, Meeting, CrmTask, FollowUp, CampaignLead]:
         for rel in cls.query.filter_by(lead_id=lead_id).all():
@@ -277,7 +278,7 @@ def create_opportunity():
         notes=data.get("notes"),
     )
     if not opportunity.title:
-        return jsonify({"error": "invalid_title"}), 400
+        return error_response("invalid_title", 400)
     db.session.add(opportunity)
     db.session.commit()
     _log("create", "opportunity", opportunity.id, opportunity.title)
@@ -307,7 +308,7 @@ def update_opportunity(opp_id):
 def delete_opportunity(opp_id):
     opportunity = Opportunity.query.get_or_404(opp_id)
     if opportunity.quotes:
-        return jsonify({"error": "opportunity_has_quotes"}), 400
+        return error_response("opportunity_has_quotes", 400)
     title = opportunity.title
     for cls in [CrmTask, FollowUp]:
         for rel in cls.query.filter_by(opportunity_id=opp_id).all():
@@ -371,7 +372,7 @@ def create_call():
     data = request.get_json() or {}
     err = validate_input(data, [("notes", {"max_len": 5000})])
     if err:
-        return jsonify({"success": False, "message": err}), 400
+        return error_response(err, 400)
     call = CallLog(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,
@@ -383,7 +384,7 @@ def create_call():
         follow_up_date=parse_date(data.get("follow_up_date")),
     )
     if not call.customer_id and not call.lead_id:
-        return jsonify({"error": "call_needs_party"}), 400
+        return error_response("call_needs_party", 400)
     db.session.add(call)
     if call.follow_up_date:
         db.session.add(FollowUp(
@@ -439,7 +440,7 @@ def list_meetings():
 def create_meeting():
     data = request.get_json() or {}
     if not data.get("customer_id") and not data.get("lead_id"):
-        return jsonify({"success": False, "message": "customer_id or lead_id is required"}), 400
+        return error_response("customer_id or lead_id is required", 400)
     meeting = Meeting(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,
@@ -451,7 +452,7 @@ def create_meeting():
         notes=data.get("notes"),
     )
     if not meeting.title:
-        return jsonify({"error": "invalid_title"}), 400
+        return error_response("invalid_title", 400)
     db.session.add(meeting)
     db.session.commit()
     _log("create", "meeting", meeting.id, meeting.title)
@@ -508,7 +509,7 @@ def create_task():
         status=data.get("status", "pending"),
     )
     if not task.title:
-        return jsonify({"error": "invalid_title"}), 400
+        return error_response("invalid_title", 400)
     db.session.add(task)
     db.session.commit()
     _log("create", "task", task.id, task.title)
@@ -565,7 +566,7 @@ def create_campaign():
         notes=data.get("notes"),
     )
     if not campaign.name:
-        return jsonify({"error": "invalid_name"}), 400
+        return error_response("invalid_name", 400)
     db.session.add(campaign)
     db.session.commit()
     _log("create", "campaign", campaign.id, campaign.name)
@@ -652,7 +653,7 @@ def list_follow_ups():
 def create_follow_up():
     data = request.get_json() or {}
     if not data.get("customer_id") and not data.get("lead_id") and not data.get("opportunity_id"):
-        return jsonify({"success": False, "message": "customer_id, lead_id, or opportunity_id is required"}), 400
+        return error_response("customer_id, lead_id, or opportunity_id is required", 400)
     row = FollowUp(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,
@@ -664,7 +665,7 @@ def create_follow_up():
         notes=data.get("notes"),
     )
     if not row.follow_up_date:
-        return jsonify({"error": "follow_up_needs_date"}), 400
+        return error_response("follow_up_needs_date", 400)
     db.session.add(row)
     db.session.commit()
     _log("create", "follow_up", row.id, f"متابعة في {row.follow_up_date}")
@@ -720,7 +721,7 @@ def list_quotes():
 def create_quote():
     data = request.get_json() or {}
     if not data.get("customer_id") and not data.get("lead_id"):
-        return jsonify({"success": False, "message": "customer_id or lead_id is required"}), 400
+        return error_response("customer_id or lead_id is required", 400)
     quote = Quote(
         quote_number=_next_number(Quote, "QT"),
         customer_id=data.get("customer_id") or None,
@@ -791,7 +792,7 @@ def _recalc_quote(quote):
 def delete_quote(quote_id):
     quote = Quote.query.get_or_404(quote_id)
     if quote.contracts:
-        return jsonify({"error": "quote_has_contracts"}), 400
+        return error_response("quote_has_contracts", 400)
     number = quote.quote_number
     for item in quote.items:
         db.session.delete(item)
@@ -807,9 +808,9 @@ def accept_quote(quote_id):
     """قبول عرض → إنشاء عقد + ربح الفرصة المرتبطة."""
     quote = Quote.query.get_or_404(quote_id)
     if not quote.customer_id:
-        return jsonify({"error": "quote_needs_customer"}), 400
+        return error_response("quote_needs_customer", 400)
     if quote.contracts:
-        return jsonify({"error": "quote_already_contracted"}), 400
+        return error_response("quote_already_contracted", 400)
     contract = CrmContract(
         contract_number=_next_number(CrmContract, "CT"),
         customer_id=quote.customer_id,
@@ -868,9 +869,9 @@ def create_contract():
         notes=data.get("notes"),
     )
     if not contract.customer_id:
-        return jsonify({"error": "contract_needs_customer"}), 400
+        return error_response("contract_needs_customer", 400)
     if not contract.title:
-        return jsonify({"error": "invalid_title"}), 400
+        return error_response("invalid_title", 400)
     db.session.add(contract)
     db.session.commit()
     _log("create", "contract", contract.id, contract.contract_number)
@@ -929,9 +930,9 @@ def create_complaint():
         rating=int(data.get("rating") or 0),
     )
     if not complaint.customer_id:
-        return jsonify({"error": "complaint_needs_customer"}), 400
+        return error_response("complaint_needs_customer", 400)
     if not complaint.subject:
-        return jsonify({"error": "invalid_subject"}), 400
+        return error_response("invalid_subject", 400)
     db.session.add(complaint)
     db.session.commit()
     _log("create", "complaint", complaint.id, complaint.complaint_number)
@@ -991,9 +992,9 @@ def create_ticket():
         created_date=parse_date(data.get("created_date")) or date.today(),
     )
     if not ticket.customer_id:
-        return jsonify({"error": "ticket_needs_customer"}), 400
+        return error_response("ticket_needs_customer", 400)
     if not ticket.subject:
-        return jsonify({"error": "invalid_subject"}), 400
+        return error_response("invalid_subject", 400)
     db.session.add(ticket)
     db.session.commit()
     _log("create", "ticket", ticket.id, ticket.ticket_number)

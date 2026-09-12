@@ -6,6 +6,7 @@ from database import db
 from models import SalesContract, Installment, PaymentPlan, MaintenanceRequest, RealEstateUnit, Customer, RentalContract, RentalPayment, ServiceCharge, OwnerAssociation
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 portal_bp = Blueprint("portal", __name__)
 portal_api_bp = Blueprint("portal_api", __name__, url_prefix="/api/portal")
@@ -37,7 +38,7 @@ def lookup():
         hist = _portal_lookups.get(key, [])
         hist = [t for t in hist if now - t < 60]
         if len(hist) >= 10:
-            return jsonify({"message": "محاولات كثيرة — حاول بعد دقيقة", "error_key": "portal.rateLimited"}), 429
+            return error_response("محاولات كثيرة — حاول بعد دقيقة", 429, error_key="portal.rateLimited")
         hist.append(now)
         _portal_lookups[key] = hist
         if len(_portal_lookups) > 1000:
@@ -51,28 +52,25 @@ def lookup():
     contract_number = (request.args.get("contract_number") or "").strip()
     phone = (request.args.get("phone") or "").strip()
     if not contract_number:
-        return jsonify({"message": "رقم العقد مطلوب"}), 400
-
+        return error_response("رقم العقد مطلوب", 400)
     contract = SalesContract.query.filter_by(contract_number=contract_number).first()
     if not contract:
-        return jsonify({"message": "العقد غير موجود"}), 404
+        return error_response("العقد غير موجود", 404)
     # تجاهل العقود المحذوفة
     if getattr(contract, 'deleted_at', None):
-        return jsonify({"message": "العقد غير موجود"}), 404
-
+        return error_response("العقد غير موجود", 404)
     # تحقق إلزامي برقم الهاتف — تطبيع (إزالة غير رقمي)
     import re as _re
     def _norm(p): return _re.sub(r'\D', '', p or '')
     if contract.customer and contract.customer.phone:
         if not phone:
-            return jsonify({"message": "رقم الهاتف مطلوب للتحقق", "error_key": "portal.phoneRequired"}), 400
+            return error_response("رقم الهاتف مطلوب للتحقق", 400, error_key="portal.phoneRequired")
         cust_phone_norm = _norm(contract.customer.phone)
         phone_norm = _norm(phone)
         # اسمح بمطابقة آخر 9 أرقام (يتجاوز اختلاف رمز البلد)
         if cust_phone_norm and phone_norm and cust_phone_norm[-9:] != phone_norm[-9:]:
             log_action("lookup_failed", "portal", contract.id, f"phone_mismatch {contract_number} ip={ip}")
-            return jsonify({"message": "رقم الهاتف لا يطابق العقد", "error_key": "portal.phoneMismatch"}), 403
-
+            return error_response("رقم الهاتف لا يطابق العقد", 403, error_key="portal.phoneMismatch")
     # جمع البيانات
     unit = contract.unit
     plan = contract.payment_plan
@@ -132,7 +130,7 @@ def my_contracts():
     """للموظف: عرض عقود عميل محدد (بحث بالعميل)."""
     customer_id = request.args.get("customer_id", type=int)
     if not customer_id:
-        return jsonify({"message": "customer_id مطلوب"}), 400
+        return error_response("customer_id مطلوب", 400)
     contracts = SalesContract.query.filter_by(customer_id=customer_id).order_by(SalesContract.id.desc()).all()
     return jsonify([c.to_dict() for c in contracts])
 
@@ -145,8 +143,7 @@ def owner_dashboard():
     """لوحة تحكم المالك — ملخص الوحدات والعقود والتحصيلات."""
     owner_id = request.args.get("owner_id", type=int)
     if not owner_id:
-        return jsonify({"message": "owner_id مطلوب"}), 400
-
+        return error_response("owner_id مطلوب", 400)
     from models import RealEstateUnit, SalesContract, ServiceCharge, OwnerAssociation
     from sqlalchemy import func
 
@@ -199,7 +196,7 @@ def owner_units():
     """قائمة وحدات المالك."""
     owner_id = request.args.get("owner_id", type=int)
     if not owner_id:
-        return jsonify({"message": "owner_id مطلوب"}), 400
+        return error_response("owner_id مطلوب", 400)
     units = RealEstateUnit.query.filter_by(owner_id=owner_id).all()
     return jsonify([u.to_dict() for u in units])
 
@@ -210,7 +207,7 @@ def owner_contracts():
     """عقود وحدات المالك."""
     owner_id = request.args.get("owner_id", type=int)
     if not owner_id:
-        return jsonify({"message": "owner_id مطلوب"}), 400
+        return error_response("owner_id مطلوب", 400)
     units = RealEstateUnit.query.filter_by(owner_id=owner_id).all()
     unit_ids = [u.id for u in units]
     contracts = SalesContract.query.filter(SalesContract.unit_id.in_(unit_ids)).order_by(SalesContract.id.desc()).all() if unit_ids else []
@@ -223,7 +220,7 @@ def owner_charges():
     """رسوم خدمات وحدات المالك."""
     owner_id = request.args.get("owner_id", type=int)
     if not owner_id:
-        return jsonify({"message": "owner_id مطلوب"}), 400
+        return error_response("owner_id مطلوب", 400)
     units = RealEstateUnit.query.filter_by(owner_id=owner_id).all()
     unit_ids = [u.id for u in units]
     charges = ServiceCharge.query.filter(ServiceCharge.unit_id.in_(unit_ids)).order_by(ServiceCharge.due_date.desc()).all() if unit_ids else []
@@ -238,8 +235,7 @@ def tenant_dashboard():
     """لوحة تحكم المستأجر — ملخص العقود الإيجارية والمدفوعات."""
     customer_id = request.args.get("customer_id", type=int)
     if not customer_id:
-        return jsonify({"message": "customer_id مطلوب"}), 400
-
+        return error_response("customer_id مطلوب", 400)
     from models import RentalContract, RentalPayment, MaintenanceRequest, RealEstateUnit
 
     contracts = RentalContract.query.filter_by(customer_id=customer_id).all()
@@ -281,7 +277,7 @@ def tenant_contracts():
     """عقود المستأجر الإيجارية."""
     customer_id = request.args.get("customer_id", type=int)
     if not customer_id:
-        return jsonify({"message": "customer_id مطلوب"}), 400
+        return error_response("customer_id مطلوب", 400)
     contracts = RentalContract.query.filter_by(customer_id=customer_id).order_by(RentalContract.id.desc()).all()
     return jsonify([c.to_dict() for c in contracts])
 
@@ -292,7 +288,7 @@ def tenant_payments():
     """مدفوعات المستأجر."""
     customer_id = request.args.get("customer_id", type=int)
     if not customer_id:
-        return jsonify({"message": "customer_id مطلوب"}), 400
+        return error_response("customer_id مطلوب", 400)
     contracts = RentalContract.query.filter_by(customer_id=customer_id).all()
     contract_ids = [c.id for c in contracts]
     payments = RentalPayment.query.filter(RentalPayment.contract_id.in_(contract_ids)).order_by(RentalPayment.payment_date.desc()).all() if contract_ids else []
@@ -305,7 +301,7 @@ def tenant_maintenance():
     """طلبات صيانة المستأجر."""
     customer_id = request.args.get("customer_id", type=int)
     if not customer_id:
-        return jsonify({"message": "customer_id مطلوب"}), 400
+        return error_response("customer_id مطلوب", 400)
     contracts = RentalContract.query.filter_by(customer_id=customer_id).all()
     unit_ids = [c.unit_id for c in contracts if c.unit_id]
     maintenance = MaintenanceRequest.query.filter(MaintenanceRequest.unit_id.in_(unit_ids)).order_by(MaintenanceRequest.id.desc()).all() if unit_ids else []
@@ -325,8 +321,7 @@ def tenant_create_maintenance():
     from models import MaintenanceRequest, RealEstateUnit
     unit = db.session.get(RealEstateUnit, data["unit_id"])
     if not unit:
-        return jsonify({"message": "الوحدة غير موجودة"}), 404
-
+        return error_response("الوحدة غير موجودة", 404)
     mr = MaintenanceRequest(
         unit_id=data["unit_id"],
         issue_type=data["issue_type"],

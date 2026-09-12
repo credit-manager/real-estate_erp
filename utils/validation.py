@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Input validation utilities for DynamicPro ERP."""
 import re
+from flask import jsonify
 
 # Maximum lengths for common field types
 MAX_LENGTHS = {
@@ -19,6 +20,22 @@ MAX_LENGTHS = {
     "number": 50,
     "url": 2000,
 }
+
+
+def error_response(message, status=400, **extra):
+    """Standardized error response: {"success": false, "message": "..."}."""
+    payload = {"success": False, "message": message}
+    payload.update(extra)
+    return jsonify(payload), status
+
+
+def success_response(data=None, status=200, **extra):
+    """Standardized success response."""
+    payload = {"success": True}
+    if data is not None:
+        payload.update(data)
+    payload.update(extra)
+    return jsonify(payload), status
 
 
 def validate_field_length(data, field, max_len=None, required=False):

@@ -3,6 +3,7 @@ from database import db
 from models import Company, Branch, Currency
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 companies_bp = Blueprint("companies", __name__, url_prefix="/api/companies")
 
@@ -59,7 +60,7 @@ def create_company():
     data = request.get_json(silent=True) or {}
     err = _validate_company(data)
     if err:
-        return jsonify({"message": err}), 400
+        return error_response(err, 400)
     company = Company(
         name=data.get("name", "").strip(),
         legal_name=(data.get("legal_name") or "").strip(),
@@ -85,7 +86,7 @@ def update_company(company_id):
     data = request.get_json(silent=True) or {}
     err = _validate_company(data, partial=True)
     if err:
-        return jsonify({"message": err}), 400
+        return error_response(err, 400)
     company.name = (data.get("name", company.name) or "").strip()
     company.legal_name = (data.get("legal_name", company.legal_name) or "").strip()
     company.tax_number = (data.get("tax_number", company.tax_number) or "").strip()
@@ -122,7 +123,7 @@ def create_branch(company_id):
     company = Company.query.get_or_404(company_id)
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الفرع مطلوب"}), 400
+        return error_response("اسم الفرع مطلوب", 400)
     branch = Branch(
         company_id=company.id,
         name=data.get("name", "").strip(),
@@ -145,7 +146,7 @@ def update_branch(branch_id):
     branch = Branch.query.get_or_404(branch_id)
     data = request.get_json(silent=True) or {}
     if "name" in data and not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الفرع مطلوب"}), 400
+        return error_response("اسم الفرع مطلوب", 400)
     branch.name = (data.get("name", branch.name) or "").strip()
     branch.code = (data.get("code", branch.code) or "").strip()
     branch.city = (data.get("city", branch.city) or "").strip()

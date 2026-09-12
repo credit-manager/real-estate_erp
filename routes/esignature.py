@@ -8,6 +8,7 @@ from models import SignatureProvider, SignatureRequest, SignatureAuditLog, Sales
 from permissions import require_api
 from auditlog import log_action
 from utils.crypto import encrypt_field, decrypt_field
+from utils.validation import error_response
 
 
 def _esign_secret_key():
@@ -41,10 +42,9 @@ def list_providers():
 def create_provider():
     data = request.get_json() or {}
     if not data.get("name") or not data.get("display_name"):
-        return jsonify({"message": "الاسم والاسم المعروض مطلوبان"}), 400
+        return error_response("الاسم والاسم المعروض مطلوبان", 400)
     if SignatureProvider.query.filter_by(name=data["name"]).first():
-        return jsonify({"message": "مزود بهذا الاسم موجود بالفعل"}), 409
-
+        return error_response("مزود بهذا الاسم موجود بالفعل", 409)
     provider = SignatureProvider(
         name=data["name"],
         display_name=data["display_name"],
@@ -61,7 +61,7 @@ def create_provider():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"message": "خطأ في الحفظ"}), 500
+        return error_response("خطأ في الحفظ", 500)
     log_action("create", "signature_provider", provider.id, provider.display_name)
     return jsonify(provider.to_dict()), 201
 
@@ -71,7 +71,7 @@ def create_provider():
 def update_provider(pid):
     provider = db.session.get(SignatureProvider, pid)
     if not provider:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("display_name", "api_base_url", "client_id", "is_active", "is_default"):
         if field in data:
@@ -92,9 +92,9 @@ def update_provider(pid):
 def delete_provider(pid):
     provider = db.session.get(SignatureProvider, pid)
     if not provider:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if SignatureRequest.query.filter_by(provider_id=pid).first():
-        return jsonify({"message": "لا يمكن حذف مزود له طلبات توقيع"}), 400
+        return error_response("لا يمكن حذف مزود له طلبات توقيع", 400)
     db.session.delete(provider)
     db.session.commit()
     log_action("delete", "signature_provider", pid, provider.display_name)
@@ -145,15 +145,12 @@ def create_request():
         doc = db.session.get(RentalContract, doc_id)
         doc_number = doc.contract_number if doc else ""
     else:
-        return jsonify({"message": "نوع وثيقة غير مدعوم"}), 400
-
+        return error_response("نوع وثيقة غير مدعوم", 400)
     if not doc:
-        return jsonify({"message": "الوثيقة غير موجودة"}), 404
-
+        return error_response("الوثيقة غير موجودة", 404)
     provider = _get_default_provider()
     if not provider:
-        return jsonify({"message": "لا يوجد مزود توقيع مفعل"}), 400
-
+        return error_response("لا يوجد مزود توقيع مفعل", 400)
     sig_req = SignatureRequest(
         provider_id=provider.id,
         document_type=doc_type,
@@ -191,14 +188,12 @@ def send_request(rid):
     """إرسال طلب التوقيع للمزود (DocuSign/Na3am/محلي)."""
     sig_req = db.session.get(SignatureRequest, rid)
     if not sig_req:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if sig_req.status != "draft":
-        return jsonify({"message": "لا يمكن الإرسال إلا للمسودات"}), 400
-
+        return error_response("لا يمكن الإرسال إلا للمسودات", 400)
     provider = sig_req.provider
     if not provider:
-        return jsonify({"message": "لا يوجد مزود مرتبط"}), 400
-
+        return error_response("لا يوجد مزود مرتبط", 400)
     # استدعاء المزود المناسب
     try:
         if provider.name == "docusign":
@@ -209,8 +204,7 @@ def send_request(rid):
             result = _send_local(sig_req)
     except Exception as e:
         _log_audit(sig_req, "error", {"error": "internal error"})
-        return jsonify({"message": "فشل الإرسال"}), 500
-
+        return error_response("فشل الإرسال", 500)
     if result.get("success"):
         sig_req.external_id = result.get("external_id")
         sig_req.signing_url = result.get("signing_url")
@@ -230,7 +224,7 @@ def send_request(rid):
 def get_request(rid):
     sig_req = db.session.get(SignatureRequest, rid)
     if not sig_req:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     return jsonify(sig_req.to_dict())
 
 
@@ -239,9 +233,9 @@ def get_request(rid):
 def cancel_request(rid):
     sig_req = db.session.get(SignatureRequest, rid)
     if not sig_req:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if sig_req.status not in ("draft", "sent", "delivered"):
-        return jsonify({"message": "لا يمكن الإلغاء في هذه الحالة"}), 400
+        return error_response("لا يمكن الإلغاء في هذه الحالة", 400)
     sig_req.status = "voided"
     db.session.commit()
     _log_audit(sig_req, "voided", {})
@@ -257,8 +251,7 @@ def webhook(provider_name):
 
     provider = SignatureProvider.query.filter_by(name=provider_name).first()
     if not provider:
-        return jsonify({"success": False, "message": "provider not found"}), 404
-
+        return error_response("provider not found", 404)
     sig_header = request.headers.get("X-Webhook-Signature") or request.args.get("signature")
     verified = False
 
@@ -281,16 +274,13 @@ def webhook(provider_name):
             verified = _hmac.compare_digest(fallback, sig_header)
 
     if not verified:
-        return jsonify({"success": False, "message": "unauthorized"}), 401
-
+        return error_response("unauthorized", 401)
     external_id = data.get("envelope_id") or data.get("external_id") or data.get("id")
     if not external_id:
-        return jsonify({"success": False, "message": "معرف خارجي مفقود"}), 400
-
+        return error_response("معرف خارجي مفقود", 400)
     sig_req = SignatureRequest.query.filter_by(external_id=external_id).first()
     if not sig_req:
-        return jsonify({"success": False, "message": "طلب غير موجود"}), 404
-
+        return error_response("طلب غير موجود", 404)
     event = data.get("event") or data.get("status") or "unknown"
     status_map = {
         "sent": "sent", "delivered": "delivered", "signed": "signed",
@@ -314,7 +304,7 @@ def webhook(provider_name):
 def request_audit(rid):
     sig_req = db.session.get(SignatureRequest, rid)
     if not sig_req:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     logs = SignatureAuditLog.query.filter_by(request_id=rid).order_by(SignatureAuditLog.id.desc()).all()
     return jsonify([l.to_dict() for l in logs])
 

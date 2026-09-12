@@ -11,6 +11,7 @@ from models import (
 from permissions import require_api
 from routes.financial_years import financial_year_error
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 procurement_bp = Blueprint("procurement", __name__, url_prefix="/api/procurement")
 
@@ -56,7 +57,7 @@ def create_purchase_request():
         ("notes", {"max_len": 5000}),
     ])
     if err:
-        return jsonify({"success": False, "message": err}), 400
+        return error_response(err, 400)
     pr = PurchaseRequest(
         pr_number=data.get("pr_number") or _next_number("PR", PurchaseRequest, "pr_number"),
         title=data.get("title"),
@@ -650,10 +651,10 @@ def create_supplier_invoice():
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"success": False, "message": "invalid input"}), 400
+            return error_response("invalid input", 400)
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": "internal server error"}), 500
+            return error_response("internal server error", 500)
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     db.session.commit()
@@ -667,7 +668,7 @@ def update_supplier_invoice(invoice_id):
     from models import Invoice, InvoiceItem
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.invoice_type != "purchase":
-        return jsonify({"error": "not_supplier_invoice"}), 400
+        return error_response("not_supplier_invoice", 400)
     data = request.get_json() or {}
     from utils.stock import reverse_purchase_invoice
     reverse_purchase_invoice(invoice)
@@ -715,10 +716,10 @@ def update_supplier_invoice(invoice_id):
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"success": False, "message": "invalid input"}), 400
+            return error_response("invalid input", 400)
         except Exception as e:
             db.session.rollback()
-            return jsonify({"message": "internal server error"}), 500
+            return error_response("internal server error", 500)
     from utils.stock import apply_purchase_invoice
     apply_purchase_invoice(invoice)
     db.session.commit()
@@ -732,7 +733,7 @@ def delete_supplier_invoice(invoice_id):
     from models import Invoice
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.invoice_type != "purchase":
-        return jsonify({"error": "not_supplier_invoice"}), 400
+        return error_response("not_supplier_invoice", 400)
     num = invoice.invoice_number
     from utils.workflow import cancel_document_approval
     cancel_document_approval("invoice", invoice_id)

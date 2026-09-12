@@ -8,6 +8,7 @@ from models import (
 )
 from permissions import require_api, require_page
 from auditlog import log_action
+from utils.validation import error_response
 
 inventory_bp = Blueprint("inventory", __name__, url_prefix="/api/inventory")
 pages_bp = Blueprint("inventory_pages", __name__)
@@ -188,12 +189,12 @@ def list_warehouses():
 def create_warehouse():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم المخزن مطلوب"}), 400
+        return error_response("اسم المخزن مطلوب", 400)
     code = (data.get("code") or "").strip()
     if not code:
-        return jsonify({"message": "رمز المخزن مطلوب"}), 400
+        return error_response("رمز المخزن مطلوب", 400)
     if Warehouse.query.filter_by(code=code).first():
-        return jsonify({"message": "رمز المخزن موجود مسبقاً"}), 400
+        return error_response("رمز المخزن موجود مسبقاً", 400)
     wh = Warehouse(
         code=code,
         name=data.get("name", "").strip(),
@@ -215,11 +216,11 @@ def update_warehouse(warehouse_id):
     wh = Warehouse.query.get_or_404(warehouse_id)
     data = request.get_json(silent=True) or {}
     if "name" in data and not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم المخزن مطلوب"}), 400
+        return error_response("اسم المخزن مطلوب", 400)
     code = (data.get("code") or wh.code).strip()
     existing = Warehouse.query.filter_by(code=code).first()
     if existing and existing.id != wh.id:
-        return jsonify({"message": "رمز المخزن موجود مسبقاً"}), 400
+        return error_response("رمز المخزن موجود مسبقاً", 400)
     wh.code = code
     wh.name = (data.get("name", wh.name) or "").strip()
     wh.location = (data.get("location", wh.location) or "").strip()
@@ -239,7 +240,7 @@ def delete_warehouse(warehouse_id):
     wh = Warehouse.query.get_or_404(warehouse_id)
     if ItemStock.query.filter_by(warehouse_id=warehouse_id).first() or \
             StockBatch.query.filter_by(warehouse_id=warehouse_id).first():
-        return jsonify({"message": "لا يمكن حذف مخزن عليه أرصدة أو دفعات"}), 400
+        return error_response("لا يمكن حذف مخزن عليه أرصدة أو دفعات", 400)
     name = wh.name
     db.session.delete(wh)
     db.session.commit()
@@ -261,7 +262,7 @@ def list_categories():
 def create_category():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم التصنيف مطلوب"}), 400
+        return error_response("اسم التصنيف مطلوب", 400)
     cat = ItemCategory(
         name=data.get("name", "").strip(),
         description=(data.get("description") or "").strip(),
@@ -279,7 +280,7 @@ def update_category(category_id):
     cat = ItemCategory.query.get_or_404(category_id)
     data = request.get_json(silent=True) or {}
     if "name" in data and not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم التصنيف مطلوب"}), 400
+        return error_response("اسم التصنيف مطلوب", 400)
     cat.name = (data.get("name", cat.name) or "").strip()
     cat.description = (data.get("description", cat.description) or "").strip()
     if "is_active" in data:
@@ -294,7 +295,7 @@ def update_category(category_id):
 def delete_category(category_id):
     cat = ItemCategory.query.get_or_404(category_id)
     if Item.query.filter_by(category_id=category_id).first():
-        return jsonify({"message": "لا يمكن حذف تصنيف يحتوي أصنافاً"}), 400
+        return error_response("لا يمكن حذف تصنيف يحتوي أصنافاً", 400)
     name = cat.name
     db.session.delete(cat)
     db.session.commit()
@@ -316,7 +317,7 @@ def list_units():
 def create_unit():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الوحدة مطلوب"}), 400
+        return error_response("اسم الوحدة مطلوب", 400)
     unit = UnitOfMeasure(
         name=data.get("name", "").strip(),
         code=(data.get("code") or "").strip(),
@@ -334,7 +335,7 @@ def update_unit(unit_id):
     unit = UnitOfMeasure.query.get_or_404(unit_id)
     data = request.get_json(silent=True) or {}
     if "name" in data and not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الوحدة مطلوب"}), 400
+        return error_response("اسم الوحدة مطلوب", 400)
     unit.name = (data.get("name", unit.name) or "").strip()
     unit.code = (data.get("code", unit.code) or "").strip()
     if "is_active" in data:
@@ -349,7 +350,7 @@ def update_unit(unit_id):
 def delete_unit(unit_id):
     unit = UnitOfMeasure.query.get_or_404(unit_id)
     if Item.query.filter_by(unit_id=unit_id).first():
-        return jsonify({"message": "لا يمكن حذف وحدة مستخدمة في أصناف"}), 400
+        return error_response("لا يمكن حذف وحدة مستخدمة في أصناف", 400)
     name = unit.name
     db.session.delete(unit)
     db.session.commit()
@@ -371,12 +372,12 @@ def list_items():
 def create_item():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الصنف مطلوب"}), 400
+        return error_response("اسم الصنف مطلوب", 400)
     code = (data.get("code") or "").strip()
     if not code:
-        return jsonify({"message": "كود الصنف مطلوب"}), 400
+        return error_response("كود الصنف مطلوب", 400)
     if Item.query.filter_by(code=code).first():
-        return jsonify({"message": "كود الصنف موجود مسبقاً"}), 400
+        return error_response("كود الصنف موجود مسبقاً", 400)
     item = Item(
         code=code,
         name=data.get("name", "").strip(),
@@ -404,11 +405,11 @@ def update_item(item_id):
     item = Item.query.get_or_404(item_id)
     data = request.get_json(silent=True) or {}
     if "name" in data and not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم الصنف مطلوب"}), 400
+        return error_response("اسم الصنف مطلوب", 400)
     code = (data.get("code") or item.code).strip()
     existing = Item.query.filter_by(code=code).first()
     if existing and existing.id != item.id:
-        return jsonify({"message": "كود الصنف موجود مسبقاً"}), 400
+        return error_response("كود الصنف موجود مسبقاً", 400)
     item.code = code
     item.name = (data.get("name", item.name) or "").strip()
     item.category_id = data.get("category_id", item.category_id) or None
@@ -436,7 +437,7 @@ def update_item(item_id):
 def delete_item(item_id):
     item = Item.query.get_or_404(item_id)
     if ItemStock.query.filter_by(item_id=item_id).first():
-        return jsonify({"message": "لا يمكن حذف صنف عليه رصيد"}), 400
+        return error_response("لا يمكن حذف صنف عليه رصيد", 400)
     name = item.name
     db.session.delete(item)
     db.session.commit()
@@ -509,11 +510,11 @@ def list_batches():
 def create_batch():
     data = request.get_json(silent=True) or {}
     if not (data.get("batch_number") or "").strip():
-        return jsonify({"message": "رقم الدفعة مطلوب"}), 400
+        return error_response("رقم الدفعة مطلوب", 400)
     item_id = data.get("item_id")
     warehouse_id = data.get("warehouse_id")
     if not item_id or not warehouse_id:
-        return jsonify({"message": "الصنف والمخزن مطلوبان"}), 400
+        return error_response("الصنف والمخزن مطلوبان", 400)
     item = Item.query.get_or_404(item_id)
     batch = StockBatch(
         item_id=item_id,
@@ -561,7 +562,7 @@ def update_batch(batch_id):
 def delete_batch(batch_id):
     batch = StockBatch.query.get_or_404(batch_id)
     if float(batch.quantity or 0) > 0:
-        return jsonify({"message": "لا يمكن حذف دفعة عليها كمية"}), 400
+        return error_response("لا يمكن حذف دفعة عليها كمية", 400)
     number = batch.batch_number
     db.session.delete(batch)
     db.session.commit()
@@ -583,14 +584,14 @@ def list_serials():
 def create_serial():
     data = request.get_json(silent=True) or {}
     if not (data.get("serial_number") or "").strip():
-        return jsonify({"message": "الرقم التسلسلي مطلوب"}), 400
+        return error_response("الرقم التسلسلي مطلوب", 400)
     serial_number = data.get("serial_number", "").strip()
     if StockSerial.query.filter_by(serial_number=serial_number).first():
-        return jsonify({"message": "الرقم التسلسلي موجود مسبقاً"}), 400
+        return error_response("الرقم التسلسلي موجود مسبقاً", 400)
     item_id = data.get("item_id")
     warehouse_id = data.get("warehouse_id")
     if not item_id or not warehouse_id:
-        return jsonify({"message": "الصنف والمخزن مطلوبان"}), 400
+        return error_response("الصنف والمخزن مطلوبان", 400)
     serial = StockSerial(
         item_id=item_id,
         warehouse_id=warehouse_id,
@@ -662,12 +663,12 @@ def create_transfer():
     from_wh = data.get("from_warehouse_id")
     to_wh = data.get("to_warehouse_id")
     if not from_wh or not to_wh:
-        return jsonify({"message": "مخزن المصدر والوجهة مطلوبان"}), 400
+        return error_response("مخزن المصدر والوجهة مطلوبان", 400)
     if from_wh == to_wh:
-        return jsonify({"message": "مخزن المصدر والوجهة لا يمكن أن يكونا متطابقين"}), 400
+        return error_response("مخزن المصدر والوجهة لا يمكن أن يكونا متطابقين", 400)
     lines = data.get("items") or []
     if not lines:
-        return jsonify({"message": "أضف صنفاً واحداً على الأقل"}), 400
+        return error_response("أضف صنفاً واحداً على الأقل", 400)
     transfer = StockTransfer(
         transfer_number=_next_number("TRF", StockTransfer, "transfer_number"),
         from_warehouse_id=from_wh,
@@ -759,7 +760,7 @@ def create_stocktake():
     data = request.get_json(silent=True) or {}
     warehouse_id = data.get("warehouse_id")
     if not warehouse_id:
-        return jsonify({"message": "المخزن مطلوب"}), 400
+        return error_response("المخزن مطلوب", 400)
     take = StockTake(
         take_number=_next_number("ST", StockTake, "take_number"),
         warehouse_id=warehouse_id,
@@ -772,7 +773,7 @@ def create_stocktake():
     items = ItemStock.query.filter_by(warehouse_id=warehouse_id).all()
     if not items:
         db.session.rollback()
-        return jsonify({"message": "لا توجد أرصدة في هذا المخزن للجرد"}), 400
+        return error_response("لا توجد أرصدة في هذا المخزن للجرد", 400)
     for s in items:
         db.session.add(StockTakeItem(
             take_id=take.id,
@@ -818,7 +819,7 @@ def update_stocktake(take_id):
 def delete_stocktake(take_id):
     take = StockTake.query.get_or_404(take_id)
     if take.status == "completed":
-        return jsonify({"message": "لا يمكن حذف جرد مكتمل"}), 400
+        return error_response("لا يمكن حذف جرد مكتمل", 400)
     number = take.take_number
     db.session.delete(take)
     db.session.commit()
@@ -858,7 +859,7 @@ def create_supplier():
     from models import Supplier
     data = request.get_json(silent=True) or {}
     if not (data.get("company_name") or "").strip():
-        return jsonify({"message": "اسم الشركة الموردة مطلوب"}), 400
+        return error_response("اسم الشركة الموردة مطلوب", 400)
     supplier = Supplier(
         company_name=data.get("company_name", "").strip(),
         contact_name=(data.get("contact_name") or "").strip(),
@@ -880,7 +881,7 @@ def update_supplier(supplier_id):
     supplier = Supplier.query.get_or_404(supplier_id)
     data = request.get_json(silent=True) or {}
     if "company_name" in data and not (data.get("company_name") or "").strip():
-        return jsonify({"message": "اسم الشركة الموردة مطلوب"}), 400
+        return error_response("اسم الشركة الموردة مطلوب", 400)
     supplier.company_name = (data.get("company_name", supplier.company_name) or "").strip()
     supplier.contact_name = (data.get("contact_name", supplier.contact_name) or "").strip()
     supplier.phone = (data.get("phone", supplier.phone) or "").strip()
@@ -1043,4 +1044,4 @@ def stock_reports():
             "rows": rows,
         })
 
-    return jsonify({"message": "تقرير غير مدعوم"}), 400
+    return error_response("تقرير غير مدعوم", 400)

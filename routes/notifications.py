@@ -11,6 +11,7 @@ from models import (
 )
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 notif_bp = Blueprint("notifications", __name__, url_prefix="/api/notifications")
 
@@ -33,8 +34,7 @@ def create_channel():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if NotificationChannel.query.filter_by(name=data["name"]).first():
-        return jsonify({"message": "قناة بهذا الاسم موجودة"}), 409
-
+        return error_response("قناة بهذا الاسم موجودة", 409)
     channel = NotificationChannel(
         name=data["name"],
         display_name=data["display_name"],
@@ -56,7 +56,7 @@ def create_channel():
 def update_channel(cid):
     channel = db.session.get(NotificationChannel, cid)
     if not channel:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("display_name", "provider", "is_active", "priority", "rate_limit_per_minute", "rate_limit_per_hour"):
         if field in data:
@@ -73,9 +73,9 @@ def update_channel(cid):
 def delete_channel(cid):
     channel = db.session.get(NotificationChannel, cid)
     if not channel:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if NotificationTemplate.query.filter_by(channel_id=cid).first():
-        return jsonify({"message": "لا يمكن حذف قناة لها قوالب"}), 400
+        return error_response("لا يمكن حذف قناة لها قوالب", 400)
     db.session.delete(channel)
     db.session.commit()
     log_action("delete", "notification_channel", cid, channel.display_name)
@@ -106,8 +106,7 @@ def create_template():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if not db.session.get(NotificationChannel, data["channel_id"]):
-        return jsonify({"message": "القناة غير موجودة"}), 404
-
+        return error_response("القناة غير موجودة", 404)
     template = NotificationTemplate(
         channel_id=data["channel_id"],
         name=data["name"],
@@ -128,7 +127,7 @@ def create_template():
 def update_template(tid):
     template = db.session.get(NotificationTemplate, tid)
     if not template:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("name", "subject_template", "body_template", "variables", "language", "is_active"):
         if field in data:
@@ -150,9 +149,9 @@ def update_template(tid):
 def delete_template(tid):
     template = db.session.get(NotificationTemplate, tid)
     if not template:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if NotificationQueue.query.filter_by(template_id=tid).first():
-        return jsonify({"message": "لا يمكن حذف قالب مستخدم في الطابور"}), 400
+        return error_response("لا يمكن حذف قالب مستخدم في الطابور", 400)
     db.session.delete(template)
     db.session.commit()
     log_action("delete", "notification_template", tid, template.name)
@@ -185,12 +184,10 @@ def send_notification():
 
     channel = NotificationChannel.query.filter_by(name=data["channel"], is_active=True).first()
     if not channel:
-        return jsonify({"message": "القناة غير موجودة أو غير مفعلة"}), 404
-
+        return error_response("القناة غير موجودة أو غير مفعلة", 404)
     template = NotificationTemplate.query.filter_by(name=data["template"], is_active=True).first()
     if not template:
-        return jsonify({"message": "القالب غير موجود أو غير مفعل"}), 404
-
+        return error_response("القالب غير موجود أو غير مفعل", 404)
     # التحقق من تفضيلات المستخدم
     recipient_user_id = data.get("recipient_user_id", type=int)
     if recipient_user_id:
@@ -198,14 +195,13 @@ def send_notification():
         if pref:
             channel_key = channel.name
             if channel_key == "email" and not pref.email_enabled:
-                return jsonify({"message": "المستخدم معطل إشعارات البريد"}), 400
+                return error_response("المستخدم معطل إشعارات البريد", 400)
             if channel_key == "sms" and not pref.sms_enabled:
-                return jsonify({"message": "المستخدم معطل إشعارات SMS"}), 400
+                return error_response("المستخدم معطل إشعارات SMS", 400)
             if channel_key == "push" and not pref.push_enabled:
-                return jsonify({"message": "المستخدم معطل الإشعارات الفورية"}), 400
+                return error_response("المستخدم معطل الإشعارات الفورية", 400)
             if channel_key == "inapp" and not pref.inapp_enabled:
-                return jsonify({"message": "المستخدم معطل الإشعارات الداخلية"}), 400
-
+                return error_response("المستخدم معطل الإشعارات الداخلية", 400)
     # التحقق من ساعات الهدوء
     if recipient_user_id:
         pref = NotificationPreference.query.filter_by(user_id=recipient_user_id).first()
@@ -261,11 +257,11 @@ def list_queue():
 def retry_queue(qid):
     item = db.session.get(NotificationQueue, qid)
     if not item:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if item.status not in ("failed", "cancelled"):
-        return jsonify({"message": "لا يمكن إعادة المحاولة لهذا الحالة"}), 400
+        return error_response("لا يمكن إعادة المحاولة لهذا الحالة", 400)
     if item.attempts >= item.max_attempts:
-        return jsonify({"message": "تم الوصول للحد الأقصى من المحاولات"}), 400
+        return error_response("تم الوصول للحد الأقصى من المحاولات", 400)
     item.status = "pending"
     item.attempts = 0
     item.error_message = None
@@ -279,9 +275,9 @@ def retry_queue(qid):
 def cancel_queue(qid):
     item = db.session.get(NotificationQueue, qid)
     if not item:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if item.status not in ("pending", "processing"):
-        return jsonify({"message": "لا يمكن الإلغاء لهذا الحالة"}), 400
+        return error_response("لا يمكن الإلغاء لهذا الحالة", 400)
     item.status = "cancelled"
     db.session.commit()
     log_action("cancel", "notification_queue", qid, item.recipient)
@@ -295,7 +291,7 @@ def cancel_queue(qid):
 def get_preferences():
     user_id = request.args.get("user_id", type=int)
     if not user_id:
-        return jsonify({"message": "user_id مطلوب"}), 400
+        return error_response("user_id مطلوب", 400)
     pref = NotificationPreference.query.filter_by(user_id=user_id).first()
     if not pref:
         # إنشاء افتراضي
@@ -311,7 +307,7 @@ def update_preferences():
     data = request.get_json() or {}
     user_id = data.get("user_id", type=int)
     if not user_id:
-        return jsonify({"message": "user_id مطلوب"}), 400
+        return error_response("user_id مطلوب", 400)
     pref = NotificationPreference.query.filter_by(user_id=user_id).first()
     if not pref:
         pref = NotificationPreference(user_id=user_id)

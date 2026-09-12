@@ -13,6 +13,7 @@ from models import (
 )
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 payments_bp = Blueprint("payments", __name__, url_prefix="/api/payments")
 
@@ -35,8 +36,7 @@ def create_gateway():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if PaymentGateway.query.filter_by(name=data["name"]).first():
-        return jsonify({"message": "بوابة بهذا الاسم موجودة"}), 409
-
+        return error_response("بوابة بهذا الاسم موجودة", 409)
     gateway = PaymentGateway(
         name=data["name"],
         display_name=data["display_name"],
@@ -63,7 +63,7 @@ def create_gateway():
 def update_gateway(gid):
     gateway = db.session.get(PaymentGateway, gid)
     if not gateway:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("display_name", "provider", "merchant_id", "is_active", "is_default", "is_sandbox"):
         if field in data:
@@ -88,9 +88,9 @@ def update_gateway(gid):
 def delete_gateway(gid):
     gateway = db.session.get(PaymentGateway, gid)
     if not gateway:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if PaymentTransaction.query.filter_by(gateway_id=gid).first():
-        return jsonify({"message": "لا يمكن حذف بوابة لها معاملات"}), 400
+        return error_response("لا يمكن حذف بوابة لها معاملات", 400)
     db.session.delete(gateway)
     db.session.commit()
     log_action("delete", "payment_gateway", gid, gateway.display_name)
@@ -145,8 +145,7 @@ def create_transaction():
 
     gateway = _get_default_gateway()
     if not gateway:
-        return jsonify({"message": "لا توجد بوابة دفع مفعلة"}), 400
-
+        return error_response("لا توجد بوابة دفع مفعلة", 400)
     # التحقق من الكيان
     entity_type = data["entity_type"]
     entity_id = data["entity_id"]
@@ -161,11 +160,9 @@ def create_transaction():
         from models import ServiceCharge
         entity = db.session.get(ServiceCharge, entity_id)
     else:
-        return jsonify({"message": "نوع كيان غير مدعوم"}), 400
-
+        return error_response("نوع كيان غير مدعوم", 400)
     if not entity:
-        return jsonify({"message": "الكيان غير موجود"}), 404
-
+        return error_response("الكيان غير موجود", 404)
     # إنشاء المعاملة
     reference_id = _generate_reference_id()
     amount = data["amount"]
@@ -233,7 +230,7 @@ def create_transaction():
 def get_transaction(tid):
     txn = db.session.get(PaymentTransaction, tid)
     if not txn:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     return jsonify(txn.to_dict())
 
 
@@ -243,10 +240,9 @@ def capture_transaction(tid):
     """التقاط دفع معتمد (للـ authorized payments)."""
     txn = db.session.get(PaymentTransaction, tid)
     if not txn:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if txn.status != "authorized":
-        return jsonify({"message": "لا يمكن التقاط إلا المدفوعات المعتمدة"}), 400
-
+        return error_response("لا يمكن التقاط إلا المدفوعات المعتمدة", 400)
     gateway = txn.gateway
     try:
         if gateway.name == "moyasar":
@@ -254,8 +250,7 @@ def capture_transaction(tid):
         elif gateway.name == "paytabs":
             result = _capture_paytabs(txn)
         else:
-            return jsonify({"message": "التقاط غير مدعوم لهذه البوابة"}), 400
-
+            return error_response("التقاط غير مدعوم لهذه البوابة", 400)
         if result.get("success"):
             txn.status = "captured"
             txn.captured_at = datetime.now()
@@ -276,17 +271,15 @@ def refund_transaction(tid):
     """استرداد دفع (كامل أو جزئي)."""
     txn = db.session.get(PaymentTransaction, tid)
     if not txn:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if not txn.is_refundable:
-        return jsonify({"message": "لا يمكن استرداد هذه المعاملة"}), 400
-
+        return error_response("لا يمكن استرداد هذه المعاملة", 400)
     data = request.get_json() or {}
     amount = data.get("amount")
     if not amount or float(amount) <= 0:
-        return jsonify({"message": "مبلغ الاسترداد مطلوب"}), 400
+        return error_response("مبلغ الاسترداد مطلوب", 400)
     if float(amount) > txn.refundable_amount:
-        return jsonify({"message": "المبلغ يتجاوز المبلغ القابل للاسترداد"}), 400
-
+        return error_response("المبلغ يتجاوز المبلغ القابل للاسترداد", 400)
     reason = data.get("reason", "customer_request")
     reason_code = data.get("reason_code", "customer_request")
 
@@ -297,8 +290,7 @@ def refund_transaction(tid):
         elif gateway.name == "paytabs":
             result = _refund_paytabs(txn, amount)
         else:
-            return jsonify({"message": "الاسترداد غير مدعوم لهذه البوابة"}), 400
-
+            return error_response("الاسترداد غير مدعوم لهذه البوابة", 400)
         if result.get("success"):
             refund = PaymentRefund(
                 transaction_id=txn.id,
@@ -333,10 +325,9 @@ def cancel_transaction(tid):
     """إلغاء معاملة معلقة/معتمدة."""
     txn = db.session.get(PaymentTransaction, tid)
     if not txn:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if txn.status not in ("pending", "authorized"):
-        return jsonify({"message": "لا يمكن الإلغاء لهذا الحالة"}), 400
-
+        return error_response("لا يمكن الإلغاء لهذا الحالة", 400)
     gateway = txn.gateway
     try:
         if gateway.name == "moyasar":
@@ -404,8 +395,7 @@ def create_token():
         gateway_id=data["gateway_id"],
         external_token=data["external_token"]
     ).first():
-        return jsonify({"message": "هذا التوكن محفوظ مسبقاً"}), 409
-
+        return error_response("هذا التوكن محفوظ مسبقاً", 409)
     token = PaymentMethodToken(
         gateway_id=data["gateway_id"],
         user_id=data.get("user_id"),
@@ -437,7 +427,7 @@ def create_token():
 def delete_token(tid):
     token = db.session.get(PaymentMethodToken, tid)
     if not token:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     token.is_active = False
     db.session.commit()
     return jsonify({"success": True})
@@ -460,12 +450,10 @@ def list_installment_plans():
 def create_installment_plan():
     data = request.get_json() or {}
     if not data.get("installment_id"):
-        return jsonify({"message": "installment_id مطلوب"}), 400
-
+        return error_response("installment_id مطلوب", 400)
     # التحقق من عدم وجود خطة مسبقة
     if PaymentPlanInstallment.query.filter_by(installment_id=data["installment_id"]).first():
-        return jsonify({"message": "خطة موجودة مسبقاً لهذا القسط"}), 409
-
+        return error_response("خطة موجودة مسبقاً لهذا القسط", 409)
     plan = PaymentPlanInstallment(
         installment_id=data["installment_id"],
         gateway_id=data.get("gateway_id"),
@@ -491,7 +479,7 @@ def create_installment_plan():
 def update_installment_plan(pid):
     plan = db.session.get(PaymentPlanInstallment, pid)
     if not plan:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("gateway_id", "payment_token_id", "auto_charge", "charge_days_before_due", "max_retry_attempts", "retry_interval_hours"):
         if field in data:
@@ -583,19 +571,15 @@ def webhook(gateway_name):
 
     gateway = PaymentGateway.query.filter_by(name=gateway_name, is_active=True).first()
     if not gateway:
-        return jsonify({"success": False, "message": "بوابة غير موجودة"}), 404
-
+        return error_response("بوابة غير موجودة", 404)
     if not _verify_webhook_signature(gateway, data, signature):
-        return jsonify({"success": False, "message": "توقيع غير صالح"}), 401
-
+        return error_response("توقيع غير صالح", 401)
     external_id = data.get("id") or data.get("payment_id") or data.get("transaction_id")
     if not external_id:
-        return jsonify({"success": False, "message": "معرف خارجي مفقود"}), 400
-
+        return error_response("معرف خارجي مفقود", 400)
     txn = PaymentTransaction.query.filter_by(external_id=external_id).first()
     if not txn:
-        return jsonify({"success": False, "message": "معاملة غير موجودة"}), 404
-
+        return error_response("معاملة غير موجودة", 404)
     # تحديث الحالة حسب استجابة البوابة
     status_map = {
         "paid": "captured", "captured": "captured", "authorized": "authorized",

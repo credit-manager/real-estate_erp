@@ -14,6 +14,7 @@ from i18n import DEFAULT_LANG, make_t
 from models import User
 import config
 import server_config
+from utils.validation import error_response
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -287,9 +288,7 @@ def login():
             "retry_after": LOGIN_LOCK_SECONDS,
         }), 429
 
-    return jsonify({"success": False, "message": "بيانات الدخول غير صحيحة"}), 401
-
-
+    return error_response("بيانات الدخول غير صحيحة", 401)
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
     from auditlog import log_action

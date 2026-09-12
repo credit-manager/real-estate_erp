@@ -8,6 +8,7 @@ from database import db
 from models import UnitDocument, OwnerAssociation, ServiceCharge, RealEstateUnit, Project
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 addons_bp = Blueprint("addons", __name__, url_prefix="/api/addons")
 
@@ -29,26 +30,26 @@ def list_docs(unit_id):
 @require_api("realestate", "create")
 def create_doc(unit_id):
     if not db.session.get(RealEstateUnit, unit_id):
-        return jsonify({"message": "الوحدة غير موجودة"}), 404
+        return error_response("الوحدة غير موجودة", 404)
     data = request.get_json() or {}
     doc_type = (data.get("doc_type") or "other").strip()
     if doc_type not in ALLOWED_DOC_TYPES:
         doc_type = "other"
     if not (data.get("title") or "").strip():
-        return jsonify({"message": "عنوان المستند مطلوب"}), 400
+        return error_response("عنوان المستند مطلوب", 400)
     # نسخ إصدار — استخدم max(version) بدل first()
     try:
         file_size = int(data.get("file_size") or 0) if data.get("file_size") is not None else None
         if file_size is not None and (file_size < 0 or file_size > 50 * 1024 * 1024):
-            return jsonify({"message": "حجم الملف غير صالح"}), 400
+            return error_response("حجم الملف غير صالح", 400)
     except (TypeError, ValueError):
-        return jsonify({"message": "حجم الملف غير صالح"}), 400
+        return error_response("حجم الملف غير صالح", 400)
     mime = (data.get("mime_type") or "").strip()
     if mime and mime not in ALLOWED_MIME:
-        return jsonify({"message": "نوع الملف غير مدعوم"}), 400
+        return error_response("نوع الملف غير مدعوم", 400)
     file_path = (data.get("file_path") or "").strip()
     if file_path and (".." in file_path or file_path.startswith("/") or file_path.startswith("\\")):
-        return jsonify({"message": "مسار الملف غير صالح"}), 400
+        return error_response("مسار الملف غير صالح", 400)
     max_ver = db.session.query(db.func.max(UnitDocument.version)).filter_by(unit_id=unit_id, title=data["title"].strip(), doc_type=doc_type).scalar()
     version = (int(max_ver) + 1) if max_ver else 1
     doc = UnitDocument(
@@ -73,7 +74,7 @@ def create_doc(unit_id):
 def delete_doc(doc_id):
     doc = db.session.get(UnitDocument, doc_id)
     if not doc:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     doc.deleted_at = datetime.now()
     db.session.commit()
     return jsonify({"success": True})
@@ -92,9 +93,9 @@ def list_hoa():
 def create_hoa():
     data = request.get_json() or {}
     if not data.get("project_id") or not (data.get("name") or "").strip():
-        return jsonify({"message": "المشروع والاسم مطلوبان"}), 400
+        return error_response("المشروع والاسم مطلوبان", 400)
     if OwnerAssociation.query.filter_by(project_id=data["project_id"]).first():
-        return jsonify({"message": "يوجد اتحاد ملاك لهذا المشروع مسبقاً"}), 409
+        return error_response("يوجد اتحاد ملاك لهذا المشروع مسبقاً", 409)
     hoa = OwnerAssociation(
         project_id=data["project_id"],
         name=data["name"].strip(),
@@ -113,7 +114,7 @@ def create_hoa():
 def list_charges(hoa_id):
     hoa = db.session.get(OwnerAssociation, hoa_id)
     if not hoa:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     q = ServiceCharge.query.filter_by(association_id=hoa_id)
     unit_id = request.args.get("unit_id", type=int)
     if unit_id:
@@ -126,20 +127,20 @@ def list_charges(hoa_id):
 def create_charge(hoa_id):
     hoa = db.session.get(OwnerAssociation, hoa_id)
     if not hoa:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     if not data.get("unit_id") or not data.get("period") or not data.get("amount"):
-        return jsonify({"message": "الوحدة والفترة والمبلغ مطلوبة"}), 400
+        return error_response("الوحدة والفترة والمبلغ مطلوبة", 400)
     if not db.session.get(RealEstateUnit, data["unit_id"]):
-        return jsonify({"message": "الوحدة غير موجودة"}), 404
+        return error_response("الوحدة غير موجودة", 404)
     try:
         amt = Decimal(str(data["amount"]))
         if amt <= 0 or amt > Decimal("1000000000"):
             raise ValueError
     except (InvalidOperation, ValueError, TypeError):
-        return jsonify({"message": "المبلغ غير صالح"}), 400
+        return error_response("المبلغ غير صالح", 400)
     if data.get("status") and data["status"] not in ("pending", "paid", "overdue", "waived", "partial"):
-        return jsonify({"message": "حالة غير صالحة"}), 400
+        return error_response("حالة غير صالحة", 400)
     from utils.pagination import parse_date
     ch = ServiceCharge(
         association_id=hoa_id,
@@ -155,7 +156,7 @@ def create_charge(hoa_id):
         db.session.commit()
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "فشل إنشاء الرسوم"}), 400
+        return error_response("فشل إنشاء الرسوم", 400)
     log_action("create", "service_charge", ch.id, ch.period)
     return jsonify(ch.to_dict()), 201
 
@@ -166,17 +167,17 @@ def pay_charge(cid):
     # قفل الصف لمنع race condition
     ch = db.session.query(ServiceCharge).filter_by(id=cid).with_for_update().first()
     if not ch:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     try:
         amount = Decimal(str(data.get("amount") or 0))
     except (InvalidOperation, ValueError, TypeError):
-        return jsonify({"message": "المبلغ غير صالح"}), 400
+        return error_response("المبلغ غير صالح", 400)
     if amount <= 0 or amount > Decimal("1000000000"):
-        return jsonify({"message": "المبلغ غير صالح"}), 400
+        return error_response("المبلغ غير صالح", 400)
     balance = Decimal(str(ch.amount or 0)) - Decimal(str(ch.paid_amount or 0))
     if amount > balance:
-        return jsonify({"message": "المبلغ يتجاوز الرصيد"}), 400
+        return error_response("المبلغ يتجاوز الرصيد", 400)
     ch.paid_amount = Decimal(str(ch.paid_amount or 0)) + amount
     if ch.paid_amount >= ch.amount:
         ch.status = "paid"
@@ -191,7 +192,7 @@ def pay_charge(cid):
         db.session.commit()
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "فشل السداد"}), 400
+        return error_response("فشل السداد", 400)
     log_action("pay", "service_charge", ch.id, f"{amount}")
     return jsonify(ch.to_dict())
 
@@ -204,11 +205,10 @@ def avm_valuation():
     """تقييم آلي: متوسط سعر المتر في المشروع × مساحة الوحدة + هامش السوق."""
     unit_id = request.args.get("unit_id", type=int)
     if not unit_id:
-        return jsonify({"message": "unit_id مطلوب"}), 400
+        return error_response("unit_id مطلوب", 400)
     unit = db.session.get(RealEstateUnit, unit_id)
     if not unit:
-        return jsonify({"message": "الوحدة غير موجودة"}), 404
-
+        return error_response("الوحدة غير موجودة", 404)
     # متوسط سعر المتر في نفس المشروع (وحدات مباعة فقط)
     from sqlalchemy import func
     avg_q = db.session.query(func.avg(RealEstateUnit.price / func.nullif(RealEstateUnit.area, 0))).filter(
@@ -263,11 +263,9 @@ def mortgage_calc():
         rate = float(request.args.get("rate", 0))  # سنوي %
         years = int(request.args.get("years", 20))
     except (TypeError, ValueError):
-        return jsonify({"message": "معاملات غير صالحة"}), 400
-
+        return error_response("معاملات غير صالحة", 400)
     if price <= 0 or years <= 0:
-        return jsonify({"message": "السعر والمدة مطلوبان"}), 400
-
+        return error_response("السعر والمدة مطلوبان", 400)
     principal = max(0, price - down)
     n = years * 12
     if rate <= 0:

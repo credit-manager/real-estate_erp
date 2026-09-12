@@ -7,6 +7,7 @@ from database import db
 from models import BIProvider, BIDashboard, BIFilterTemplate
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 bi_bp = Blueprint("bi", __name__, url_prefix="/api/bi")
 
@@ -29,8 +30,7 @@ def create_provider():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if BIProvider.query.filter_by(name=data["name"]).first():
-        return jsonify({"message": "مزود بهذا الاسم موجود"}), 409
-
+        return error_response("مزود بهذا الاسم موجود", 409)
     provider = BIProvider(
         name=data["name"],
         display_name=data["display_name"],
@@ -46,7 +46,7 @@ def create_provider():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"message": "خطأ في الحفظ"}), 500
+        return error_response("خطأ في الحفظ", 500)
     log_action("create", "bi_provider", provider.id, provider.display_name)
     return jsonify(provider.to_dict()), 201
 
@@ -56,7 +56,7 @@ def create_provider():
 def update_provider(pid):
     provider = db.session.get(BIProvider, pid)
     if not provider:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("display_name", "base_url", "api_key", "secret_key", "is_active", "is_default"):
         if field in data:
@@ -73,9 +73,9 @@ def update_provider(pid):
 def delete_provider(pid):
     provider = db.session.get(BIProvider, pid)
     if not provider:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     if BIDashboard.query.filter_by(provider_id=pid).first():
-        return jsonify({"message": "لا يمكن حذف مزود له لوحات"}), 400
+        return error_response("لا يمكن حذف مزود له لوحات", 400)
     db.session.delete(provider)
     db.session.commit()
     log_action("delete", "bi_provider", pid, provider.display_name)
@@ -106,8 +106,7 @@ def create_dashboard():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if not db.session.get(BIProvider, data["provider_id"]):
-        return jsonify({"message": "المزود غير موجود"}), 404
-
+        return error_response("المزود غير موجود", 404)
     dash = BIDashboard(
         provider_id=data["provider_id"],
         external_id=data["external_id"],
@@ -126,7 +125,7 @@ def create_dashboard():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"message": "خطأ في الحفظ"}), 500
+        return error_response("خطأ في الحفظ", 500)
     log_action("create", "bi_dashboard", dash.id, dash.title)
     return jsonify(dash.to_dict()), 201
 
@@ -136,7 +135,7 @@ def create_dashboard():
 def update_dashboard(did):
     dash = db.session.get(BIDashboard, did)
     if not dash:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("title", "description", "category", "is_public", "allowed_roles", "iframe_width", "iframe_height", "is_active"):
         if field in data:
@@ -156,7 +155,7 @@ def update_dashboard(did):
 def delete_dashboard(did):
     dash = db.session.get(BIDashboard, did)
     if not dash:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     db.session.delete(dash)
     db.session.commit()
     log_action("delete", "bi_dashboard", did, dash.title)
@@ -169,10 +168,10 @@ def get_embed_url(did):
     """الحصول على رابط التضمين (iframe) للوحة."""
     dash = db.session.get(BIDashboard, did)
     if not dash:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     url = dash.get_embed_url()
     if not url:
-        return jsonify({"message": "المزود غير مكوّن"}), 400
+        return error_response("المزود غير مكوّن", 400)
     return jsonify({"embed_url": url, "width": dash.iframe_width, "height": dash.iframe_height})
 
 
@@ -204,8 +203,7 @@ def create_filter():
         if not data.get(f):
             return jsonify({"message": f"الحقل {f} مطلوب"}), 400
     if not db.session.get(BIProvider, data["provider_id"]):
-        return jsonify({"message": "المزود غير موجود"}), 404
-
+        return error_response("المزود غير موجود", 404)
     f = BIFilterTemplate(
         provider_id=data["provider_id"],
         name=data["name"],
@@ -227,7 +225,7 @@ def create_filter():
 def update_filter(fid):
     f = db.session.get(BIFilterTemplate, fid)
     if not f:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     data = request.get_json() or {}
     for field in ("name", "filter_key", "filter_type", "label", "default_value", "options", "is_required", "sort_order"):
         if field in data:
@@ -244,7 +242,7 @@ def update_filter(fid):
 def delete_filter(fid):
     f = db.session.get(BIFilterTemplate, fid)
     if not f:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     db.session.delete(f)
     db.session.commit()
     return jsonify({"success": True})

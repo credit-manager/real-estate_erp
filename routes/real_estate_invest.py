@@ -11,6 +11,7 @@ from models import (
 )
 from permissions import require_api
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 re_bp = Blueprint("realestate_api", __name__, url_prefix="/api/realestate")
 
@@ -186,7 +187,7 @@ def create_building():
         description=data.get("description"),
     )
     if not building.name:
-        return jsonify({"error": "invalid_building"}), 400
+        return error_response("invalid_building", 400)
     db.session.add(building)
     db.session.commit()
     _log("create", "building", building.id, building.name)
@@ -211,7 +212,7 @@ def update_building(building_id):
 def delete_building(building_id):
     building = Building.query.get_or_404(building_id)
     if building.units:
-        return jsonify({"error": "building_has_units"}), 400
+        return error_response("building_has_units", 400)
     name = building.name
     db.session.delete(building)
     db.session.commit()
@@ -261,7 +262,7 @@ def update_floor(floor_id):
 def delete_floor(floor_id):
     floor = Floor.query.get_or_404(floor_id)
     if floor.units:
-        return jsonify({"error": "floor_has_units"}), 400
+        return error_response("floor_has_units", 400)
     ref = floor.name or str(floor.number)
     db.session.delete(floor)
     db.session.commit()
@@ -283,7 +284,7 @@ def create_unit_type():
     data = request.get_json() or {}
     ut = UnitType(name=data.get("name"), code=data.get("code"), is_active=data.get("is_active", True))
     if not ut.name:
-        return jsonify({"error": "invalid_unit_type"}), 400
+        return error_response("invalid_unit_type", 400)
     db.session.add(ut)
     db.session.commit()
     _log("create", "unit_type", ut.id, ut.name)
@@ -308,7 +309,7 @@ def update_unit_type(type_id):
 def delete_unit_type(type_id):
     ut = UnitType.query.get_or_404(type_id)
     if ut.units:
-        return jsonify({"error": "unit_type_in_use"}), 400
+        return error_response("unit_type_in_use", 400)
     name = ut.name
     db.session.delete(ut)
     db.session.commit()
@@ -337,7 +338,7 @@ def create_owner():
         type=data.get("type", "individual"),
     )
     if not owner.full_name:
-        return jsonify({"error": "invalid_owner"}), 400
+        return error_response("invalid_owner", 400)
     db.session.add(owner)
     db.session.commit()
     _log("create", "owner", owner.id, owner.full_name)
@@ -363,9 +364,9 @@ def delete_owner(owner_id):
     owner = Owner.query.get_or_404(owner_id)
     # حراسة مرجعية: مالك لوحدات أو حصص لا يُحذف
     if owner.units:
-        return jsonify({"error": "owner_has_units"}), 400
+        return error_response("owner_has_units", 400)
     if owner.shares:
-        return jsonify({"error": "owner_has_shares"}), 400
+        return error_response("owner_has_shares", 400)
     name = owner.full_name
     db.session.delete(owner)
     db.session.commit()
@@ -391,10 +392,10 @@ def create_reservation():
     data = request.get_json() or {}
     unit = RealEstateUnit.query.get_or_404(data.get("unit_id"))
     if unit.status == "sold":
-        return jsonify({"error": "unit_already_sold"}), 400
+        return error_response("unit_already_sold", 400)
     # حماية التداخل: لا يجوز أكثر من حجز/تخصيص نشط واحد على نفس الوحدة
     if _unit_has_live_hold(unit):
-        return jsonify({"error": "unit_already_reserved"}), 400
+        return error_response("unit_already_reserved", 400, error_key="unit_already_reserved")
     # فحص استادة العميل (KYC): محظور أو مرفوض → رفض
     blocked = _customer_screening_blocked(data.get("customer_id"))
     if blocked:
@@ -402,7 +403,7 @@ def create_reservation():
     _expiry = parse_date(data.get("expiry_date"))
     # تحقق: تاريخ الانتهاء يجب أن يكون مستقبلياً (وإلا يُنشأ حجز ميت فوراً)
     if _expiry and _expiry < datetime.now().date():
-        return jsonify({"error": "invalid_expiry_date"}), 400
+        return error_response("invalid_expiry_date", 400)
     reservation = Reservation(
         unit_id=unit.id,
         customer_id=data.get("customer_id") or None,
@@ -435,7 +436,7 @@ def update_reservation(res_id):
     if "unit_id" in data and data["unit_id"] and data["unit_id"] != old_unit_id:
         new_unit = RealEstateUnit.query.get_or_404(data["unit_id"])
         if new_unit.status == "sold":
-            return jsonify({"error": "unit_already_sold"}), 400
+            return error_response("unit_already_sold", 400)
         reservation.unit_id = new_unit.id
         if new_unit.status != "reserved":
             new_unit.status = "reserved"
@@ -459,7 +460,7 @@ def convert_reservation(res_id):
     reservation = Reservation.query.get_or_404(res_id)
     data = request.get_json() or {}
     if reservation.status != "active":
-        return jsonify({"error": "reservation_not_active"}), 400
+        return error_response("reservation_not_active", 400)
     contract, err = _create_contract(reservation.unit_id, reservation.customer_id, data)
     if err:
         return jsonify({"error": err}), 400
@@ -511,10 +512,10 @@ def create_allocation():
     data = request.get_json() or {}
     unit = RealEstateUnit.query.get_or_404(data.get("unit_id"))
     if unit.status == "sold":
-        return jsonify({"error": "unit_already_sold"}), 400
+        return error_response("unit_already_sold", 400)
     # حماية التداخل: لا تخصيص نشط فوق حجز/تخصيص قائم
     if _unit_has_live_hold(unit):
-        return jsonify({"error": "unit_already_reserved"}), 400
+        return error_response("unit_already_reserved", 400)
     # فحص استادة العميل (KYC)
     blocked = _customer_screening_blocked(data.get("customer_id"))
     if blocked:
@@ -547,7 +548,7 @@ def update_allocation(alloc_id):
     if "unit_id" in data and data["unit_id"] and data["unit_id"] != old_unit_id:
         new_unit = RealEstateUnit.query.get_or_404(data["unit_id"])
         if new_unit.status == "sold":
-            return jsonify({"error": "unit_already_sold"}), 400
+            return error_response("unit_already_sold", 400)
         allocation.unit_id = new_unit.id
         if new_unit.status != "reserved":
             new_unit.status = "reserved"
@@ -566,7 +567,7 @@ def convert_allocation(alloc_id):
     allocation = Allocation.query.get_or_404(alloc_id)
     data = request.get_json() or {}
     if allocation.status != "active":
-        return jsonify({"error": "allocation_not_active"}), 400
+        return error_response("allocation_not_active", 400)
     contract, err = _create_contract(allocation.unit_id, allocation.customer_id, data)
     if err:
         return jsonify({"error": err}), 400
@@ -608,7 +609,7 @@ def create_sales_contract():
     data = request.get_json() or {}
     unit_id = data.get("unit_id")
     if not unit_id:
-        return jsonify({"error": "invalid_contract"}), 400
+        return error_response("invalid_contract", 400)
     contract, err = _create_contract(unit_id, data.get("customer_id"), data)
     if err:
         return jsonify({"error": err}), 400
@@ -654,7 +655,7 @@ def approve_sales_contract(contract_id):
     """اعتماد عقد البيع — للأدمن فقط عند تفعيل بوابة الاعتماد."""
     from flask import session as _session
     if _session.get("role") != "admin":
-        return jsonify({"error": "admin_only"}), 403
+        return error_response("admin_only", 403)
     contract = SalesContract.query.get_or_404(contract_id)
     contract.approval_status = "approved"
     db.session.commit()
@@ -667,7 +668,7 @@ def approve_sales_contract(contract_id):
 def cancel_sales_contract(contract_id):
     contract = SalesContract.query.get_or_404(contract_id)
     if contract.status == "cancelled":
-        return jsonify({"error": "already_cancelled"}), 400
+        return error_response("already_cancelled", 400)
     # حماية الرهن: عقد مرهون لبنك لا يُلغى إلا بتسوية أو تجاوز صريح (force)
     active_mortgage = UnitMortgage.query.filter_by(
         unit_id=contract.unit_id, status="active").first() if contract.unit_id else None
@@ -697,7 +698,7 @@ def generate_plan_for_contract(contract_id):
     start = parse_date(data.get("start_date")) or datetime.now().date()
     monthly = float(data.get("monthly_amount") or 0)
     if months <= 0:
-        return jsonify({"error": "invalid_plan"}), 400
+        return error_response("invalid_plan", 400)
     # العربون المحمّل من حجز مُحوَّل يُخصم تلقائياً من الدفعة الأولى إن لم يُحدَّد غيره
     if not down:
         src_res = (Reservation.query
@@ -757,7 +758,7 @@ def generate_plan_for_contract(contract_id):
 def complete_sales_contract(contract_id):
     contract = SalesContract.query.get_or_404(contract_id)
     if (contract.approval_status or "not_required") == "pending":
-        return jsonify({"error": "approval_pending"}), 400
+        return error_response("approval_pending", 400)
     contract.status = "completed"
     db.session.commit()
     _log("complete", "sales_contract", contract.id, contract.contract_number)
@@ -769,7 +770,7 @@ def complete_sales_contract(contract_id):
 def delete_sales_contract(contract_id):
     contract = SalesContract.query.get_or_404(contract_id)
     if contract.commissions or contract.payment_plan:
-        return jsonify({"error": "contract_has_commissions"}), 400
+        return error_response("contract_has_commissions", 400)
     num = contract.contract_number
     # Soft-delete: إلغاء العقد وأرشفته بدل الحذف الفعلي — سجل مالي عقاري
     contract.status = "cancelled"
@@ -797,7 +798,7 @@ def create_commission():
     rate = float(data.get("rate") or 0)
     # تحقق: النسبة بين 0 و 100 حصراً
     if rate < 0 or rate > 100:
-        return jsonify({"error": "invalid_rate"}), 400
+        return error_response("invalid_rate", 400)
     amount = data.get("amount")
     if amount in (None, "", 0):
         contract = db.session.get(SalesContract, data.get("contract_id"))
@@ -829,7 +830,7 @@ def update_commission(comm_id):
     if "rate" in data:
         r = float(data.get("rate") or 0)
         if r < 0 or r > 100:
-            return jsonify({"error": "invalid_rate"}), 400
+            return error_response("invalid_rate", 400)
     for field in ["contract_id", "unit_id", "employee_id", "broker_id", "customer_id",
                   "rate", "amount", "status", "due_date", "paid_date", "notes"]:
         if field in data:
@@ -1013,12 +1014,12 @@ def create_share():
     data = request.get_json() or {}
     unit_id = data.get("unit_id")
     if not unit_id or not db.session.get(RealEstateUnit, unit_id):
-        return jsonify({"error": "invalid_unit"}), 400
+        return error_response("invalid_unit", 400)
     pct = float(data.get("share_percent") or 0)
     if pct <= 0 or pct > 100:
-        return jsonify({"error": "invalid_share_percent"}), 400
+        return error_response("invalid_share_percent", 400)
     if _shares_total_excluding(unit_id) + pct > 100.0:
-        return jsonify({"error": "shares_exceed_100"}), 400
+        return error_response("shares_exceed_100", 400)
     share = UnitShare(
         unit_id=unit_id,
         owner_id=data.get("owner_id"),
@@ -1039,10 +1040,10 @@ def update_share(share_id):
     if "share_percent" in data:
         pct = float(data.get("share_percent") or 0)
         if pct <= 0 or pct > 100:
-            return jsonify({"error": "invalid_share_percent"}), 400
+            return error_response("invalid_share_percent", 400)
         others = _shares_total_excluding(share.unit_id, exclude_id=share.id)
         if others + pct > 100.0:
-            return jsonify({"error": "shares_exceed_100"}), 400
+            return error_response("shares_exceed_100", 400)
     for field in ["unit_id", "owner_id", "share_percent", "notes"]:
         if field in data:
             setattr(share, field, data[field])
@@ -1136,9 +1137,9 @@ def create_broker():
         notes=data.get("notes"),
     )
     if not broker.name:
-        return jsonify({"error": "invalid_broker"}), 400
+        return error_response("invalid_broker", 400)
     if broker.default_rate < 0 or broker.default_rate > 100:
-        return jsonify({"error": "invalid_rate"}), 400
+        return error_response("invalid_rate", 400)
     db.session.add(broker)
     db.session.commit()
     _log("create", "broker", broker.id, broker.name)
@@ -1153,7 +1154,7 @@ def update_broker(broker_id):
     if "default_rate" in data:
         r = float(data.get("default_rate") or 0)
         if r < 0 or r > 100:
-            return jsonify({"error": "invalid_rate"}), 400
+            return error_response("invalid_rate", 400)
     for field in ["name", "agency_name", "phone", "email", "id_number",
                   "default_rate", "is_active", "notes"]:
         if field in data:
@@ -1186,7 +1187,7 @@ def delete_broker(broker_id):
 @require_api("realestate", "view")
 def list_checklist(delivery_id):
     if not db.session.get(UnitDelivery, delivery_id):
-        return jsonify({"error": "delivery_not_found"}), 404
+        return error_response("delivery_not_found", 404)
     items = (DeliveryChecklistItem.query.filter_by(delivery_id=delivery_id)
              .order_by(DeliveryChecklistItem.id).all())
     return jsonify([i.to_dict() for i in items])
@@ -1196,11 +1197,11 @@ def list_checklist(delivery_id):
 @require_api("realestate", "create")
 def add_checklist_item(delivery_id):
     if not db.session.get(UnitDelivery, delivery_id):
-        return jsonify({"error": "delivery_not_found"}), 404
+        return error_response("delivery_not_found", 404)
     data = request.get_json() or {}
     desc = (data.get("description") or "").strip()
     if not desc:
-        return jsonify({"error": "invalid_item"}), 400
+        return error_response("invalid_item", 400)
     item = DeliveryChecklistItem(
         delivery_id=delivery_id,
         description=desc,
@@ -1219,7 +1220,7 @@ def update_checklist_item(item_id):
     item = DeliveryChecklistItem.query.get_or_404(item_id)
     data = request.get_json() or {}
     if "status" in data and data["status"] not in ("pending", "ok", "issue", "fixed"):
-        return jsonify({"error": "invalid_status"}), 400
+        return error_response("invalid_status", 400)
     for field in ["description", "status", "notes"]:
         if field in data:
             setattr(item, field, data[field])
@@ -1278,13 +1279,13 @@ def create_screening():
     data = request.get_json() or {}
     cid = data.get("customer_id")
     if not cid or not db.session.get(Customer, cid):
-        return jsonify({"error": "invalid_customer"}), 400
+        return error_response("invalid_customer", 400)
     result = data.get("result") or "pending"
     if result not in ("approved", "rejected", "pending"):
-        return jsonify({"error": "invalid_result"}), 400
+        return error_response("invalid_result", 400)
     credit = data.get("credit_status") or "unknown"
     if credit not in ("good", "fair", "bad", "unknown"):
-        return jsonify({"error": "invalid_credit_status"}), 400
+        return error_response("invalid_credit_status", 400)
     sc = TenantScreening(
         customer_id=cid,
         monthly_income=float(data.get("monthly_income") or 0),
@@ -1336,16 +1337,16 @@ def create_mortgage():
     data = request.get_json() or {}
     uid = data.get("unit_id")
     if not uid or not db.session.get(RealEstateUnit, uid):
-        return jsonify({"error": "invalid_unit"}), 400
+        return error_response("invalid_unit", 400)
     lender = (data.get("lender_name") or "").strip()
     if not lender:
-        return jsonify({"error": "lender_required"}), 400
+        return error_response("lender_required", 400)
     loan = float(data.get("loan_amount") or 0)
     if loan <= 0:
-        return jsonify({"error": "invalid_loan_amount"}), 400
+        return error_response("invalid_loan_amount", 400)
     ltv = float(data.get("ltv_percent") or 0)
     if ltv < 0 or ltv > 100:
-        return jsonify({"error": "invalid_ltv"}), 400
+        return error_response("invalid_ltv", 400)
     # رهن نشط واحد لكل وحدة
     existing = UnitMortgage.query.filter_by(unit_id=uid, status="active").first()
     if existing:
@@ -1376,7 +1377,7 @@ def update_mortgage(m_id):
     m = UnitMortgage.query.get_or_404(m_id)
     data = request.get_json() or {}
     if "status" in data and data["status"] not in ("active", "settled", "defaulted"):
-        return jsonify({"error": "invalid_status"}), 400
+        return error_response("invalid_status", 400)
     for field in ["lender_name", "loan_amount", "ltv_percent", "interest_rate",
                   "start_date", "end_date", "lien_number", "status", "notes"]:
         if field in data:
@@ -1387,7 +1388,7 @@ def update_mortgage(m_id):
             elif field == "loan_amount":
                 v = float(data[field] or 0)
                 if v <= 0:
-                    return jsonify({"error": "invalid_loan_amount"}), 400
+                    return error_response("invalid_loan_amount", 400)
                 m.loan_amount = v
             else:
                 setattr(m, field, data[field])
@@ -1412,7 +1413,7 @@ def settle_mortgage(m_id):
 def delete_mortgage(m_id):
     m = UnitMortgage.query.get_or_404(m_id)
     if m.status == "active":
-        return jsonify({"error": "mortgage_active_settle_first"}), 400
+        return error_response("mortgage_active_settle_first", 400)
     db.session.delete(m)
     db.session.commit()
     return jsonify({"success": True})
@@ -1429,11 +1430,11 @@ def distribute_unit_revenue(unit_id):
     data = request.get_json(silent=True) or {}
     amount = float(data.get("amount") or 0)
     if amount <= 0:
-        return jsonify({"error": "invalid_amount"}), 400
+        return error_response("invalid_amount", 400)
     shares = sorted(unit.shares, key=lambda s: s.id)
     total_pct = sum(float(s.share_percent or 0) for s in shares)
     if not shares:
-        return jsonify({"error": "no_shares_defined"}), 400
+        return error_response("no_shares_defined", 400)
     if round(total_pct, 2) != 100.00:
         return jsonify({"error": "shares_do_not_sum_100", "total_percent": round(total_pct, 2)}), 400
     rows, distributed = [], 0.0

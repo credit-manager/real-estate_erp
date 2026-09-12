@@ -10,6 +10,7 @@ from models import (
 from permissions import require_api, require_page
 from auditlog import log_action
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 hr_bp = Blueprint("hr", __name__, url_prefix="/api/hr")
 hr_pages_bp = Blueprint("hr_pages", __name__)
@@ -121,7 +122,7 @@ def list_departments():
 def create_department():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم القسم مطلوب"}), 400
+        return error_response("اسم القسم مطلوب", 400)
     dept = Department(
         name=data["name"].strip(),
         code=(data.get("code") or "").strip(),
@@ -179,7 +180,7 @@ def list_positions():
 def create_position():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم المسمى الوظيفي مطلوب"}), 400
+        return error_response("اسم المسمى الوظيفي مطلوب", 400)
     pos = Position(
         name=data["name"].strip(),
         code=(data.get("code") or "").strip(),
@@ -250,7 +251,7 @@ def create_employee():
         ("position", {"max_len": 200}),
     ])
     if err:
-        return jsonify({"success": False, "message": err}), 400
+        return error_response(err, 400)
     emp = Employee(
         full_name=data["full_name"].strip(),
         national_id=(data.get("national_id") or "").strip(),
@@ -372,7 +373,7 @@ def list_contracts():
 def create_contract():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     contract = EmploymentContract(
         employee_id=data["employee_id"],
         contract_number=(data.get("contract_number") or "").strip(),
@@ -432,7 +433,7 @@ def list_recruitments():
 def create_recruitment():
     data = request.get_json(silent=True) or {}
     if not (data.get("candidate_name") or "").strip():
-        return jsonify({"message": "اسم المرشح مطلوب"}), 400
+        return error_response("اسم المرشح مطلوب", 400)
     rec = Recruitment(
         candidate_name=data["candidate_name"].strip(),
         position_id=data.get("position_id"),
@@ -499,11 +500,11 @@ def list_attendance():
 def create_attendance():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     date = parse_date(data.get("date")) or datetime.now().date()
     existing = AttendanceRecord.query.filter_by(employee_id=data["employee_id"], date=date).first()
     if existing:
-        return jsonify({"message": "سجل الحضور لهذا اليوم موجود مسبقاً"}), 400
+        return error_response("سجل الحضور لهذا اليوم موجود مسبقاً", 400)
     record = AttendanceRecord(
         employee_id=data["employee_id"],
         date=date,
@@ -559,13 +560,13 @@ def list_leaves():
 def create_leave():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     start = parse_date(data.get("start_date"))
     end = parse_date(data.get("end_date"))
     if not start or not end:
-        return jsonify({"message": "تاريخ البداية والنهاية مطلوبان"}), 400
+        return error_response("تاريخ البداية والنهاية مطلوبان", 400)
     if start > end:
-        return jsonify({"message": "تاريخ البداية يجب أن يسبق تاريخ النهاية"}), 400
+        return error_response("تاريخ البداية يجب أن يسبق تاريخ النهاية", 400)
     # التحقق من عدم التداخل مع إجازات أخرى
     from datetime import timedelta
     overlapping = LeaveRequest.query.filter(
@@ -575,7 +576,7 @@ def create_leave():
         LeaveRequest.end_date >= start,
     ).first()
     if overlapping:
-        return jsonify({"message": "يوجد إجازة متداخلة في نفس الفترة"}), 400
+        return error_response("يوجد إجازة متداخلة في نفس الفترة", 400)
     leave = LeaveRequest(
         employee_id=data["employee_id"],
         leave_type=data.get("leave_type", "annual"),
@@ -632,7 +633,7 @@ def list_penalties():
 def create_penalty():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     penalty = Penalty(
         employee_id=data["employee_id"],
         penalty_type=(data.get("penalty_type") or "").strip(),
@@ -686,7 +687,7 @@ def list_advances():
 def create_advance():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     advance = EmployeeAdvance(
         employee_id=data["employee_id"],
         amount=data.get("amount", 0),
@@ -742,7 +743,7 @@ def list_loans():
 def create_loan():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     loan = EmployeeLoan(
         employee_id=data["employee_id"],
         amount=data.get("amount", 0),
@@ -801,7 +802,7 @@ def list_reviews():
 def create_review():
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     review = PerformanceReview(
         employee_id=data["employee_id"],
         review_date=parse_date(data.get("review_date")),
@@ -860,7 +861,7 @@ def list_trainings():
 def create_training():
     data = request.get_json(silent=True) or {}
     if not (data.get("title") or "").strip():
-        return jsonify({"message": "عنوان البرنامج التدريبي مطلوب"}), 400
+        return error_response("عنوان البرنامج التدريبي مطلوب", 400)
     training = TrainingProgram(
         title=data["title"].strip(),
         provider=(data.get("provider") or "").strip(),
@@ -914,11 +915,11 @@ def list_enrollments(training_id):
 def add_enrollment(training_id):
     data = request.get_json(silent=True) or {}
     if not data.get("employee_id"):
-        return jsonify({"message": "اختر الموظف"}), 400
+        return error_response("اختر الموظف", 400)
     existing = TrainingEnrollment.query.filter_by(
         training_id=training_id, employee_id=data["employee_id"]).first()
     if existing:
-        return jsonify({"message": "الموظف مسجل بالفعل"}), 400
+        return error_response("الموظف مسجل بالفعل", 400)
     enrollment = TrainingEnrollment(
         training_id=training_id,
         employee_id=data["employee_id"],

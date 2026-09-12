@@ -7,6 +7,7 @@ from models import (
 )
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 financial_years_bp = Blueprint("financial_years", __name__, url_prefix="/api/financial-years")
 
@@ -104,14 +105,14 @@ def create_year():
     normalized_name = str(data["name"]).strip()
     dup = FinancialYear.query.filter_by(company_id=data["company_id"], name=normalized_name).first()
     if dup:
-        return jsonify({"message": "financialYears.duplicate", "error_key": "financialYears.duplicate"}), 400
+        return error_response("financialYears.duplicate", 400, error_key="financialYears.duplicate")
     year = FinancialYear(
         company_id=data["company_id"], name=normalized_name,
         start_date=_parse_date(data.get("start_date")), end_date=_parse_date(data.get("end_date")),
         is_active=bool(data.get("is_active", False)), is_closed=bool(data.get("is_closed", False)),
     )
     if year.is_active and year.is_closed:
-        return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
+        return error_response("financialYears.closedActive", 400, error_key="financialYears.closedActive")
     if year.is_active:
         _clear_active(year.company_id)
     db.session.add(year)
@@ -119,7 +120,7 @@ def create_year():
         db.session.commit()
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "financialYears.saveFailed", "error_key": "financialYears.saveFailed"}), 409
+        return error_response("financialYears.saveFailed", 409, error_key="financialYears.saveFailed")
     log_action("create", "financial_year", year.id, f"سنة مالية: {year.name}")
     return jsonify({"success": True, "year": _year_dict(year)}), 201
 
@@ -129,7 +130,7 @@ def create_year():
 def update_year(year_id):
     year = db.session.get(FinancialYear, year_id)
     if not year:
-        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+        return error_response("financialYears.notFound", 404, error_key="financialYears.notFound")
     data = request.get_json(silent=True) or {}
     err = _validate(data, partial=True, existing=year)
     if err:
@@ -143,13 +144,12 @@ def update_year(year_id):
     target_name = str(data["name"]).strip() if "name" in data else year.name
 
     if target_active and target_closed:
-        return jsonify({"message": "financialYears.closedActive", "error_key": "financialYears.closedActive"}), 400
+        return error_response("financialYears.closedActive", 400, error_key="financialYears.closedActive")
     if year.is_closed and (
         target_company_id != year.company_id or target_start != year.start_date
         or target_end != year.end_date or target_name != year.name
     ):
-        return jsonify({"message": "financialYears.closedImmutable", "error_key": "financialYears.closedImmutable"}), 409
-
+        return error_response("financialYears.closedImmutable", 409, error_key="financialYears.closedImmutable")
     if "company_id" in data:
         year.company_id = target_company_id
     if "name" in data:
@@ -175,7 +175,7 @@ def update_year(year_id):
 def delete_year(year_id):
     year = db.session.get(FinancialYear, year_id)
     if not year:
-        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+        return error_response("financialYears.notFound", 404, error_key="financialYears.notFound")
     summary = _summary(year)
     if any(summary.values()):
         return jsonify({
@@ -188,7 +188,7 @@ def delete_year(year_id):
         db.session.commit()
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "financialYears.deleteFailed", "error_key": "financialYears.deleteFailed"}), 409
+        return error_response("financialYears.deleteFailed", 409, error_key="financialYears.deleteFailed")
     log_action("delete", "financial_year", year_id, f"سنة مالية: {name}")
     return jsonify({"success": True})
 
@@ -198,7 +198,7 @@ def delete_year(year_id):
 def close_year(year_id):
     year = db.session.get(FinancialYear, year_id)
     if not year:
-        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+        return error_response("financialYears.notFound", 404, error_key="financialYears.notFound")
     year.is_closed = True
     year.is_active = False
     db.session.commit()
@@ -211,7 +211,7 @@ def close_year(year_id):
 def open_year(year_id):
     year = db.session.get(FinancialYear, year_id)
     if not year:
-        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+        return error_response("financialYears.notFound", 404, error_key="financialYears.notFound")
     year.is_closed = False
     db.session.commit()
     log_action("update", "financial_year", year.id, f"إعادة فتح سنة مالية: {year.name}")
@@ -223,7 +223,7 @@ def open_year(year_id):
 def activate_year(year_id):
     year = db.session.get(FinancialYear, year_id)
     if not year:
-        return jsonify({"message": "financialYears.notFound", "error_key": "financialYears.notFound"}), 404
+        return error_response("financialYears.notFound", 404, error_key="financialYears.notFound")
     _clear_active(year.company_id)
     year.is_active = True
     year.is_closed = False

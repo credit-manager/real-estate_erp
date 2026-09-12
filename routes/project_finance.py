@@ -11,6 +11,7 @@ from models.unit import RealEstateUnit
 from models.payment import PaymentPlan, Installment
 from utils import accounting as acct
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 from sqlalchemy import func
 
 project_finance_bp = Blueprint("project_finance", __name__, url_prefix="/api/project-finance")
@@ -85,12 +86,10 @@ def create_cost():
     project_id = data.get("project_id")
     amount = float(data.get("amount") or 0)
     if not project_id or amount <= 0:
-        return jsonify({"message": "بيانات غير مكتملة أو مبلغ غير صحيح"}), 400
-
+        return error_response("بيانات غير مكتملة أو مبلغ غير صحيح", 400)
     project = db.session.get(Project, project_id)
     if not project:
-        return jsonify({"message": "المشروع غير موجود"}), 404
-
+        return error_response("المشروع غير موجود", 404)
     category = data.get("category", "other")
     payment_method = data.get("payment_method", "cash")
     cost_date_str = data.get("cost_date")
@@ -110,8 +109,7 @@ def create_cost():
         credit_acc = _resolve_account("acc_default_cash")
 
     if not expense_acc or not credit_acc:
-        return jsonify({"message": "لم يتم العثور على الحسابات المحاسبية المطلوبة، تأكد من إعدادات الحسابات الافتراضية"}), 400
-
+        return error_response("لم يتم العثور على الحسابات المحاسبية المطلوبة، تأكد من إعدادات الحسابات الافتراضية", 400)
     # Create cost item
     cost = ProjectCostItem(
         project_id=project_id,
@@ -145,8 +143,7 @@ def create_cost():
         cost.journal_entry_id = entry.id if entry else None
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "processing error"}), 400
-
+        return error_response("processing error", 400)
     db.session.add(cost)
     db.session.commit()
 
@@ -162,7 +159,7 @@ def create_cost():
 def delete_cost(cost_id):
     cost = db.session.get(ProjectCostItem, cost_id)
     if not cost:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     pid = cost.project_id
     db.session.delete(cost)
     db.session.commit()
@@ -194,8 +191,7 @@ def create_expense():
     amount = float(data.get("amount") or 0)
     description = data.get("description", "")
     if amount <= 0 or not description:
-        return jsonify({"message": "بيانات غير مكتملة"}), 400
-
+        return error_response("بيانات غير مكتملة", 400)
     category = data.get("category", "other")
     payment_method = data.get("payment_method", "cash")
     expense_date_str = data.get("expense_date")
@@ -218,8 +214,7 @@ def create_expense():
         credit_acc = _resolve_account("acc_default_cash")
 
     if not expense_acc or not credit_acc:
-        return jsonify({"message": "لم يتم العثور على الحسابات المطلوبة"}), 400
-
+        return error_response("لم يتم العثور على الحسابات المطلوبة", 400)
     expense = CompanyExpense(
         project_id=data.get("project_id"),
         expense_date=expense_date,
@@ -257,8 +252,7 @@ def create_expense():
         expense.journal_entry_id = entry.id if entry else None
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "processing error"}), 400
-
+        return error_response("processing error", 400)
     db.session.add(expense)
     db.session.commit()
 
@@ -274,7 +268,7 @@ def create_expense():
 def delete_expense(expense_id):
     expense = db.session.get(CompanyExpense, expense_id)
     if not expense:
-        return jsonify({"message": "غير موجود"}), 404
+        return error_response("غير موجود", 404)
     pid = expense.project_id
     db.session.delete(expense)
     db.session.commit()
@@ -292,20 +286,16 @@ def post_sale_revenue():
     data = request.get_json() or {}
     contract_id = data.get("sales_contract_id")
     if not contract_id:
-        return jsonify({"message": "contract_id مطلوب"}), 400
-
+        return error_response("contract_id مطلوب", 400)
     contract = db.session.get(SalesContract, contract_id)
     if not contract:
-        return jsonify({"message": "عقد البيع غير موجود"}), 404
-
+        return error_response("عقد البيع غير موجود", 404)
     unit = db.session.get(RealEstateUnit, contract.unit_id)
     if not unit:
-        return jsonify({"message": "الوحدة غير موجودة"}), 404
-
+        return error_response("الوحدة غير موجودة", 404)
     amount = float(data.get("amount") or contract.net_amount or 0)
     if amount <= 0:
-        return jsonify({"message": "المبلغ غير صحيح"}), 400
-
+        return error_response("المبلغ غير صحيح", 400)
     payment_method = data.get("payment_method", "cash")
     payment_acc_id = data.get("payment_account_id")
 
@@ -323,8 +313,7 @@ def post_sale_revenue():
         payment_acc = _resolve_account("acc_default_receivable")
 
     if not revenue_acc or not payment_acc:
-        return jsonify({"message": "الحسابات المحاسبية غير متوفرة"}), 400
-
+        return error_response("الحسابات المحاسبية غير متوفرة", 400)
     try:
         year_id, _ = _default_fy()
         lines = [
@@ -342,8 +331,7 @@ def post_sale_revenue():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "processing error"}), 400
-
+        return error_response("processing error", 400)
     # Update project revenue
     if unit.project_id:
         _update_project_totals(unit.project_id)
@@ -360,16 +348,13 @@ def post_installment_payment():
     data = request.get_json() or {}
     installment_id = data.get("installment_id")
     if not installment_id:
-        return jsonify({"message": "installment_id مطلوب"}), 400
-
+        return error_response("installment_id مطلوب", 400)
     installment = db.session.get(Installment, installment_id)
     if not installment:
-        return jsonify({"message": "القسط غير موجود"}), 404
-
+        return error_response("القسط غير موجود", 404)
     amount = float(data.get("amount") or installment.amount or 0)
     if amount <= 0:
-        return jsonify({"message": "المبلغ غير صحيح"}), 400
-
+        return error_response("المبلغ غير صحيح", 400)
     payment_method = data.get("payment_method", "cash")
     payment_acc_id = data.get("payment_account_id")
 
@@ -381,8 +366,7 @@ def post_installment_payment():
     receivable_acc = _resolve_account("acc_default_receivable")
 
     if not cash_acc or not receivable_acc:
-        return jsonify({"message": "الحسابات المحاسبية غير متوفرة"}), 400
-
+        return error_response("الحسابات المحاسبية غير متوفرة", 400)
     try:
         year_id, _ = _default_fy()
         lines = [
@@ -400,8 +384,7 @@ def post_installment_payment():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "processing error"}), 400
-
+        return error_response("processing error", 400)
     # Update installment
     installment.paid_amount = float(installment.paid_amount or 0) + amount
     installment.paid_date = _parse_date(data.get("date")) or datetime.date.today()
@@ -424,8 +407,7 @@ def post_rent():
     project_id = data.get("project_id")
     amount = float(data.get("amount") or 0)
     if amount <= 0:
-        return jsonify({"message": "المبلغ غير صحيح"}), 400
-
+        return error_response("المبلغ غير صحيح", 400)
     description = data.get("description", "إيراد إيجار")
     payment_method = data.get("payment_method", "cash")
     payment_acc_id = data.get("payment_account_id")
@@ -440,8 +422,7 @@ def post_rent():
         cash_acc = db.session.get(Account, payment_acc_id) if payment_acc_id else _resolve_account("acc_default_cash")
 
     if not revenue_acc or not cash_acc:
-        return jsonify({"message": "الحسابات المحاسبية غير متوفرة"}), 400
-
+        return error_response("الحسابات المحاسبية غير متوفرة", 400)
     try:
         year_id, _ = _default_fy()
         lines = [
@@ -459,8 +440,7 @@ def post_rent():
         )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"message": "processing error"}), 400
-
+        return error_response("processing error", 400)
     if project_id:
         _update_project_totals(project_id)
 
@@ -475,12 +455,10 @@ def post_rent():
 def project_summary():
     pid = request.args.get("project_id")
     if not pid:
-        return jsonify({"message": "project_id مطلوب"}), 400
-
+        return error_response("project_id مطلوب", 400)
     project = db.session.get(Project, int(pid))
     if not project:
-        return jsonify({"message": "المشروع غير موجود"}), 404
-
+        return error_response("المشروع غير موجود", 404)
     # Costs
     total_costs = float(db.session.query(func.coalesce(func.sum(ProjectCostItem.amount), 0))
                         .filter_by(project_id=int(pid)).scalar() or 0)
@@ -591,12 +569,10 @@ def all_projects_summary():
 def forecast():
     pid = request.args.get("project_id")
     if not pid:
-        return jsonify({"message": "project_id مطلوب"}), 400
-
+        return error_response("project_id مطلوب", 400)
     project = db.session.get(Project, int(pid))
     if not project:
-        return jsonify({"message": "المشروع غير موجود"}), 404
-
+        return error_response("المشروع غير موجود", 404)
     unit_ids = [u.id for u in RealEstateUnit.query.filter_by(project_id=int(pid)).all()]
 
     # Expected revenue from pending installments

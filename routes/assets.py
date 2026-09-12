@@ -11,6 +11,7 @@ from models import (
 )
 import utils.accounting as acct
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 assets_bp = Blueprint("assets", __name__, url_prefix="/assets")
 
@@ -122,9 +123,9 @@ def create_category():
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
-        return jsonify({"message": "common.required"}), 400
+        return error_response("common.required", 400)
     if AssetCategory.query.filter_by(code=code).first():
-        return jsonify({"message": "accounting.codeExists"}), 400
+        return error_response("accounting.codeExists", 400)
     cat = AssetCategory(
         code=code,
         name=name,
@@ -144,13 +145,13 @@ def create_category():
 def update_category(cat_id):
     cat = db.session.get(AssetCategory, cat_id)
     if not cat:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     dup = AssetCategory.query.filter(AssetCategory.code == code, AssetCategory.id != cat_id).first()
     if dup:
-        return jsonify({"message": "accounting.codeExists"}), 400
+        return error_response("accounting.codeExists", 400)
     if code:
         cat.code = code
     if name:
@@ -173,11 +174,11 @@ def update_category(cat_id):
 def delete_category(cat_id):
     cat = db.session.get(AssetCategory, cat_id)
     if not cat:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     if AssetItem.query.filter_by(category_id=cat_id).first():
-        return jsonify({"message": "assets.categoryHasAssets"}), 400
+        return error_response("assets.categoryHasAssets", 400)
     if AssetCategory.query.filter_by(parent_id=cat_id).first():
-        return jsonify({"message": "assets.categoryHasChildren"}), 400
+        return error_response("assets.categoryHasChildren", 400)
     db.session.delete(cat)
     db.session.commit()
     _log("delete", "asset_category", cat_id, f"حذف فئة أصول: {cat.code}")
@@ -211,9 +212,9 @@ def create_item():
     code = str(data.get("code") or "").strip()
     name = str(data.get("name") or "").strip()
     if not code or not name:
-        return jsonify({"message": "common.required"}), 400
+        return error_response("common.required", 400)
     if AssetItem.query.filter_by(code=code).first():
-        return jsonify({"message": "accounting.codeExists"}), 400
+        return error_response("accounting.codeExists", 400)
     cost = float(data.get("cost") or 0)
     kind = data.get("kind", "asset")
     item = AssetItem(
@@ -286,12 +287,12 @@ def _post_purchase(item, cost, data):
 def update_item(item_id):
     item = db.session.get(AssetItem, item_id)
     if not item:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     data = request.get_json(silent=True) or {}
     code = str(data.get("code") or "").strip()
     dup = AssetItem.query.filter(AssetItem.code == code, AssetItem.id != item_id).first()
     if dup:
-        return jsonify({"message": "accounting.codeExists"}), 400
+        return error_response("accounting.codeExists", 400)
     if code:
         item.code = code
     if data.get("name"):
@@ -353,11 +354,11 @@ def update_item(item_id):
 def delete_item(item_id):
     item = db.session.get(AssetItem, item_id)
     if not item:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     if AssetMaintenance.query.filter_by(asset_id=item_id).first() or \
        AssetMovement.query.filter_by(asset_id=item_id).first() or \
        AssetCustody.query.filter_by(asset_id=item_id).first():
-        return jsonify({"message": "assets.itemHasRecords"}), 400
+        return error_response("assets.itemHasRecords", 400)
     acct.delete_source_entries("asset", "asset", item_id)
     db.session.delete(item)
     db.session.commit()
@@ -372,19 +373,19 @@ def delete_item(item_id):
 def depreciate(item_id):
     item = db.session.get(AssetItem, item_id)
     if not item:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     data = request.get_json(silent=True) or {}
     period = str(data.get("period") or datetime.date.today().strftime("%Y-%m"))
     date = _d(data.get("date")) or datetime.date.today()
     from models import DepreciationRecord
     if DepreciationRecord.query.filter_by(asset_id=item_id, period=period).first():
-        return jsonify({"message": "accounting.periodAlready"}), 400
+        return error_response("accounting.periodAlready", 400)
     if item.net_book_value <= 0 or item.status not in ("active", "in_maintenance"):
-        return jsonify({"message": "accounting.fullyDepreciated"}), 400
+        return error_response("accounting.fullyDepreciated", 400)
     exp_acc = item.expense_account_id or acct.default_account_id("acc_default_depreciation")
     acc_acc = item.accumulated_account_id or acct.default_account_id("acc_default_accumulated")
     if not (exp_acc and acc_acc):
-        return jsonify({"message": "accounting.deprAccountsRequired"}), 400
+        return error_response("accounting.deprAccountsRequired", 400)
     amount = float(item.monthly_depreciation or item.compute_monthly())
     if amount > item.net_book_value:
         amount = item.net_book_value
@@ -400,7 +401,7 @@ def depreciate(item_id):
             financial_year_id=int(fy_id) if fy_id not in (None, "", 0) else None,
             source="depreciation", ref_type="asset", ref_id=item.id)
     except ValueError as e:
-        return jsonify({"success": False, "message": "invalid input"}), 400
+        return error_response("invalid input", 400)
     item.accumulated_depreciation = float(item.accumulated_depreciation or 0) + amount
     db.session.add(DepreciationRecord(
         asset_id=item.id, entry_id=entry.id, period=period, date=date, amount=amount))
@@ -429,10 +430,10 @@ def create_maintenance():
     asset_id = data.get("asset_id")
     maintenance_date = _d(data.get("maintenance_date"))
     if not asset_id or not maintenance_date:
-        return jsonify({"message": "common.required"}), 400
+        return error_response("common.required", 400)
     asset = db.session.get(AssetItem, int(asset_id))
     if not asset:
-        return jsonify({"message": "common.notFound"}), 400
+        return error_response("common.notFound", 400)
     rec = AssetMaintenance(
         asset_id=int(asset_id),
         maintenance_date=maintenance_date,
@@ -460,7 +461,7 @@ def create_maintenance():
 def update_maintenance(rec_id):
     rec = db.session.get(AssetMaintenance, rec_id)
     if not rec:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     data = request.get_json(silent=True) or {}
     if "maintenance_date" in data:
         rec.maintenance_date = _d(data.get("maintenance_date")) or rec.maintenance_date
@@ -493,7 +494,7 @@ def update_maintenance(rec_id):
 def delete_maintenance(rec_id):
     rec = db.session.get(AssetMaintenance, rec_id)
     if not rec:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     asset = rec.asset
     db.session.delete(rec)
     db.session.commit()
@@ -522,10 +523,10 @@ def create_movement():
     movement_date = _d(data.get("movement_date"))
     movement_type = data.get("movement_type")
     if not asset_id or not movement_date or not movement_type:
-        return jsonify({"message": "common.required"}), 400
+        return error_response("common.required", 400)
     asset = db.session.get(AssetItem, int(asset_id))
     if not asset:
-        return jsonify({"message": "common.notFound"}), 400
+        return error_response("common.notFound", 400)
     mov = AssetMovement(
         asset_id=int(asset_id),
         movement_date=movement_date,
@@ -556,7 +557,7 @@ def create_movement():
 def delete_movement(mov_id):
     mov = db.session.get(AssetMovement, mov_id)
     if not mov:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     asset = mov.asset
     db.session.delete(mov)
     db.session.commit()
@@ -588,10 +589,10 @@ def create_custody():
     employee_id = data.get("employee_id")
     custody_date = _d(data.get("custody_date"))
     if not asset_id or not employee_id or not custody_date:
-        return jsonify({"message": "common.required"}), 400
+        return error_response("common.required", 400)
     asset = db.session.get(AssetItem, int(asset_id))
     if not asset:
-        return jsonify({"message": "common.notFound"}), 400
+        return error_response("common.notFound", 400)
     active = AssetCustody.query.filter_by(asset_id=int(asset_id), status="active").first()
     if active:
         active.status = "returned"
@@ -616,7 +617,7 @@ def create_custody():
 def return_custody(rec_id):
     rec = db.session.get(AssetCustody, rec_id)
     if not rec:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     data = request.get_json(silent=True) or {}
     return_date = _d(data.get("return_date")) or datetime.date.today()
     rec.status = "returned"
@@ -634,7 +635,7 @@ def return_custody(rec_id):
 def delete_custody(rec_id):
     rec = db.session.get(AssetCustody, rec_id)
     if not rec:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     asset = rec.asset
     db.session.delete(rec)
     db.session.commit()

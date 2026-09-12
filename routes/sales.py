@@ -10,6 +10,7 @@ from models import (
 )
 from permissions import require_api
 from routes.financial_years import financial_year_error
+from utils.validation import error_response
 
 sales_bp = Blueprint("sales_api", __name__, url_prefix="/api/sales")
 
@@ -129,7 +130,7 @@ def list_orders():
 def create_order():
     data = request.get_json() or {}
     if not data.get("customer_id"):
-        return jsonify({"success": False, "message": "عميل مطلوب", "error_key": "sales.customerRequired"}), 400
+        return error_response("عميل مطلوب", 400, error_key="sales.customerRequired")
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
@@ -198,7 +199,7 @@ def delete_order(order_id):
     if err:
         return jsonify({"message": err, "error_key": err}), 400
     if order.commissions:
-        return jsonify({"message": "sales.hasCommissions", "error_key": "sales.hasCommissions"}), 400
+        return error_response("sales.hasCommissions", 400, error_key="sales.hasCommissions")
     number = order.order_number
     from utils.workflow import cancel_document_approval
     cancel_document_approval("sales_order", order_id)
@@ -222,7 +223,7 @@ def order_to_invoice(order_id):
     """تحويل أمر بيع → فاتورة بيع."""
     order = SalesOrder.query.get_or_404(order_id)
     if order.status == "cancelled":
-        return jsonify({"message": "sales.orderCancelled", "error_key": "sales.orderCancelled"}), 400
+        return error_response("sales.orderCancelled", 400, error_key="sales.orderCancelled")
     invoice = Invoice(
         invoice_number=_next_number(Invoice, "INV", Invoice.invoice_number),
         invoice_type="sales",
@@ -263,7 +264,7 @@ def order_to_invoice(order_id):
             # Soft-delete: mark invoice as cancelled instead of actual deletion
             invoice.status = "cancelled"
             db.session.commit()
-            return jsonify({"success": False, "message": "invalid input"}), 400
+            return error_response("invalid input", 400)
     order.status = "completed"
     db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
@@ -285,7 +286,7 @@ def list_sales_invoices():
 def create_sales_invoice():
     data = request.get_json() or {}
     if not data.get("customer_id"):
-        return jsonify({"success": False, "message": "عميل مطلوب", "error_key": "sales.customerRequired"}), 400
+        return error_response("عميل مطلوب", 400, error_key="sales.customerRequired")
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
@@ -323,7 +324,7 @@ def create_sales_invoice():
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"success": False, "message": "invalid input"}), 400
+            return error_response("invalid input", 400)
     db.session.commit()
     _log("create", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict()), 201
@@ -334,7 +335,7 @@ def create_sales_invoice():
 def update_sales_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.invoice_type != "sales":
-        return jsonify({"message": "sales.notSalesInvoice", "error_key": "sales.notSalesInvoice"}), 400
+        return error_response("sales.notSalesInvoice", 400, error_key="sales.notSalesInvoice")
     data = request.get_json() or {}
     err = _guard_financial_year(invoice.financial_year_id, data.get("financial_year_id"))
     if err:
@@ -370,7 +371,7 @@ def update_sales_invoice(invoice_id):
                     description=invoice.invoice_number)
         except ValueError as e:
             db.session.rollback()
-            return jsonify({"success": False, "message": "invalid input"}), 400
+            return error_response("invalid input", 400)
     db.session.commit()
     _log("update", "invoice", invoice.id, invoice.invoice_number)
     return jsonify(invoice.to_dict())
@@ -381,16 +382,16 @@ def update_sales_invoice(invoice_id):
 def delete_sales_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.deleted_at:
-        return jsonify({"message": "common.notFound"}), 404
+        return error_response("common.notFound", 404)
     if invoice.invoice_type != "sales":
-        return jsonify({"message": "sales.notSalesInvoice", "error_key": "sales.notSalesInvoice"}), 400
+        return error_response("sales.notSalesInvoice", 400, error_key="sales.notSalesInvoice")
     err = _guard_closed_year(invoice.financial_year_id)
     if err:
         return jsonify({"message": err, "error_key": err}), 400
     if invoice.sales_returns:
-        return jsonify({"message": "sales.hasReturns", "error_key": "sales.hasReturns"}), 400
+        return error_response("sales.hasReturns", 400, error_key="sales.hasReturns")
     if invoice.paid_amount and float(invoice.paid_amount) > 0:
-        return jsonify({"message": "sales.invoiceHasPayments", "error_key": "sales.invoiceHasPayments"}), 400
+        return error_response("sales.invoiceHasPayments", 400, error_key="sales.invoiceHasPayments")
     number = invoice.invoice_number
     from utils.workflow import cancel_document_approval
     cancel_document_approval("invoice", invoice_id)
@@ -416,10 +417,9 @@ def einvoice_submit(invoice_id):
     from utils.settings import get as cfg_get
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.invoice_type != "sales":
-        return jsonify({"message": "sales.notSalesInvoice", "error_key": "sales.notSalesInvoice"}), 400
+        return error_response("sales.notSalesInvoice", 400, error_key="sales.notSalesInvoice")
     if not cfg_get("einv_enabled", False):
-        return jsonify({"message": "الفاتورة الإلكترونية غير مفعلة في الإعدادات"}), 400
-
+        return error_response("الفاتورة الإلكترونية غير مفعلة في الإعدادات", 400)
     connector = get_connector()
     if connector is None:
         country = (cfg_get("einv_country") or "").upper()
@@ -479,10 +479,9 @@ def einvoice_batch_submit():
     data = request.get_json() or {}
     invoice_ids = data.get("invoice_ids", [])
     if not invoice_ids:
-        return jsonify({"message": "sales.invoiceIdsRequired"}), 400
+        return error_response("sales.invoiceIdsRequired", 400)
     if not cfg_get("einv_enabled", False):
-        return jsonify({"message": "الفاتورة الإلكترونية غير مفعلة"}), 400
-
+        return error_response("الفاتورة الإلكترونية غير مفعلة", 400)
     connector = get_connector()
     results = []
     for iid in invoice_ids[:50]:  # حد أقصى 50 فاتورة
@@ -538,11 +537,11 @@ def einvoice_config_get():
 def pay_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if invoice.invoice_type != "sales":
-        return jsonify({"message": "sales.notSalesInvoice", "error_key": "sales.notSalesInvoice"}), 400
+        return error_response("sales.notSalesInvoice", 400, error_key="sales.notSalesInvoice")
     data = request.get_json() or {}
     amount = parse_float(data.get("amount"))
     if amount <= 0:
-        return jsonify({"message": "sales.payAmountRequired", "error_key": "sales.payAmountRequired"}), 400
+        return error_response("sales.payAmountRequired", 400, error_key="sales.payAmountRequired")
     balance = float(invoice.amount or 0) - float(invoice.paid_amount or 0)
     amount = min(amount, balance)
     invoice.paid_amount = float(invoice.paid_amount or 0) + amount
@@ -560,7 +559,7 @@ def pay_invoice(invoice_id):
             description=invoice.invoice_number)
     except ValueError as e:
         db.session.rollback()
-        return jsonify({"success": False, "message": "invalid input"}), 400
+        return error_response("invalid input", 400)
     db.session.commit()
     _log("update", "invoice", invoice.id, f"تحصيل {amount}")
     return jsonify(invoice.to_dict())
@@ -588,9 +587,9 @@ def create_return():
         from models import Invoice
         inv = db.session.get(Invoice, invoice_id)
         if not inv:
-            return jsonify({"message": "الفاتورة غير موجودة", "error_key": "invoiceNotFound"}), 400
+            return error_response("الفاتورة غير موجودة", 400, error_key="invoiceNotFound")
         if inv.invoice_type != "sales":
-            return jsonify({"message": "الفاتورة ليست فاتورة مبيعات", "error_key": "notSalesInvoice"}), 400
+            return error_response("الفاتورة ليست فاتورة مبيعات", 400, error_key="notSalesInvoice")
     ret = SalesReturn(
         return_number=_next_number(SalesReturn, "SR", SalesReturn.return_number),
         invoice_id=data.get("invoice_id") or None,
@@ -676,7 +675,7 @@ def create_commission():
     amount = parse_float(data.get("amount"))
     rate = parse_float(data.get("rate"))
     if amount <= 0:
-        return jsonify({"message": "sales.commissionAmountRequired", "error_key": "sales.commissionAmountRequired"}), 400
+        return error_response("sales.commissionAmountRequired", 400, error_key="sales.commissionAmountRequired")
     commission = SalesCommission(
         salesperson_id=data.get("salesperson_id") or None,
         order_id=data.get("order_id") or None,
@@ -725,7 +724,7 @@ def commission_status(commission_id):
     data = request.get_json() or {}
     status = data.get("status")
     if status not in ("pending", "approved", "paid", "cancelled"):
-        return jsonify({"message": "sales.invalidStatus", "error_key": "sales.invalidStatus"}), 400
+        return error_response("sales.invalidStatus", 400, error_key="sales.invalidStatus")
     commission.status = status
     db.session.commit()
     _log("update", "sales_commission", commission.id, f"حالة العمولة: {status}")
@@ -739,7 +738,7 @@ def auto_commissions():
     import utils.settings as settings_module
     rate = settings_module.get_float("sales_commission_rate", 0)
     if rate <= 0:
-        return jsonify({"message": "sales.autoRateZero", "error_key": "sales.autoRateZero"}), 400
+        return error_response("sales.autoRateZero", 400, error_key="sales.autoRateZero")
     created = 0
     for order in SalesOrder.query.filter_by(status="completed").all():
         if not order.salesperson_id or order.commissions:
@@ -808,7 +807,7 @@ def quote_to_order(quote_id):
     """تحويل عرض سعر → أمر بيع."""
     quote = Quote.query.get_or_404(quote_id)
     if not quote.customer_id:
-        return jsonify({"message": "sales.quoteNeedsCustomer", "error_key": "sales.quoteNeedsCustomer"}), 400
+        return error_response("sales.quoteNeedsCustomer", 400, error_key="sales.quoteNeedsCustomer")
     data = request.get_json() or {}
     order = SalesOrder(
         order_number=_next_number(SalesOrder, "SO", SalesOrder.order_number),

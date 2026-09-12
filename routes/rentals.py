@@ -6,6 +6,7 @@ from models import (
     Customer, RealEstateUnit,
 )
 from permissions import require_api, require_page
+from utils.validation import error_response
 
 rental_bp = Blueprint("rental", __name__, url_prefix="/api/rentals")
 rental_pages_bp = Blueprint("rental_pages", __name__)
@@ -109,7 +110,7 @@ def list_tenants():
 def create_tenant():
     data = request.get_json() or {}
     if not data.get("full_name"):
-        return jsonify({"message": "rentals.nameRequired", "error_key": "rentals.nameRequired"}), 400
+        return error_response("rentals.nameRequired", 400, error_key="rentals.nameRequired")
     customer = Customer(
         full_name=data.get("full_name"),
         phone=data.get("phone"),
@@ -145,7 +146,7 @@ def delete_tenant(tenant_id):
     customer = Customer.query.get_or_404(tenant_id)
     contracts = RentalContract.query.filter_by(customer_id=tenant_id).count()
     if contracts:
-        return jsonify({"message": "rentals.tenantHasContracts", "error_key": "rentals.tenantHasContracts"}), 400
+        return error_response("rentals.tenantHasContracts", 400, error_key="rentals.tenantHasContracts")
     name = customer.full_name
     db.session.delete(customer)
     db.session.commit()
@@ -168,11 +169,10 @@ def create_renewal():
     data = request.get_json() or {}
     contract = db.session.get(RentalContract, data.get("contract_id"))
     if not contract:
-        return jsonify({"message": "rentals.contractNotFound", "error_key": "rentals.contractNotFound"}), 400
+        return error_response("rentals.contractNotFound", 400, error_key="rentals.contractNotFound")
     new_end = _parse_date(data.get("new_end_date"))
     if not new_end:
-        return jsonify({"message": "rentals.endDateRequired", "error_key": "rentals.endDateRequired"}), 400
-
+        return error_response("rentals.endDateRequired", 400, error_key="rentals.endDateRequired")
     # التصعيد الإيجاري الآلي: إن لم يُحدَّد إيجار جديد وفعّل المالك التصعيد
     # يُطبَّق النسبة السنوية على الإيجار السابق تلقائياً.
     escalation_applied = 0.0
@@ -210,7 +210,7 @@ def create_renewal():
         acct.post_contract_entries(contract)
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "accounting.failed"}), 500
+        return error_response("accounting.failed", 500)
     db.session.commit()
     _log("create", "renewal", renewal.id, renewal.renewal_number)
     out = renewal.to_dict()
@@ -259,10 +259,10 @@ def create_payment():
     data = request.get_json() or {}
     contract = db.session.get(RentalContract, data.get("contract_id"))
     if not contract:
-        return jsonify({"message": "rentals.contractNotFound", "error_key": "rentals.contractNotFound"}), 400
+        return error_response("rentals.contractNotFound", 400, error_key="rentals.contractNotFound")
     amount = float(data.get("amount") or 0)
     if amount <= 0:
-        return jsonify({"message": "rentals.amountRequired", "error_key": "rentals.amountRequired"}), 400
+        return error_response("rentals.amountRequired", 400, error_key="rentals.amountRequired")
     payment = RentalPayment(
         payment_number=_next_number("COL", RentalPayment),
         contract_id=contract.id,
@@ -288,7 +288,7 @@ def create_payment():
         db.session.rollback()
         db.session.delete(payment)
         db.session.commit()
-        return jsonify({"message": "accounting.failed"}), 500
+        return error_response("accounting.failed", 500)
     _log("create", "payment", payment.id, payment.payment_number)
     return jsonify(payment.to_dict()), 201
 
@@ -320,7 +320,7 @@ def update_payment(payment_id):
         )
     except Exception:
         db.session.rollback()
-        return jsonify({"message": "accounting.failed"}), 500
+        return error_response("accounting.failed", 500)
     _log("update", "payment", payment.id, payment.payment_number)
     return jsonify(payment.to_dict())
 

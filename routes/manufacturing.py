@@ -10,6 +10,7 @@ from models import (
 from permissions import require_api, require_page
 from auditlog import log_action
 from utils.pagination import paged_or_cap
+from utils.validation import error_response
 
 mf_bp = Blueprint("mf", __name__, url_prefix="/api/mf")
 mf_pages_bp = Blueprint("mf_pages", __name__)
@@ -201,9 +202,9 @@ def list_raw_materials():
 def create_raw_material():
     data = request.get_json(silent=True) or {}
     if not data.get("item_id"):
-        return jsonify({"message": "الصنف مطلوب", "error_key": "mf.itemRequired"}), 400
+        return error_response("الصنف مطلوب", 400, error_key="mf.itemRequired")
     if RawMaterial.query.filter_by(item_id=data.get("item_id")).first():
-        return jsonify({"message": "هذا الصنف مضاف بالفعل كمواد خام", "error_key": "mf.rawExists"}), 400
+        return error_response("هذا الصنف مضاف بالفعل كمواد خام", 400, error_key="mf.rawExists")
     rm = RawMaterial(
         item_id=data.get("item_id"),
         supplier_id=data.get("supplier_id") or None,
@@ -260,10 +261,10 @@ def list_work_centers():
 def create_work_center():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم مركز العمل مطلوب", "error_key": "mf.nameRequired"}), 400
+        return error_response("اسم مركز العمل مطلوب", 400, error_key="mf.nameRequired")
     code = (data.get("code") or "").strip() or _next_number("WC", WorkCenter, "code")
     if WorkCenter.query.filter_by(code=code).first():
-        return jsonify({"message": "كود مركز العمل موجود مسبقاً", "error_key": "mf.codeExists"}), 400
+        return error_response("كود مركز العمل موجود مسبقاً", 400, error_key="mf.codeExists")
     wc = WorkCenter(
         code=code,
         name=data.get("name").strip(),
@@ -289,7 +290,7 @@ def update_work_center(wc_id):
     if "code" in data and data.get("code"):
         code = data["code"].strip()
         if code != wc.code and WorkCenter.query.filter_by(code=code).first():
-            return jsonify({"message": "كود مركز العمل موجود مسبقاً", "error_key": "mf.codeExists"}), 400
+            return error_response("كود مركز العمل موجود مسبقاً", 400, error_key="mf.codeExists")
         wc.code = code
     for field in ["wc_type", "notes"]:
         if field in data:
@@ -309,7 +310,7 @@ def update_work_center(wc_id):
 def delete_work_center(wc_id):
     wc = WorkCenter.query.get_or_404(wc_id)
     if ProductionOperation.query.filter_by(work_center_id=wc_id).first():
-        return jsonify({"message": "لا يمكن حذف مركز عمل مستخدم في عمليات إنتاج", "error_key": "mf.wcInUse"}), 400
+        return error_response("لا يمكن حذف مركز عمل مستخدم في عمليات إنتاج", 400, error_key="mf.wcInUse")
     db.session.delete(wc)
     db.session.commit()
     _log("delete", "work_center", wc_id, "work center deleted")
@@ -331,12 +332,12 @@ def list_boms():
 def create_bom():
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم BOM مطلوب", "error_key": "mf.nameRequired"}), 400
+        return error_response("اسم BOM مطلوب", 400, error_key="mf.nameRequired")
     if not data.get("product_item_id"):
-        return jsonify({"message": "الصنف المنتج مطلوب", "error_key": "mf.itemRequired"}), 400
+        return error_response("الصنف المنتج مطلوب", 400, error_key="mf.itemRequired")
     code = (data.get("code") or "").strip() or _next_number("BOM", Bom, "code")
     if Bom.query.filter_by(code=code).first():
-        return jsonify({"message": "كود BOM موجود مسبقاً", "error_key": "mf.codeExists"}), 400
+        return error_response("كود BOM موجود مسبقاً", 400, error_key="mf.codeExists")
     bom = Bom(
         code=code,
         name=data.get("name").strip(),
@@ -381,7 +382,7 @@ def update_bom(bom_id):
     if "code" in data and data.get("code"):
         code = data["code"].strip()
         if code != bom.code and Bom.query.filter_by(code=code).first():
-            return jsonify({"message": "كود BOM موجود مسبقاً", "error_key": "mf.codeExists"}), 400
+            return error_response("كود BOM موجود مسبقاً", 400, error_key="mf.codeExists")
         bom.code = code
     if "product_item_id" in data and data.get("product_item_id"):
         bom.product_item_id = data["product_item_id"]
@@ -419,7 +420,7 @@ def update_bom(bom_id):
 def delete_bom(bom_id):
     bom = Bom.query.get_or_404(bom_id)
     if ProductionOrder.query.filter_by(bom_id=bom_id).first():
-        return jsonify({"message": "لا يمكن حذف BOM مستخدم في أوامر إنتاج", "error_key": "mf.bomInUse"}), 400
+        return error_response("لا يمكن حذف BOM مستخدم في أوامر إنتاج", 400, error_key="mf.bomInUse")
     for ln in list(bom.lines):
         db.session.delete(ln)
     db.session.delete(bom)
@@ -443,12 +444,12 @@ def list_orders():
 def create_order():
     data = request.get_json(silent=True) or {}
     if not data.get("bom_id"):
-        return jsonify({"message": "BOM مطلوب", "error_key": "mf.bomRequired"}), 400
+        return error_response("BOM مطلوب", 400, error_key="mf.bomRequired")
     if not data.get("warehouse_id"):
-        return jsonify({"message": "المخزن مطلوب", "error_key": "mf.warehouseRequired"}), 400
+        return error_response("المخزن مطلوب", 400, error_key="mf.warehouseRequired")
     qty = float(data.get("quantity") or 0)
     if qty <= 0:
-        return jsonify({"message": "الكمية يجب أن تكون أكبر من صفر", "error_key": "mf.qtyRequired"}), 400
+        return error_response("الكمية يجب أن تكون أكبر من صفر", 400, error_key="mf.qtyRequired")
     bom = Bom.query.get_or_404(data.get("bom_id"))
     order = ProductionOrder(
         order_number=_next_number("PO", ProductionOrder, "order_number"),
@@ -484,7 +485,7 @@ def get_order(order_id):
 def update_order(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status in ("completed", "cancelled"):
-        return jsonify({"message": "لا يمكن تعديل أمر منتهٍ أو ملغي", "error_key": "mf.orderClosed"}), 400
+        return error_response("لا يمكن تعديل أمر منتهٍ أو ملغي", 400, error_key="mf.orderClosed")
     data = request.get_json(silent=True) or {}
     for field in ["quantity", "produced_qty", "labor_cost", "overhead_cost"]:
         if field in data:
@@ -506,7 +507,7 @@ def update_order(order_id):
 def delete_order(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status == "completed":
-        return jsonify({"message": "لا يمكن حذف أمر إنتاج منتهٍ", "error_key": "mf.orderClosed"}), 400
+        return error_response("لا يمكن حذف أمر إنتاج منتهٍ", 400, error_key="mf.orderClosed")
     for op in list(order.operations):
         db.session.delete(op)
     for ins in list(order.inspections):
@@ -522,7 +523,7 @@ def delete_order(order_id):
 def start_order(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status not in ("planned", "in_progress"):
-        return jsonify({"message": "لا يمكن بدء أمر بهذه الحالة", "error_key": "mf.badStatus"}), 400
+        return error_response("لا يمكن بدء أمر بهذه الحالة", 400, error_key="mf.badStatus")
     order.status = "in_progress"
     if not order.start_date:
         order.start_date = date.today()
@@ -536,11 +537,11 @@ def start_order(order_id):
 def produce_order(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status not in ("planned", "in_progress"):
-        return jsonify({"message": "لا يمكن تسجيل إنتاج لأمر منتهٍ أو ملغي", "error_key": "mf.badStatus"}), 400
+        return error_response("لا يمكن تسجيل إنتاج لأمر منتهٍ أو ملغي", 400, error_key="mf.badStatus")
     data = request.get_json(silent=True) or {}
     qty = float(data.get("qty") or 0)
     if qty <= 0:
-        return jsonify({"message": "الكمية المنتجة يجب أن تكون أكبر من صفر", "error_key": "mf.qtyRequired"}), 400
+        return error_response("الكمية المنتجة يجب أن تكون أكبر من صفر", 400, error_key="mf.qtyRequired")
     order.produced_qty = float(order.produced_qty or 0) + qty
     order.status = "in_progress"
     db.session.commit()
@@ -554,12 +555,11 @@ def complete_order(order_id):
     """إتمام أمر الإنتاج: صرف المواد الخام وإضافة المنتج النهائي للمخزن."""
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status in ("completed", "cancelled"):
-        return jsonify({"message": "الأمر منتهٍ أو ملغي بالفعل", "error_key": "mf.orderClosed"}), 400
+        return error_response("الأمر منتهٍ أو ملغي بالفعل", 400, error_key="mf.orderClosed")
     produced = float(order.produced_qty or 0) or float(order.quantity or 0)
     bom = order.bom
     if not bom or not bom.lines:
-        return jsonify({"message": "BOM بلا مكونات — لا يمكن إتمام الأمر", "error_key": "mf.bomNoLines"}), 400
-
+        return error_response("BOM بلا مكونات — لا يمكن إتمام الأمر", 400, error_key="mf.bomNoLines")
     # فحص توفر المواد الخام
     missing = []
     needed_map = []
@@ -605,7 +605,7 @@ def complete_order(order_id):
 def cancel_order(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status in ("completed", "cancelled"):
-        return jsonify({"message": "الأمر منتهٍ أو ملغي بالفعل", "error_key": "mf.orderClosed"}), 400
+        return error_response("الأمر منتهٍ أو ملغي بالفعل", 400, error_key="mf.orderClosed")
     order.status = "cancelled"
     db.session.commit()
     _log("cancel", "production_order", order.id, "order cancelled")
@@ -633,10 +633,10 @@ def list_operations():
 def create_operation(order_id):
     order = ProductionOrder.query.get_or_404(order_id)
     if order.status in ("completed", "cancelled"):
-        return jsonify({"message": "لا يمكن إضافة عمليات لأمر منتهٍ أو ملغي", "error_key": "mf.orderClosed"}), 400
+        return error_response("لا يمكن إضافة عمليات لأمر منتهٍ أو ملغي", 400, error_key="mf.orderClosed")
     data = request.get_json(silent=True) or {}
     if not (data.get("name") or "").strip():
-        return jsonify({"message": "اسم العملية مطلوب", "error_key": "mf.nameRequired"}), 400
+        return error_response("اسم العملية مطلوب", 400, error_key="mf.nameRequired")
     op = ProductionOperation(
         order_id=order.id,
         work_center_id=data.get("work_center_id") or None,
@@ -662,7 +662,7 @@ def create_operation(order_id):
 def update_operation(op_id):
     op = ProductionOperation.query.get_or_404(op_id)
     if op.order.status in ("completed", "cancelled"):
-        return jsonify({"message": "لا يمكن تعديل عمليات أمر منتهٍ أو ملغي", "error_key": "mf.orderClosed"}), 400
+        return error_response("لا يمكن تعديل عمليات أمر منتهٍ أو ملغي", 400, error_key="mf.orderClosed")
     data = request.get_json(silent=True) or {}
     for field in ["name", "status", "notes"]:
         if field in data:
@@ -685,7 +685,7 @@ def update_operation(op_id):
 def delete_operation(op_id):
     op = ProductionOperation.query.get_or_404(op_id)
     if op.order.status in ("completed", "cancelled"):
-        return jsonify({"message": "لا يمكن حذف عمليات أمر منتهٍ أو ملغي", "error_key": "mf.orderClosed"}), 400
+        return error_response("لا يمكن حذف عمليات أمر منتهٍ أو ملغي", 400, error_key="mf.orderClosed")
     db.session.delete(op)
     db.session.commit()
     _log("delete", "production_operation", op_id, "operation deleted")
@@ -707,7 +707,7 @@ def list_inspections():
 def create_inspection():
     data = request.get_json(silent=True) or {}
     if not data.get("order_id"):
-        return jsonify({"message": "أمر الإنتاج مطلوب", "error_key": "mf.orderRequired"}), 400
+        return error_response("أمر الإنتاج مطلوب", 400, error_key="mf.orderRequired")
     order = ProductionOrder.query.get_or_404(data.get("order_id"))
     ins = QualityInspection(
         inspection_number=_next_number("QI", QualityInspection, "inspection_number"),

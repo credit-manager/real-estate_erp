@@ -41,6 +41,7 @@ except ImportError:
     DeliveryChecklistItem = TenantScreening = UnitMortgage = None
 from permissions import require_api
 from auditlog import log_action
+from utils.validation import error_response
 
 backup_bp = Blueprint("backup", __name__, url_prefix="/api/backup")
 
@@ -316,22 +317,22 @@ def import_backup():
     MAX_BACKUP_SIZE = 100 * 1024 * 1024
     file = request.files.get("file")
     if not file:
-        return jsonify({"message": "ملف مطلوب", "error_key": "backup.fileRequired"}), 400
+        return error_response("ملف مطلوب", 400, error_key="backup.fileRequired")
     # تحقق من امتداد الملف
     fname = (file.filename or "").lower()
     if not (fname.endswith(".json") or fname.endswith(".dyncpro")):
-        return jsonify({"message": "صيغة الملف غير مدعومة — استخدم .json أو .dyncpro", "error_key": "backup.invalidExtension"}), 400
+        return error_response("صيغة الملف غير مدعومة — استخدم .json أو .dyncpro", 400, error_key="backup.invalidExtension")
     # قراءة مع حد الحجم
     file.seek(0, 2)
     fsize = file.tell()
     file.seek(0)
     if fsize > MAX_BACKUP_SIZE:
-        return jsonify({"message": "حجم الملف كبير جداً (الحد 100MB)", "error_key": "backup.tooLarge"}), 413
+        return error_response("حجم الملف كبير جداً (الحد 100MB)", 413, error_key="backup.tooLarge")
     if fsize == 0:
-        return jsonify({"message": "الملف فارغ", "error_key": "backup.emptyFile"}), 400
+        return error_response("الملف فارغ", 400, error_key="backup.emptyFile")
     raw = file.read(MAX_BACKUP_SIZE + 1)
     if len(raw) > MAX_BACKUP_SIZE:
-        return jsonify({"message": "حجم الملف كبير جداً", "error_key": "backup.tooLarge"}), 413
+        return error_response("حجم الملف كبير جداً", 413, error_key="backup.tooLarge")
     # كلمة مرور فك التشفير (تُقرأ من حقل النموذج أو الهيدر)
     password = (
         request.form.get("password")
@@ -359,7 +360,7 @@ def import_backup():
     else:
         data = container
     if not isinstance(data, dict) or "users" not in data:
-        return jsonify({"message": "ملف غير صالح", "error_key": "backup.invalidFile"}), 400
+        return error_response("ملف غير صالح", 400, error_key="backup.invalidFile")
     try:
         _restore(data)
     except Exception as e:
