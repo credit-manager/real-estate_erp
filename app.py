@@ -845,7 +845,7 @@ def create_app():
         is_master = bool(session.get("master_user_id"))
         if not is_employee and not is_company and not is_master:
             return
-        if request.path in ("/login", "/logout"):
+        if request.path in ("/login", "/logout", "/admin/login", "/admin/logout"):
             return
         # Exempt external webhook callbacks (HMAC-verified, no session/CSRF token)
         if (request.path.startswith("/api/payments/webhook/")

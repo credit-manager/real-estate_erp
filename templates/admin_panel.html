@@ -1737,16 +1737,16 @@ function doLogin(){
   if(!em||!pa){er.textContent='\u0623\u062f\u062e\u0644 \u0627\u0644\u0628\u0631\u064a\u062f \u0648\u0643\u0644\u0645\u0629 \u0627\u0644\u0645\u0631\u0648\u0631';er.style.display='block';return}
   bt.disabled=true;bt.innerHTML='<span class="spinner"></span> \u062c\u0627\u0631\u064a \u0627\u0644\u062f\u062e\u0648\u0644...';
   api('POST','/login',{email:em,password:pa}).then(function(d){
+    if(d.csrf_token){var m=document.querySelector('meta[name="csrf-token"]');if(m)m.content=d.csrf_token}
     document.getElementById('loginScene').classList.add('hide');
     document.getElementById('app').classList.add('on');
     document.getElementById('sName').textContent=d.user&&d.user.full_name||em;
     document.getElementById('sAv').textContent=(d.user&&d.user.full_name||em).charAt(0).toUpperCase();
-    // Cache plans for planTxt()
     api('GET','/plans').then(function(p){window._plansCache=p.plans||[]}).catch(function(){});
     if(d.user&&d.user.must_change_password){go('security');toast('يجب تغيير كلمة المرور الافتراضية فوراً','er')}else{go('dashboard')}
   }).catch(function(e){er.textContent=e.message;er.style.display='block'}).finally(function(){bt.disabled=false;bt.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg> \u062f\u062e\u0648\u0644'})
 }
-function doLogout(){fetch(A+'/logout',{method:'POST',credentials:'same-origin'}).catch(function(){});document.getElementById('loginScene').classList.remove('hide');document.getElementById('app').classList.remove('on')}
+function doLogout(){var h={'Content-Type':'application/json'};var m=document.querySelector('meta[name="csrf-token"]');if(m&&m.content)h['X-CSRF-Token']=m.content;fetch(A+'/logout',{method:'POST',headers:h,credentials:'same-origin'}).catch(function(){});document.getElementById('loginScene').classList.remove('hide');document.getElementById('app').classList.remove('on')}
 
 /* ══ Nav ══ */
 function go(p){
