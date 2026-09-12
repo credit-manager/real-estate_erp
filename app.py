@@ -13,6 +13,21 @@ import server_config
 import permissions
 from i18n import TRANSLATIONS, DEFAULT_LANG, LANG_CODES, get_lang, make_t
 
+# API endpoints allowed while must_change_password is set (the password
+# change itself must never be blocked by the enforcement below).
+_PASSWORD_CHANGE_API_PATHS = frozenset({
+    "/api/users/profile/password",
+})
+
+
+def _is_password_change_request(path):
+    """True for the change-password page and its API endpoints."""
+    if not path:
+        return False
+    if path == "/change-password" or path.startswith("/api/change-password"):
+        return True
+    return path in _PASSWORD_CHANGE_API_PATHS
+
 
 def _get_bootstrap_username():
     """Admin username used for first-run seeding.
@@ -898,7 +913,7 @@ def create_app():
         if user_id:
             must_change = session.get("must_change_password")
             if must_change:
-                if request.path != "/change-password" and not request.path.startswith("/api/change-password"):
+                if not _is_password_change_request(request.path):
                     if request.path.startswith("/api/"):
                         return jsonify({"success": False, "message": "يجب تغيير كلمة المرور", "code": "must_change_password"}), 403
                     return redirect(url_for("pages.change_password"))

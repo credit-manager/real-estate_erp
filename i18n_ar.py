@@ -1898,7 +1898,7 @@ TRANSLATIONS_AR = {
  "profile.memberSince": "عضو منذ",
  "profile.newPassword": "كلمة المرور الجديدة",
  "profile.passwordChanged": "تم تغيير كلمة المرور",
- "profile.passwordHint": "كلمة المرور يجب ألا تقل عن 6 أحرف",
+  "profile.passwordHint": "كلمة المرور يجب ألا تقل عن 8 أحرف وتحتوي على حروف وأرقام",
  "profile.passwordMismatch": "كلمتا المرور غير متطابقتين",
  "profile.passwordShort": "كلمة المرور يجب ألا تقل عن 6 أحرف",
  "profile.personalInfo": "البيانات الشخصية",

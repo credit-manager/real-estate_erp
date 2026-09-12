@@ -1898,7 +1898,7 @@ TRANSLATIONS_EN = {
  "profile.memberSince": "Member since",
  "profile.newPassword": "New Password",
  "profile.passwordChanged": "Password changed",
- "profile.passwordHint": "Password must be at least 6 characters",
+  "profile.passwordHint": "Password must be at least 8 characters with letters and digits",
  "profile.passwordMismatch": "Passwords do not match",
  "profile.passwordShort": "Password must be at least 6 characters",
  "profile.personalInfo": "Personal Info",
