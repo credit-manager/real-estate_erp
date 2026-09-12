@@ -11,7 +11,10 @@ from utils.crypto import encrypt_field, decrypt_field
 
 
 def _esign_secret_key():
-    return current_app.config.get("SECRET_KEY", "fallback-key")
+    key = current_app.config.get("SECRET_KEY")
+    if not key:
+        raise RuntimeError("SECRET_KEY must be configured for e-signature encryption")
+    return key
 
 
 def _encrypt_secret(val):

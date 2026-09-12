@@ -1,7 +1,7 @@
 """نظام الإشعارات الموحد — SMS/Email/WhatsApp/Push/In-app."""
 import json
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from sqlalchemy import func, or_
 
 from database import db

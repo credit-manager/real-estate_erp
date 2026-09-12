@@ -438,6 +438,8 @@ def list_meetings():
 @require_api("crm", "create")
 def create_meeting():
     data = request.get_json() or {}
+    if not data.get("customer_id") and not data.get("lead_id"):
+        return jsonify({"success": False, "message": "customer_id or lead_id is required"}), 400
     meeting = Meeting(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,
@@ -649,6 +651,8 @@ def list_follow_ups():
 @require_api("crm", "create")
 def create_follow_up():
     data = request.get_json() or {}
+    if not data.get("customer_id") and not data.get("lead_id") and not data.get("opportunity_id"):
+        return jsonify({"success": False, "message": "customer_id, lead_id, or opportunity_id is required"}), 400
     row = FollowUp(
         customer_id=data.get("customer_id") or None,
         lead_id=data.get("lead_id") or None,
@@ -715,6 +719,8 @@ def list_quotes():
 @require_api_any("create", ["crm", "sales"])
 def create_quote():
     data = request.get_json() or {}
+    if not data.get("customer_id") and not data.get("lead_id"):
+        return jsonify({"success": False, "message": "customer_id or lead_id is required"}), 400
     quote = Quote(
         quote_number=_next_number(Quote, "QT"),
         customer_id=data.get("customer_id") or None,

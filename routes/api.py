@@ -219,6 +219,12 @@ def list_units():
 def create_unit():
     from models import UnitPriceHistory
     data = request.get_json() or {}
+    unit_code = (data.get("unit_code") or "").strip()
+    project_id = data.get("project_id")
+    if not unit_code:
+        return jsonify({"success": False, "message": "unit_code is required"}), 400
+    if not project_id:
+        return jsonify({"success": False, "message": "project_id is required"}), 400
     unit = RealEstateUnit(
         unit_code=data.get("unit_code"),
         project_id=data.get("project_id"),
@@ -295,8 +301,11 @@ def list_employees():
 @require_api("hr", "create")
 def create_employee():
     data = request.get_json() or {}
+    full_name = (data.get("full_name") or "").strip()
+    if not full_name:
+        return jsonify({"success": False, "message": "full_name is required"}), 400
     employee = Employee(
-        full_name=data.get("full_name"),
+        full_name=full_name,
         national_id=data.get("national_id"),
         phone=data.get("phone"),
         email=data.get("email"),
@@ -354,8 +363,11 @@ def list_customers():
 @require_api_any("create", ["sales", "crm"])
 def create_customer():
     data = request.get_json() or {}
+    full_name = (data.get("full_name") or "").strip()
+    if not full_name:
+        return jsonify({"success": False, "message": "full_name is required"}), 400
     customer = Customer(
-        full_name=data.get("full_name"),
+        full_name=full_name,
         phone=data.get("phone"),
         email=data.get("email"),
         address=data.get("address"),
@@ -415,8 +427,11 @@ def list_suppliers():
 @require_api("procurement", "create")
 def create_supplier():
     data = request.get_json() or {}
+    company_name = (data.get("company_name") or "").strip()
+    if not company_name:
+        return jsonify({"success": False, "message": "company_name is required"}), 400
     supplier = Supplier(
-        company_name=data.get("company_name"),
+        company_name=company_name,
         contact_name=data.get("contact_name"),
         phone=data.get("phone"),
         email=data.get("email"),
@@ -676,6 +691,9 @@ def _build_po_items(purchase_order, items_data):
 @require_api("procurement", "create")
 def create_purchase_order():
     data = request.get_json() or {}
+    supplier_id = data.get("supplier_id")
+    if not supplier_id:
+        return jsonify({"success": False, "message": "supplier_id is required"}), 400
     fy_id, err = _resolve_financial_year(data)
     if err:
         return jsonify({"message": err, "error_key": err}), 400

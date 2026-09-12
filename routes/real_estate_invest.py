@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import db
 from models import (
-    RealEstateUnit, Employee, Customer,
+    RealEstateUnit, Customer,
     Building, Floor, UnitType, Owner, UnitPriceHistory,
     Reservation, Allocation, SalesContract, Commission,
     UnitDelivery, MaintenanceRequest, UnitShare, Broker,

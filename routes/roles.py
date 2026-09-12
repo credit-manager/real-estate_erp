@@ -1,5 +1,5 @@
 """Role & permission management endpoints (admin area)."""
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from database import db
 from models import Role, User
 from permissions import (

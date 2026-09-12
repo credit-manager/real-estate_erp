@@ -2,7 +2,7 @@
 import hashlib
 import hmac
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, current_app, redirect
+from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import or_
 
 from database import db
