@@ -51,10 +51,11 @@ def _record_movement(item_id, warehouse_id, movement_type, quantity, batch_id=No
 def _adjust_stock(item_id, warehouse_id, delta, cost=0):
     """يحدّث رصيد الصنف في المخزن بقيمة delta (موجبة زيادة / سالبة نقص).
     يمنع المخزون السالب ويرجع (stock, error_msg)."""
-    stock = ItemStock.query.filter_by(item_id=item_id, warehouse_id=warehouse_id).first()
+    stock = ItemStock.query.filter_by(item_id=item_id, warehouse_id=warehouse_id).with_for_update().first()
     if not stock:
         stock = ItemStock(item_id=item_id, warehouse_id=warehouse_id, quantity=0, avg_cost=0)
         db.session.add(stock)
+        db.session.flush()
     old_qty = float(stock.quantity or 0)
     new_qty = old_qty + delta
     if new_qty < 0:

@@ -511,6 +511,7 @@ def process_notification_queue():
             db.session.commit()
 
         except Exception as e:
+            db.session.rollback()
             item.error_message = str(e)
             if item.attempts >= item.max_attempts:
                 item.status = "failed"

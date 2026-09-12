@@ -47,10 +47,11 @@ def _record_movement(item_id, warehouse_id, movement_type, quantity,
 
 
 def _adjust_stock(item_id, warehouse_id, delta, cost=0):
-    stock = ItemStock.query.filter_by(item_id=item_id, warehouse_id=warehouse_id).first()
+    stock = ItemStock.query.filter_by(item_id=item_id, warehouse_id=warehouse_id).with_for_update().first()
     if not stock:
         stock = ItemStock(item_id=item_id, warehouse_id=warehouse_id, quantity=0, avg_cost=0)
         db.session.add(stock)
+        db.session.flush()
     new_qty = float(stock.quantity or 0) + delta
     stock.quantity = max(0, new_qty)
     if cost and delta > 0:
