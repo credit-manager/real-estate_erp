@@ -1,7 +1,7 @@
 /* 2TO ERP — Service Worker (خفيف، شبكة أولاً مع سقوط للكاش) */
 "use strict";
 
-var CACHE_NAME = "2to-cache-v10";
+var CACHE_NAME = "2to-cache-v12";
 var PRECACHE = [
   "/static/manifest.webmanifest",
   "/static/img/icon-192.png",
