@@ -1,20 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" role="img" aria-labelledby="title desc">
-  <title id="title">2TO Enterprise Systems</title>
-  <desc id="desc">2TO shield symbol and professional wordmark</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 190" role="img" aria-labelledby="title desc">
+  <title id="title">2TO Enterprise Governance</title>
+  <desc id="desc">2TO shield symbol with professional TO wordmark</desc>
   <defs>
-    <linearGradient id="p" x1="16" y1="8" x2="106" y2="112" gradientUnits="userSpaceOnUse"><stop stop-color="#102C44"/><stop offset="1" stop-color="#183F5B"/></linearGradient>
-    <linearGradient id="m" x1="34" y1="24" x2="82" y2="78" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".52" stop-color="#B9C5CE"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient>
+    <linearGradient id="shield" x1="22" y1="8" x2="155" y2="162" gradientUnits="userSpaceOnUse"><stop stop-color="#18364F"/><stop offset=".55" stop-color="#0B243A"/><stop offset="1" stop-color="#071A2B"/></linearGradient>
+    <linearGradient id="edge" x1="18" y1="12" x2="160" y2="170" gradientUnits="userSpaceOnUse"><stop stop-color="#91A6B5"/><stop offset=".5" stop-color="#D5DEE4"/><stop offset="1" stop-color="#5D7485"/></linearGradient>
+    <linearGradient id="metal" x1="48" y1="24" x2="112" y2="120" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".28" stop-color="#D7E0E5"/><stop offset=".55" stop-color="#8C9DA8"/><stop offset=".78" stop-color="#F5F7F8"/><stop offset="1" stop-color="#AAB9C2"/></linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173A55"/><stop offset=".55" stop-color="#0B243A"/><stop offset="1" stop-color="#506A7A"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#061525" flood-opacity=".3"/></filter>
   </defs>
-  <g transform="translate(8 4)">
-    <path d="M12 10h104v64l-52 34-52-34V10Z" fill="url(#p)" stroke="#6F8798" stroke-width="2"/>
-    <path d="M12 73 64 107l52-34v12L64 126 12 85V73Z" fill="#0A1F33"/>
-    <path d="M12 73 64 107l52-34" fill="none" stroke="#A8B8C3" stroke-width="2"/>
-    <path d="M30 47c0-11 8-18 20-18h11c12 0 21 7 21 18 0 8-4 14-12 20L49 83h35" fill="none" stroke="url(#m)" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter"/>
+  <g transform="translate(10 8) scale(.94)" filter="url(#shadow)">
+    <path d="M18 14H162V96L90 142L18 96Z" fill="url(#shield)" stroke="url(#edge)" stroke-width="3"/>
+    <path d="M18 96L90 142L162 96V110L90 162L18 110Z" fill="#071A2B" stroke="#667D8D" stroke-width="2"/>
+    <path d="M18 96L90 142L162 96" fill="none" stroke="#B5C4CD" stroke-width="2"/>
+    <path d="M46 57C46 35 61 23 83 23C106 23 120 37 120 57C120 73 111 83 95 96L74 113H120V130H37V110L77 75C85 68 92 63 92 56C92 49 87 45 79 45C69 45 63 50 62 59Z" fill="url(#metal)" stroke="#FFFFFF" stroke-opacity=".25"/>
+    <path d="M45 57C45 36 60 23 83 23C106 23 120 37 120 57" fill="none" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2"/>
   </g>
-  <g font-family="Plus Jakarta Sans, Inter, Arial, sans-serif">
-    <text x="150" y="79" fill="#0B2239" font-size="74" font-weight="800" letter-spacing="-4">TO</text>
-    <text x="154" y="106" fill="#5D7283" font-size="13" font-weight="700" letter-spacing="3.2">ENTERPRISE SYSTEMS</text>
-    <path d="M154 117h230" stroke="#C6D0D7" stroke-width="2"/>
-    <text x="154" y="133" fill="#7A8A96" font-size="9" font-weight="600" letter-spacing="2.2">POWER • GOVERNANCE • PROFESSIONALISM</text>
+  <g transform="translate(205 0)">
+    <text x="0" y="108" font-family="Plus Jakarta Sans, Inter, Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="-6" fill="url(#word)">TO</text>
+    <text x="5" y="139" font-family="Plus Jakarta Sans, Inter, Arial, sans-serif" font-size="17" font-weight="800" letter-spacing="4.5" fill="#006D77">ENTERPRISE GOVERNANCE</text>
+    <path d="M5 151H475" stroke="#B5C4CD" stroke-width="2"/>
+    <text x="5" y="172" font-family="Plus Jakarta Sans, Inter, Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="2.8" fill="#667D8D">POWER • GOVERNANCE • PROFESSIONALISM</text>
   </g>
 </svg>
