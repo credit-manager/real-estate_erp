@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="2TO">
   <defs>
-    <linearGradient id="s" x1="8" y1="5" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop stop-color="#0B2239"/><stop offset="1" stop-color="#123E5B"/></linearGradient>
-    <linearGradient id="m" x1="20" y1="16" x2="46" y2="44" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".5" stop-color="#B7C4CE"/><stop offset="1" stop-color="#FFFFFF"/></linearGradient>
+    <linearGradient id="s" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop stop-color="#18364F"/><stop offset=".6" stop-color="#0B243A"/><stop offset="1" stop-color="#071A2B"/></linearGradient>
+    <linearGradient id="m" x1="18" y1="10" x2="44" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".5" stop-color="#9BAAB4"/><stop offset=".78" stop-color="#F5F7F8"/><stop offset="1" stop-color="#AAB9C2"/></linearGradient>
   </defs>
-  <path d="M6 4h52v31c0 10-6 18-15 23l-11 6-11-6C12 53 6 45 6 35V4Z" fill="url(#s)" stroke="#B9C6CF" stroke-width="1.5"/>
-  <path d="M6 35 32 50l26-15v9c0 9-6 17-15 22l-11 6-11-6C12 61 6 53 6 44v-9Z" fill="#081A2B"/>
-  <path d="M15 25c0-6 4-9 10-9h6c6 0 11 4 11 9 0 4-2 7-6 10L24 40h18" fill="none" stroke="url(#m)" stroke-width="6" stroke-linecap="square" stroke-linejoin="miter"/>
-  <path d="M11 35 32 47l21-12" fill="none" stroke="#90A6B6" stroke-width="1" opacity=".7"/>
+  <path d="M6 5H58V35L32 51L6 35Z" fill="url(#s)" stroke="#AAB9C2" stroke-width="1.5"/>
+  <path d="M6 35L32 51L58 35V40L32 59L6 40Z" fill="#071A2B" stroke="#667D8D" stroke-width="1"/>
+  <path d="M17 22C17 14 23 10 31 10C39 10 44 15 44 22C44 28 40 32 35 36L30 40H45V46H13V39L28 26C31 23 33 21 33 19C33 17 31 16 29 16C25 16 23 18 23 22Z" fill="url(#m)"/>
 </svg>
