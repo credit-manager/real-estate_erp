@@ -1,6 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect x="4" y="4" width="120" height="120" rx="28" fill="#006D77"/>
-  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="#004e56" stroke-width="4"/>
-  <text x="58" y="92" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="bold" fill="#ffffff" text-anchor="middle">2</text>
-  <circle cx="92" cy="88" r="9" fill="#5eead4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">2TO</title>
+  <desc id="desc">2TO enterprise software mark</desc>
+  <defs>
+    <linearGradient id="bg" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082F49"/>
+      <stop offset="1" stop-color="#0B5C66"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="31" y1="34" x2="101" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="118" height="118" rx="30" fill="url(#bg)"/>
+  <path d="M30 45c0-10 8-17 19-17h15c12 0 21 7 21 18 0 8-4 13-12 19L49 84h37" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M91 36v45M78 36h26" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="93" cy="94" r="10" fill="none" stroke="url(#accent)" stroke-width="7"/>
+  <path d="M104 94h9" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
 </svg>
