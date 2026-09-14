@@ -1,0 +1,228 @@
+"""Server configuration for the Dynamic Pro ERP desktop launcher.
+
+Settings are stored in %APPDATA%\\DynamicPro\\server_config.json:
+- port:          TCP port the Flask server listens on (default 5000)
+- access_password: master password required to log in ("" = disabled)
+- auto_start:    whether the server starts automatically with Windows
+"""
+import json
+import logging
+import os
+import socket
+import sys
+from typing import Any, Dict, Optional, Tuple
+
+log = logging.getLogger(__name__)
+
+try:
+    import winreg
+except ImportError:  # pragma: no cover - winreg is Windows-only
+    winreg = None
+
+CONFIG_DIR: str = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "DynamicPro")
+CONFIG_FILE: str = os.path.join(CONFIG_DIR, "server_config.json")
+
+RUN_KEY: str = r"Software\Microsoft\Windows\CurrentVersion\Run"
+RUN_VALUE: str = "DynamicProServer"
+
+DEFAULTS: Dict[str, Any] = {
+    "port": 1000,
+    "access_password": "",
+    "auto_start": False,
+    "https_enabled": False,
+    "https_port": 5443,
+    "gemini_api_key": "",
+    "gemini_model": "gemini-3.6-flash",
+    "owner_name": "2TO",
+    "owner_logo": "",
+    "ai_providers": {
+        "gemini": {"enabled": True, "api_key": "", "model": "gemini-3.6-flash", "priority": 1},
+        "groq": {"enabled": False, "api_key": "", "model": "llama-3.3-70b-versatile", "priority": 2},
+        "openrouter": {"enabled": False, "api_key": "", "model": "nvidia/nemotron-3.5-lightning:free", "priority": 3},
+        "cerebras": {"enabled": False, "api_key": "", "model": "gpt-oss-120b", "priority": 4},
+        "mistral": {"enabled": False, "api_key": "", "model": "mistral-small-latest", "priority": 5},
+        "qwen": {"enabled": False, "api_key": "", "model": "qwen-plus", "priority": 6},
+    },
+}
+
+
+def load_config() -> Dict[str, Any]:
+    """Load configuration from file, merging with defaults."""
+    cfg = dict(DEFAULTS)
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+            saved = json.load(fh) or {}
+        for key in DEFAULTS:
+            if key in saved:
+                if key == "ai_providers" and isinstance(saved[key], dict):
+                    merged = dict(DEFAULTS["ai_providers"])
+                    for pname, pcfg in saved[key].items():
+                        if pname in merged and isinstance(pcfg, dict):
+                            merged[pname] = {**merged[pname], **pcfg}
+                        else:
+                            merged[pname] = pcfg
+                    cfg[key] = merged
+                else:
+                    cfg[key] = saved[key]
+        cfg["port"] = int(cfg.get("port", 5000)) or 5000
+        providers = cfg.get("ai_providers") or {}
+        legacy_key = cfg.get("gemini_api_key", "")
+        if legacy_key and providers.get("gemini", {}).get("api_key") == "":
+            providers["gemini"]["api_key"] = legacy_key
+            cfg["ai_providers"] = providers
+    except Exception:
+        log.debug("Failed to load server config from %s; using defaults", CONFIG_FILE, exc_info=True)
+    return cfg
+
+
+def save_config(cfg: Dict[str, Any]) -> bool:
+    """Save configuration to file."""
+    merged = dict(DEFAULTS)
+    merged.update(cfg or {})
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            json.dump(merged, fh, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        log.warning("Failed to save server config to %s", CONFIG_FILE, exc_info=True)
+        return False
+
+
+def get_port() -> int:
+    """Get the configured port number."""
+    return load_config().get("port", 5000)
+
+
+def get_https_port() -> int:
+    """Get the configured HTTPS port number."""
+    cfg = load_config()
+    try:
+        return int(cfg.get("https_port", 5443)) or 5443
+    except (TypeError, ValueError):
+        return 5443
+
+
+def is_https_enabled() -> bool:
+    """Check if HTTPS is enabled."""
+    return bool(load_config().get("https_enabled", False))
+
+
+def get_cert_paths() -> Tuple[Optional[str], Optional[str]]:
+    """Get SSL certificate and key file paths."""
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
+    cert = os.path.join(base, "cert.pem")
+    key = os.path.join(base, "key.pem")
+    if os.path.isfile(cert) and os.path.isfile(key):
+        return cert, key
+    return None, None
+
+
+def get_access_password() -> str:
+    """Get the stored access password."""
+    return load_config().get("access_password", "")
+
+
+def hash_access_password(plain: str) -> str:
+    """Hash a password for storage."""
+    from werkzeug.security import generate_password_hash
+    return generate_password_hash(str(plain or ""))
+
+
+def check_access_password(stored: str, plain: str) -> bool:
+    """Check if a plain password matches the stored (hashed or plain) password."""
+    import hmac
+    stored = str(stored or "")
+    plain = str(plain or "")
+    if not stored:
+        return not plain
+    if ":" in stored and len(stored) > 30:
+        from werkzeug.security import check_password_hash
+        try:
+            return check_password_hash(stored, plain)
+        except (ValueError, TypeError):
+            return False
+    # Plain-text fallback: use constant-time comparison and log warning
+    log.warning(
+        "Plain-text access password comparison used; consider migrating to hashed passwords."
+    )
+    return hmac.compare_digest(stored.encode("utf-8"), plain.encode("utf-8"))
+
+
+def _launch_command() -> str:
+    """Get the command to launch the server in background mode."""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}" --background'
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop.py")
+    return f'"{sys.executable}" "{script}" --background'
+
+
+def set_auto_start(enabled: bool) -> bool:
+    """Enable or disable Windows auto-start."""
+    if winreg is None:
+        return False
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE)
+    except OSError:
+        return False
+    try:
+        if enabled:
+            winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, _launch_command())
+        else:
+            try:
+                winreg.DeleteValue(key, RUN_VALUE)
+            except FileNotFoundError:
+                pass
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            winreg.CloseKey(key)
+        except OSError:
+            pass
+
+
+def is_auto_start_enabled() -> bool:
+    """Check if Windows auto-start is enabled."""
+    if winreg is None:
+        return False
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_QUERY_VALUE)
+        winreg.QueryValueEx(key, RUN_VALUE)
+        winreg.CloseKey(key)
+        return True
+    except OSError:
+        return False
+
+
+def get_network_addresses() -> list:
+    """Get available network addresses."""
+    addresses = set()
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip and not ip.startswith("127."):
+                addresses.add(ip)
+    except Exception:
+        log.debug("Failed to resolve network addresses via getaddrinfo", exc_info=True)
+    if not addresses:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            addresses.add(s.getsockname()[0])
+            s.close()
+        except Exception:
+            log.debug("Failed to resolve network address via UDP fallback", exc_info=True)
+    return sorted(addresses)
+
+
+def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Check if a port is in use."""
+    try:
+        s = socket.create_connection((host, port), timeout=1.0)
+        s.close()
+        return True
+    except OSError:
+        return False

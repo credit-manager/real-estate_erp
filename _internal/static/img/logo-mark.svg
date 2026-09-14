@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 170">
+  <defs>
+    <linearGradient id="shieldNavy" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B2545" />
+      <stop offset="50%" stop-color="#134074" />
+      <stop offset="100%" stop-color="#001229" />
+    </linearGradient>
+    <linearGradient id="silverMetallic" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#D0D7DE" />
+    </linearGradient>
+    <linearGradient id="techBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00AEEF" />
+      <stop offset="100%" stop-color="#0072CE" />
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+  </defs>
+  <g filter="url(#subtleShadow)">
+    <path d="M 15 15 L 135 15 L 135 100 L 75 155 L 15 100 Z" fill="url(#shieldNavy)" stroke="url(#techBlue)" stroke-width="3" stroke-linejoin="round" />
+    <path d="M 25 95 L 75 142 L 125 95" fill="none" stroke="url(#techBlue)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.8" />
+    <path d="M 52 50 C 52 38, 98 38, 98 52 C 98 68, 52 82, 52 105 L 100 105 L 100 118 L 45 118 L 45 100 C 72 78, 84 70, 84 55 C 84 48, 66 46, 54 52 Z" fill="url(#silverMetallic)" />
+  </g>
+</svg>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>2TO Logo - Pick the Closest</title>
+<style>
+body { margin: 20px; background: #f0f0f0; font-family: Arial, sans-serif; }
+h1 { text-align: center; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1200px; margin: 0 auto; }
+.card { background: white; border-radius: 12px; padding: 20px; text-align: center; border: 3px solid transparent; cursor: pointer; }
+.card:hover { border-color: #0B7285; }
+.card svg { height: 180px; }
+.card h3 { margin: 10px 0 5px; }
+.card p { color: #888; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>اختر التصميم الأقرب للصورة المرجعة</h1>
+<div class="grid">
+
+<!-- Option A: Wide, short shield -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="b" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 98 0 L 98 50 L 50 78 L 2 50 Z" fill="url(#a)"/><rect x="0" y="46" width="100" height="6" fill="#1E4058"/><path d="M 14 42 L 14 34 C 14 14, 26 2, 50 2 C 74 2, 86 14, 86 30 C 86 38, 78 42, 68 44 L 86 44 L 86 50 L 14 50 Z" fill="url(#b)"/></svg>
+<h3>A: عريض وقصير</h3>
+<p>100×80, زاوية خفيفة</p>
+</div>
+
+<!-- Option B: Square shield -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 90"><defs><linearGradient id="c" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="d" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 88 0 L 88 54 L 45 88 L 2 54 Z" fill="url(#c)"/><rect x="0" y="50" width="90" height="6" fill="#1E4058"/><path d="M 12 46 L 12 38 C 12 16, 24 2, 45 2 C 66 2, 78 16, 78 32 C 78 40, 70 46, 60 48 L 78 48 L 78 54 L 12 54 Z" fill="url(#d)"/></svg>
+<h3>B: مربع</h3>
+<p>90×90, زاوية حادة</p>
+</div>
+
+<!-- Option C: Tall shield -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 110"><defs><linearGradient id="e" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="f" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 78 0 L 78 60 L 40 108 L 2 60 Z" fill="url(#e)"/><rect x="0" y="55" width="80" height="6" fill="#1E4058"/><path d="M 10 51 L 10 43 C 10 18, 20 2, 40 2 C 60 2, 70 18, 70 34 C 70 42, 62 48, 52 50 L 70 50 L 70 56 L 10 56 Z" fill="url(#f)"/></svg>
+<h3>C: طويل (current)</h3>
+<p>80×110, زاوية حادة</p>
+</div>
+
+<!-- Option D: Very wide, short -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 75"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="h" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 108 0 L 108 48 L 55 73 L 2 48 Z" fill="url(#g)"/><rect x="0" y="44" width="110" height="6" fill="#1E4058"/><path d="M 16 40 L 16 32 C 16 12, 30 2, 55 2 C 80 2, 94 12, 94 28 C 94 36, 84 40, 74 42 L 94 42 L 94 48 L 16 48 Z" fill="url(#h)"/></svg>
+<h3>D: عريض جداً وقصير</h3>
+<p>110×75, زاوية خفيفة</p>
+</div>
+
+<!-- Option E: Medium proportions -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 95 100"><defs><linearGradient id="i" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="j" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 93 0 L 93 56 L 47.5 98 L 2 56 Z" fill="url(#i)"/><rect x="0" y="52" width="95" height="6" fill="#1E4058"/><path d="M 13 48 L 13 40 C 13 16, 25 2, 47.5 2 C 70 2, 82 16, 82 32 C 82 40, 74 46, 64 48 L 82 48 L 82 54 L 13 54 Z" fill="url(#j)"/></svg>
+<h3>E: متوسط</h3>
+<p>95×100, زاوية متوسطة</p>
+</div>
+
+<!-- Option F: Very tall, narrow -->
+<div class="card">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 70 120"><defs><linearGradient id="k" x1="0" y1="0" x2="1" y2="0.5"><stop offset="0%" stop-color="#1A3548"/><stop offset="50%" stop-color="#0F2535"/><stop offset="100%" stop-color="#1A3548"/></linearGradient><linearGradient id="l" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0%" stop-color="#3D6E8C"/><stop offset="100%" stop-color="#224C65"/></linearGradient></defs><path d="M 2 0 L 68 0 L 68 66 L 35 118 L 2 66 Z" fill="url(#k)"/><rect x="0" y="61" width="70" height="6" fill="#1E4058"/><path d="M 8 57 L 8 49 C 8 18, 16 2, 35 2 C 54 2, 62 18, 62 36 C 62 44, 54 50, 44 52 L 62 52 L 62 58 L 8 58 Z" fill="url(#l)"/></svg>
+<h3>F: طويل وضيق</h3>
+<p>70×120, زاوية حادة جداً</p>
+</div>
+
+</div>
+</body>
+</html>

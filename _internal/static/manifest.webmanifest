@@ -1,0 +1,28 @@
+{
+  "name": "2TO ERP — نظام إدارة المؤسسات",
+  "short_name": "2TO ERP",
+  "description": "نظام 2TO لإدارة المؤسسات: محاسبة، مشاريع، مخزون، مقاولات وعقارات",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/static/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

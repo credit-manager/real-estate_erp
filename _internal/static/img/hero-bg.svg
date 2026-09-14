@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#071C2A"/>
+      <stop offset="50%" stop-color="#0B1E2D"/>
+      <stop offset="100%" stop-color="#102B3C"/>
+    </linearGradient>
+    <symbol id="shield-lg" viewBox="0 0 100 118">
+      <path d="M 0 0 L 100 0 L 100 72 C 100 90, 85 105, 50 118 C 15 105, 0 90, 0 72 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    </symbol>
+    <linearGradient id="teal-line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0B7285" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#0B7285" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0B7285" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Gradient background -->
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  
+  <!-- Scattered shield watermarks -->
+  <use href="#shield-lg" x="1200" y="300" width="400" height="472" color="#D5DADF" opacity="0.025"/>
+  <use href="#shield-lg" x="200" y="500" width="200" height="236" color="#D5DADF" opacity="0.015"/>
+  <use href="#shield-lg" x="1500" y="100" width="150" height="177" color="#0B7285" opacity="0.04"/>
+  
+  <!-- Teal accent lines -->
+  <rect x="0" y="1020" width="1920" height="2" fill="url(#teal-line)"/>
+  <rect x="0" y="1030" width="1200" height="1" fill="#0B7285" opacity="0.15"/>
+  
+  <!-- Subtle grid dots -->
+  <g opacity="0.03">
+    <circle cx="960" cy="540" r="2" fill="#D5DADF"/>
+    <circle cx="480" cy="270" r="1.5" fill="#D5DADF"/>
+    <circle cx="1440" cy="810" r="1.5" fill="#D5DADF"/>
+  </g>
+</svg>

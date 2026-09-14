@@ -1,0 +1,2068 @@
+from flask import Blueprint, request, jsonify, session, current_app
+from datetime import datetime, timedelta, timezone
+from difflib import SequenceMatcher
+from sqlalchemy import func as sa_func, text
+from sqlalchemy.orm import selectinload
+import time
+from database import db
+from models import (
+    Project, RealEstateUnit, Employee, Customer, Supplier,
+    Invoice, InvoiceItem, PurchaseOrder, PurchaseOrderItem, RentalContract,
+    SalesOrder, SalesReturn,
+    PaymentPlan, Installment, AuditLog,
+    Item, Warehouse, Account, CostCenter, JournalEntry, FixedAsset,
+    Department, Position,
+)
+from permissions import can, require_api, require_api_any, require_any_view
+from routes.financial_years import financial_year_error
+from utils.pagination import paged_or_cap, parse_date
+
+api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+@api_bp.route("/version")
+@require_any_view
+def app_version():
+    """إصدار التطبيق الحالي (يعرضه العميل للاطلاع على التحديثات)."""
+    from version import VERSION, APP_BUILD, APP_NAME
+    return jsonify({"app": APP_NAME, "version": VERSION, "build": APP_BUILD})
+
+
+def _log(action, entity, entity_id, description):
+    from auditlog import log_action
+    log_action(action, entity, entity_id, description)
+
+
+def _resolve_financial_year(data):
+    """يقرأ السنة المالية من الطلب ويرفض المقفلة."""
+    fy_id = data.get("financial_year_id")
+    if fy_id in (None, "", 0):
+        return None, None
+    err = financial_year_error(fy_id)
+    if err:
+        return None, err
+    return fy_id, None
+
+
+def _guard_financial_year(current_fy_id, new_fy_id):
+    """يمنع تعديل مستند يخص سنة مقفلة، أو تحويله إلى سنة مقفلة."""
+    err = financial_year_error(new_fy_id)
+    if err:
+        return err
+    if current_fy_id and financial_year_error(current_fy_id):
+        return "financialYears.closed"
+    return None
+
+
+def _guard_closed_year(financial_year_id):
+    """يمنع حذف مستند يخص سنة مقفلة."""
+    if financial_year_id and financial_year_error(financial_year_id):
+        return "financialYears.closed"
+    return None
+
+
+# ============ لوحة التحكم ============
+_dashboard_cache = {}
+_DASHBOARD_CACHE_TTL = 30  # seconds
+
+
+def _get_cached_dashboard():
+    """Return cached dashboard data if fresh, otherwise compute and cache."""
+    import time as _time
+    now = _time.time()
+    cached = _dashboard_cache.get("stats")
+    if cached and (now - cached["ts"]) < _DASHBOARD_CACHE_TTL:
+        return cached["data"]
+    return None
+
+
+def _set_cached_dashboard(data):
+    _dashboard_cache["stats"] = {"data": data, "ts": time.time()}
+
+
+@api_bp.route("/dashboard/stats")
+@require_api("dashboard", "view")
+def dashboard_stats():
+    from sqlalchemy import func as sqlfunc
+
+    # Return cached data if fresh
+    cached = _get_cached_dashboard()
+    if cached is not None:
+        return jsonify(cached)
+
+    def _sum_inv(inv_type):
+        return float(db.session.query(sqlfunc.coalesce(sqlfunc.sum(Invoice.amount), 0))
+                     .filter_by(invoice_type=inv_type).scalar() or 0)
+
+    def _pending_inv(inv_type):
+        return float(db.session.query(sqlfunc.coalesce(sqlfunc.sum(Invoice.amount - Invoice.paid_amount), 0))
+                     .filter(Invoice.invoice_type == inv_type, Invoice.amount - Invoice.paid_amount > 0).scalar() or 0)
+
+    today = datetime.now()
+    keys = []
+    y, m = today.year, today.month
+    for _ in range(12):
+        keys.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    keys.reverse()
+
+    trend = {k: {"revenue": 0.0, "expenses": 0.0} for k in keys}
+    for row in db.session.query(
+        sqlfunc.extract("year", Invoice.issue_date),
+        sqlfunc.extract("month", Invoice.issue_date),
+        Invoice.invoice_type,
+        sqlfunc.coalesce(sqlfunc.sum(Invoice.amount), 0),
+    ).filter(
+        Invoice.issue_date.isnot(None)
+    ).group_by(
+        sqlfunc.extract("year", Invoice.issue_date),
+        sqlfunc.extract("month", Invoice.issue_date),
+        Invoice.invoice_type,
+    ).all():
+        k = (int(row[0]), int(row[1]))
+        if k in trend:
+            amt = float(row[3])
+            if row[2] == "sales":
+                trend[k]["revenue"] += amt
+            else:
+                trend[k]["expenses"] += amt
+
+    pending_inst_count = db.session.query(sqlfunc.count(Installment.id)).filter(
+        Installment.status.in_(["pending", "partial"]),
+        (Installment.amount - Installment.paid_amount) > 0
+    ).scalar() or 0
+
+    pending_inst_amount = float(db.session.query(
+        sqlfunc.coalesce(sqlfunc.sum(Installment.amount - Installment.paid_amount), 0)
+    ).filter(
+        Installment.status.in_(["pending", "partial"]),
+        (Installment.amount - Installment.paid_amount) > 0
+    ).scalar() or 0)
+
+    active_rentals_count = RentalContract.query.filter_by(status="active").count()
+    active_rentals_revenue = float(db.session.query(
+        sqlfunc.coalesce(sqlfunc.sum(RentalContract.monthly_rent), 0)
+    ).filter_by(status="active").scalar() or 0)
+
+    statuses = ["active", "finishing", "completed", "suspended"]
+    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
+
+    from models import ApprovalRequest
+    from utils.workflow import user_is_approver
+    pending_reqs = [r for r in ApprovalRequest.query.filter_by(
+        status="pending").all() if user_is_approver(r)]
+
+    result = {
+        "projects_count": Project.query.count(),
+        "active_projects": Project.query.filter_by(status="active").count(),
+        "units_count": RealEstateUnit.query.count(),
+        "units_available": RealEstateUnit.query.filter_by(status="available").count(),
+        "employees_count": Employee.query.filter_by(status="active").count(),
+        "customers_count": Customer.query.count(),
+        "suppliers_count": Supplier.query.count(),
+        "total_revenue": _sum_inv("sales"),
+        "total_expenses": _sum_inv("purchase"),
+        "pending_revenue": _pending_inv("sales"),
+        "pending_expenses": _pending_inv("purchase"),
+        "pending_installments_count": pending_inst_count,
+        "pending_installments_amount": pending_inst_amount,
+        "active_rentals_count": active_rentals_count,
+        "active_rentals_revenue": active_rentals_revenue,
+        "pending_purchase_orders": PurchaseOrder.query.filter_by(status="pending").count(),
+        "pending_approvals_count": len(pending_reqs),
+        "revenue_trend": [
+            {"month": f"{y}-{m:02d}", **v} for (y, m), v in trend.items()
+        ],
+        "project_statuses": {
+            s: Project.query.filter_by(status=s).count() for s in statuses
+        },
+        "recent_activity": [l.to_dict() for l in logs],
+    }
+    _set_cached_dashboard(result)
+    return jsonify(result)
+
+
+# ============ الوحدات العقارية ============
+
+@api_bp.route("/units", methods=["GET"])
+@require_api("realestate", "view")
+def list_units():
+    q = RealEstateUnit.query
+    status = request.args.get("status")
+    project_id = request.args.get("project_id", type=int)
+    search = request.args.get("search", "").strip()
+    if status:
+        q = q.filter_by(status=status)
+    if project_id:
+        q = q.filter_by(project_id=project_id)
+    if search:
+        safe = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        q = q.filter(RealEstateUnit.unit_code.ilike(f"%{safe}%", escape="\\"))
+    # Eager-load to_dict() relationships (avoids 5N queries on list pages)
+    q = q.options(
+        selectinload(RealEstateUnit.project),
+        selectinload(RealEstateUnit.building),
+        selectinload(RealEstateUnit.floor_ref),
+        selectinload(RealEstateUnit.unit_type_ref),
+        selectinload(RealEstateUnit.owner),
+    )
+    items, envelope = paged_or_cap(q.order_by(RealEstateUnit.id.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/units", methods=["POST"])
+@require_api("realestate", "create")
+def create_unit():
+    from models import UnitPriceHistory
+    data = request.get_json() or {}
+    unit_code = (data.get("unit_code") or "").strip()
+    project_id = data.get("project_id")
+    if not unit_code:
+        return jsonify({"success": False, "message": "unit_code is required"}), 400
+    if not project_id:
+        return jsonify({"success": False, "message": "project_id is required"}), 400
+    unit = RealEstateUnit(
+        unit_code=data.get("unit_code"),
+        project_id=data.get("project_id"),
+        building_id=data.get("building_id"),
+        floor_id=data.get("floor_id"),
+        unit_type_id=data.get("unit_type_id"),
+        owner_id=data.get("owner_id"),
+        unit_type=data.get("unit_type"),
+        area=data.get("area", 0),
+        floor=data.get("floor"),
+        price=data.get("price", 0),
+        status=data.get("status", "available"),
+    )
+    db.session.add(unit)
+    db.session.flush()
+    price = float(unit.price or 0)
+    if price > 0:
+        db.session.add(UnitPriceHistory(
+            unit_id=unit.id, old_price=0, new_price=price,
+            change_date=datetime.now().date(), reason=data.get("price_reason") or "السعر الابتدائي",
+        ))
+    db.session.commit()
+    _log("create", "unit", unit.id, unit.unit_code)
+    return jsonify(unit.to_dict()), 201
+
+
+@api_bp.route("/units/<int:unit_id>", methods=["PUT"])
+@require_api("realestate", "edit")
+def update_unit(unit_id):
+    from models import UnitPriceHistory
+    unit = RealEstateUnit.query.get_or_404(unit_id)
+    data = request.get_json() or {}
+    for field in ["unit_code", "project_id", "building_id", "floor_id", "unit_type_id",
+                  "owner_id", "unit_type", "area", "floor", "price", "status"]:
+        if field in data:
+            setattr(unit, field, data[field])
+    prev_price = data.get("_prev_price")
+    if prev_price is not None and float(prev_price) != float(unit.price or 0):
+        db.session.add(UnitPriceHistory(
+            unit_id=unit.id, old_price=float(prev_price), new_price=float(unit.price or 0),
+            change_date=datetime.now().date(),
+            reason=data.get("price_reason") or "تعديل السعر",
+        ))
+    db.session.commit()
+    _log("update", "unit", unit.id, unit.unit_code)
+    return jsonify(unit.to_dict())
+
+
+@api_bp.route("/units/<int:unit_id>", methods=["DELETE"])
+@require_api("realestate", "delete")
+def delete_unit(unit_id):
+    unit = RealEstateUnit.query.get_or_404(unit_id)
+    code = unit.unit_code
+    db.session.delete(unit)
+    db.session.commit()
+    _log("delete", "unit", unit_id, code)
+    return jsonify({"success": True})
+
+
+# ============ الموظفين ============
+
+@api_bp.route("/employees", methods=["GET"])
+@require_api_any("view", ["hr", "crm", "sales"])
+def list_employees():
+    q = Employee.query
+    search = request.args.get("search", "").strip()
+    if search:
+        q = q.filter(Employee.full_name.ilike("%" + search + "%"))
+    items, envelope = paged_or_cap(q.order_by(Employee.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/employees", methods=["POST"])
+@require_api("hr", "create")
+def create_employee():
+    data = request.get_json() or {}
+    full_name = (data.get("full_name") or "").strip()
+    if not full_name:
+        return jsonify({"success": False, "message": "full_name is required"}), 400
+    employee = Employee(
+        full_name=full_name,
+        national_id=data.get("national_id"),
+        phone=data.get("phone"),
+        email=data.get("email"),
+        address=data.get("address"),
+        department=data.get("department"),
+        position=data.get("position"),
+        salary=data.get("salary", 0),
+        status=data.get("status", "active"),
+    )
+    db.session.add(employee)
+    db.session.commit()
+    _log("create", "employee", employee.id, employee.full_name)
+    return jsonify(employee.to_dict()), 201
+
+
+@api_bp.route("/employees/<int:employee_id>", methods=["PUT"])
+@require_api("hr", "edit")
+def update_employee(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    data = request.get_json() or {}
+    for field in ["full_name", "national_id", "phone", "email", "address",
+                  "department", "position", "salary", "status"]:
+        if field in data:
+            setattr(employee, field, data[field])
+    db.session.commit()
+    _log("update", "employee", employee.id, employee.full_name)
+    return jsonify(employee.to_dict())
+
+
+@api_bp.route("/employees/<int:employee_id>", methods=["DELETE"])
+@require_api("hr", "delete")
+def delete_employee(employee_id):
+    employee = Employee.query.get_or_404(employee_id)
+    name = employee.full_name
+    db.session.delete(employee)
+    db.session.commit()
+    _log("delete", "employee", employee_id, name)
+    return jsonify({"success": True})
+
+
+# ============ العملاء ============
+
+@api_bp.route("/customers", methods=["GET"])
+@require_api_any("view", ["sales", "crm"])
+def list_customers():
+    q = Customer.query
+    search = request.args.get("search", "").strip()
+    if search:
+        q = q.filter(Customer.full_name.ilike("%" + search + "%"))
+    items, envelope = paged_or_cap(q.order_by(Customer.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/customers", methods=["POST"])
+@require_api_any("create", ["sales", "crm"])
+def create_customer():
+    data = request.get_json() or {}
+    full_name = (data.get("full_name") or "").strip()
+    if not full_name:
+        return jsonify({"success": False, "message": "full_name is required"}), 400
+    customer = Customer(
+        full_name=full_name,
+        phone=data.get("phone"),
+        email=data.get("email"),
+        address=data.get("address"),
+        type=data.get("type", "individual"),
+        company=data.get("company"),
+        notes=data.get("notes"),
+        is_active=data.get("is_active", True),
+    )
+    db.session.add(customer)
+    db.session.commit()
+    _log("create", "customer", customer.id, customer.full_name)
+    return jsonify(customer.to_dict()), 201
+
+
+@api_bp.route("/customers/<int:customer_id>", methods=["PUT"])
+@require_api_any("edit", ["sales", "crm"])
+def update_customer(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    data = request.get_json() or {}
+    for field in ["full_name", "phone", "email", "address", "type", "company", "notes", "is_active"]:
+        if field in data:
+            setattr(customer, field, data[field])
+    db.session.commit()
+    _log("update", "customer", customer.id, customer.full_name)
+    return jsonify(customer.to_dict())
+
+
+@api_bp.route("/customers/<int:customer_id>", methods=["DELETE"])
+@require_api_any("delete", ["sales", "crm"])
+def delete_customer(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    name = customer.full_name
+    try:
+        db.session.delete(customer)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "customer_has_related"}), 400
+    _log("delete", "customer", customer_id, name)
+    return jsonify({"success": True})
+
+
+# ============ الموردين ============
+
+@api_bp.route("/suppliers", methods=["GET"])
+@require_api("procurement", "view")
+def list_suppliers():
+    q = Supplier.query
+    search = request.args.get("search", "").strip()
+    if search:
+        q = q.filter(Supplier.company_name.ilike("%" + search + "%"))
+    items, envelope = paged_or_cap(q.order_by(Supplier.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/suppliers", methods=["POST"])
+@require_api("procurement", "create")
+def create_supplier():
+    data = request.get_json() or {}
+    company_name = (data.get("company_name") or "").strip()
+    if not company_name:
+        return jsonify({"success": False, "message": "company_name is required"}), 400
+    supplier = Supplier(
+        company_name=company_name,
+        contact_name=data.get("contact_name"),
+        phone=data.get("phone"),
+        email=data.get("email"),
+        address=data.get("address"),
+        category=data.get("category"),
+    )
+    db.session.add(supplier)
+    db.session.commit()
+    _log("create", "supplier", supplier.id, supplier.company_name)
+    return jsonify(supplier.to_dict()), 201
+
+
+@api_bp.route("/suppliers/<int:supplier_id>", methods=["PUT"])
+@require_api("procurement", "edit")
+def update_supplier(supplier_id):
+    supplier = Supplier.query.get_or_404(supplier_id)
+    data = request.get_json() or {}
+    for field in ["company_name", "contact_name", "phone", "email", "address", "category"]:
+        if field in data:
+            setattr(supplier, field, data[field])
+    db.session.commit()
+    _log("update", "supplier", supplier.id, supplier.company_name)
+    return jsonify(supplier.to_dict())
+
+
+@api_bp.route("/suppliers/<int:supplier_id>", methods=["DELETE"])
+@require_api("procurement", "delete")
+def delete_supplier(supplier_id):
+    supplier = Supplier.query.get_or_404(supplier_id)
+    name = supplier.company_name
+    db.session.delete(supplier)
+    db.session.commit()
+    _log("delete", "supplier", supplier_id, name)
+    return jsonify({"success": True})
+
+
+# ============ الفواتير ============
+
+@api_bp.route("/invoices", methods=["GET"])
+@require_api("finance", "view")
+def list_invoices():
+    q = Invoice.query
+    fy_id = request.args.get("financial_year_id", type=int)
+    invoice_type = request.args.get("type")
+    status = request.args.get("status")
+    if fy_id:
+        q = q.filter_by(financial_year_id=fy_id)
+    if invoice_type:
+        q = q.filter_by(invoice_type=invoice_type)
+    if status:
+        q = q.filter_by(status=status)
+    # Eager-load to_dict() relationships (financial year + lines)
+    q = q.options(
+        selectinload(Invoice.financial_year),
+        selectinload(Invoice.items),
+    )
+    items, envelope = paged_or_cap(q.order_by(Invoice.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+def _build_invoice_items(invoice, items_data):
+    invoice.items = []
+    for it in items_data:
+        if not isinstance(it, dict):
+            continue
+        description = it.get("description") or ""
+        if not description.strip():
+            continue
+        invoice.items.append(InvoiceItem(
+            item_id=it.get("item_id"),
+            warehouse_id=it.get("warehouse_id"),
+            description=description,
+            quantity=float(it.get("quantity", 1) or 0),
+            unit_price=float(it.get("unit_price", 0) or 0),
+            tax_rate=float(it.get("tax_rate", 0) or 0),
+            expiry_date=parse_date(it.get("expiry_date")),
+        ))
+
+
+@api_bp.route("/invoices", methods=["POST"])
+@require_api("finance", "create")
+def create_invoice():
+    data = request.get_json() or {}
+    fy_id, err = _resolve_financial_year(data)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    # Input validation
+    amount = data.get("amount", 0)
+    if not isinstance(amount, (int, float)) or amount < 0:
+        return jsonify({"message": "المبلغ يجب أن يكون رقماً موجباً", "error_key": "invalidAmount"}), 400
+    paid = data.get("paid_amount", 0)
+    if not isinstance(paid, (int, float)) or paid < 0:
+        return jsonify({"message": "المبلغ المدفوع يجب أن يكون رقماً موجباً", "error_key": "invalidPaidAmount"}), 400
+    if paid > amount:
+        return jsonify({"message": "المبلغ المدفوع لا يمكن أن يتجاوز الإجمالي", "error_key": "paidExceedsTotal"}), 400
+    invoice_type = data.get("invoice_type", "sales")
+    if invoice_type not in ("sales", "purchase", "expense"):
+        return jsonify({"message": "نوع الفاتورة غير صالح", "error_key": "invalidInvoiceType"}), 400
+    _inv_number = (data.get("invoice_number") or "").strip()
+    if not _inv_number:
+        from utils.docnum import seq_by_prefix
+        from datetime import datetime as _dt
+        _inv_number = seq_by_prefix(Invoice, Invoice.invoice_number, f"INV-{_dt.now().year}-")
+    invoice = Invoice(
+        invoice_number=_inv_number,
+        invoice_type=data.get("invoice_type", "sales"),
+        customer_id=data.get("customer_id"),
+        supplier_id=data.get("supplier_id"),
+        project_id=data.get("project_id"),
+        financial_year_id=fy_id,
+        amount=data.get("amount", 0),
+        paid_amount=data.get("paid_amount", 0),
+        status=data.get("status", "pending"),
+        description=data.get("description"),
+        issue_date=parse_date(data.get("issue_date")),
+        due_date=parse_date(data.get("due_date")),
+    )
+    if data.get("items"):
+        _build_invoice_items(invoice, data["items"])
+        computed = invoice.items_total()
+        if computed is not None:
+            invoice.amount = round(computed, 2)
+    db.session.add(invoice)
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    submit_document_for_approval("invoice", invoice.id)
+    if invoice.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_invoice_entries(invoice)
+            if float(invoice.paid_amount or 0) > 0:
+                acct.post_payment_entries(
+                    "payment", "invoice", invoice.id, invoice.paid_amount,
+                    date=invoice.issue_date,
+                    financial_year_id=invoice.financial_year_id,
+                    is_receipt=invoice.invoice_type == "sales",
+                    description=invoice.invoice_number)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    from utils.stock import apply_purchase_invoice
+    apply_purchase_invoice(invoice)
+    _log("create", "invoice", invoice.id, invoice.invoice_number)
+    return jsonify(invoice.to_dict()), 201
+
+
+@api_bp.route("/invoices/<int:invoice_id>", methods=["PUT"])
+@require_api("finance", "edit")
+def update_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    data = request.get_json() or {}
+    new_fy = data.get("financial_year_id")
+    err = _guard_financial_year(invoice.financial_year_id, new_fy)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    from utils.stock import reverse_purchase_invoice
+    reverse_purchase_invoice(invoice)
+    if "financial_year_id" in data:
+        invoice.financial_year_id = new_fy if new_fy not in (None, "", 0) else None
+    for field in ["invoice_number", "invoice_type", "customer_id", "supplier_id",
+                  "project_id", "paid_amount", "status", "description"]:
+        if field in data:
+            setattr(invoice, field, data[field])
+    if "amount" in data and "items" not in data:
+        invoice.amount = data["amount"]
+    if "issue_date" in data:
+        invoice.issue_date = parse_date(data["issue_date"])
+    if "due_date" in data:
+        invoice.due_date = parse_date(data["due_date"])
+    if "items" in data:
+        _build_invoice_items(invoice, data["items"])
+        computed = invoice.items_total()
+        if computed is not None:
+            invoice.amount = round(computed, 2)
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    if invoice.approval_status == "rejected":
+        submit_document_for_approval("invoice", invoice.id)
+    if invoice.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_invoice_entries(invoice)
+            if "paid_amount" in data:
+                acct.post_payment_entries(
+                    "payment", "invoice", invoice.id, invoice.paid_amount,
+                    date=invoice.issue_date,
+                    financial_year_id=invoice.financial_year_id,
+                    is_receipt=invoice.invoice_type == "sales",
+                    description=invoice.invoice_number)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    from utils.stock import apply_purchase_invoice
+    apply_purchase_invoice(invoice)
+    _log("update", "invoice", invoice.id, invoice.invoice_number)
+    return jsonify(invoice.to_dict())
+
+
+@api_bp.route("/invoices/<int:invoice_id>", methods=["DELETE"])
+@require_api("finance", "delete")
+def delete_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    err = _guard_closed_year(invoice.financial_year_id)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    num = invoice.invoice_number
+    from utils.workflow import cancel_document_approval
+    cancel_document_approval("invoice", invoice_id)
+    from utils import accounting as acct
+    acct.delete_source_entries("invoice", "invoice", invoice_id)
+    acct.delete_source_entries("payment", "invoice", invoice_id)
+    from utils.stock import reverse_purchase_invoice
+    reverse_purchase_invoice(invoice)
+    db.session.delete(invoice)
+    db.session.commit()
+    _log("delete", "invoice", invoice_id, num)
+    return jsonify({"success": True})
+
+
+# ============ أوامر الشراء ============
+
+@api_bp.route("/purchase-orders", methods=["GET"])
+@require_api("procurement", "view")
+def list_purchase_orders():
+    q = PurchaseOrder.query
+    fy_id = request.args.get("financial_year_id", type=int)
+    status = request.args.get("status")
+    if fy_id:
+        q = q.filter_by(financial_year_id=fy_id)
+    if status:
+        q = q.filter_by(status=status)
+    items, envelope = paged_or_cap(q.order_by(PurchaseOrder.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+def _build_po_items(purchase_order, items_data):
+    purchase_order.items = []
+    for it in items_data:
+        if not isinstance(it, dict):
+            continue
+        description = it.get("description") or ""
+        if not description.strip():
+            continue
+        purchase_order.items.append(PurchaseOrderItem(
+            description=description,
+            quantity=float(it.get("quantity", 1) or 0),
+            unit_price=float(it.get("unit_price", 0) or 0),
+            tax_rate=float(it.get("tax_rate", 0) or 0),
+        ))
+
+
+@api_bp.route("/purchase-orders", methods=["POST"])
+@require_api("procurement", "create")
+def create_purchase_order():
+    data = request.get_json() or {}
+    supplier_id = data.get("supplier_id")
+    if not supplier_id:
+        return jsonify({"success": False, "message": "supplier_id is required"}), 400
+    fy_id, err = _resolve_financial_year(data)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    po = PurchaseOrder(
+        po_number=data.get("po_number"),
+        supplier_id=data.get("supplier_id"),
+        project_id=data.get("project_id"),
+        financial_year_id=fy_id,
+        items_description=data.get("items_description"),
+        total=data.get("total", 0),
+        status=data.get("status", "pending"),
+        order_date=parse_date(data.get("order_date")),
+        delivery_date=parse_date(data.get("delivery_date")),
+    )
+    if data.get("items"):
+        _build_po_items(po, data["items"])
+        computed = po.items_total()
+        if computed is not None:
+            po.total = round(computed, 2)
+    db.session.add(po)
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    submit_document_for_approval("po", po.id)
+    if po.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_purchase_order_entries(po)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    _log("create", "order", po.id, po.po_number)
+    return jsonify(po.to_dict()), 201
+
+
+@api_bp.route("/purchase-orders/<int:po_id>", methods=["PUT"])
+@require_api("procurement", "edit")
+def update_purchase_order(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    data = request.get_json() or {}
+    new_fy = data.get("financial_year_id")
+    err = _guard_financial_year(po.financial_year_id, new_fy)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    if "financial_year_id" in data:
+        po.financial_year_id = new_fy if new_fy not in (None, "", 0) else None
+    for field in ["po_number", "supplier_id", "project_id", "items_description",
+                  "status"]:
+        if field in data:
+            setattr(po, field, data[field])
+    if "total" in data and "items" not in data:
+        po.total = data["total"]
+    if "order_date" in data:
+        po.order_date = parse_date(data["order_date"])
+    if "delivery_date" in data:
+        po.delivery_date = parse_date(data["delivery_date"])
+    if "items" in data:
+        _build_po_items(po, data["items"])
+        computed = po.items_total()
+        if computed is not None:
+            po.total = round(computed, 2)
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    if po.approval_status == "rejected":
+        submit_document_for_approval("po", po.id)
+    if po.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_purchase_order_entries(po)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    _log("update", "order", po.id, po.po_number)
+    return jsonify(po.to_dict())
+
+
+@api_bp.route("/purchase-orders/<int:po_id>", methods=["DELETE"])
+@require_api("procurement", "delete")
+def delete_purchase_order(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    err = _guard_closed_year(po.financial_year_id)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    num = po.po_number
+    from utils.workflow import cancel_document_approval
+    cancel_document_approval("po", po_id)
+    from utils import accounting as acct
+    acct.delete_source_entries("po", "po", po_id)
+    db.session.delete(po)
+    db.session.commit()
+    _log("delete", "order", po_id, num)
+    return jsonify({"success": True})
+
+
+# ============ عقود الإيجار ============
+
+@api_bp.route("/rental-contracts", methods=["GET"])
+@require_api("rentals", "view")
+def list_rental_contracts():
+    q = RentalContract.query
+    fy_id = request.args.get("financial_year_id", type=int)
+    status = request.args.get("status")
+    if fy_id:
+        q = q.filter_by(financial_year_id=fy_id)
+    if status:
+        q = q.filter_by(status=status)
+    items, envelope = paged_or_cap(q.order_by(RentalContract.created_at.desc()))
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/rental-contracts", methods=["POST"])
+@require_api("rentals", "create")
+def create_rental_contract():
+    data = request.get_json() or {}
+    fy_id, err = _resolve_financial_year(data)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+
+    # Input validation
+    monthly_rent = data.get("monthly_rent", 0)
+    if not isinstance(monthly_rent, (int, float)) or monthly_rent <= 0:
+        return jsonify({"message": "الإيجار الشهري يجب أن يكون رقماً موجباً", "error_key": "invalidRent"}), 400
+    start_date = parse_date(data.get("start_date"))
+    end_date = parse_date(data.get("end_date"))
+    if start_date and end_date and start_date >= end_date:
+        return jsonify({"message": "تاريخ البداية يجب أن يسبق تاريخ النهاية", "error_key": "invalidDates"}), 400
+
+    # توليد رقم العقد تلقائياً إن لم يُرسل (إصلاح NotNullViolation)
+    def _gen_rental_number():
+        year = datetime.now().year
+        prefix = f"RC-{year}-"
+        last = (RentalContract.query
+                .filter(RentalContract.contract_number.like(prefix + "%"))
+                .order_by(RentalContract.id.desc())
+                .first())
+        seq = 1
+        if last and last.contract_number:
+            try:
+                seq = int(last.contract_number.rsplit("-", 1)[-1]) + 1
+            except (ValueError, IndexError):
+                seq = RentalContract.query.count() + 1
+        return f"{prefix}{seq:04d}"
+
+    contract = RentalContract(
+        contract_number=data.get("contract_number") or _gen_rental_number(),
+        unit_id=data.get("unit_id"),
+        customer_id=data.get("customer_id"),
+        financial_year_id=fy_id,
+        monthly_rent=data.get("monthly_rent", 0),
+        status=data.get("status", "active"),
+        start_date=parse_date(data.get("start_date")),
+        end_date=parse_date(data.get("end_date")),
+    )
+    db.session.add(contract)
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    submit_document_for_approval("rental_contract", contract.id)
+    if contract.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_contract_entries(contract)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    _log("create", "rental", contract.id, contract.contract_number)
+
+    # تحديث حالة الوحدة إلى مؤجرة
+    unit = db.session.get(RealEstateUnit, data.get("unit_id"))
+    if unit:
+        unit.status = "rented"
+        db.session.commit()
+
+    return jsonify(contract.to_dict()), 201
+
+
+@api_bp.route("/rental-contracts/<int:contract_id>", methods=["PUT"])
+@require_api("rentals", "edit")
+def update_rental_contract(contract_id):
+    contract = RentalContract.query.get_or_404(contract_id)
+    data = request.get_json() or {}
+    new_fy = data.get("financial_year_id")
+    err = _guard_financial_year(contract.financial_year_id, new_fy)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    if "financial_year_id" in data:
+        contract.financial_year_id = new_fy if new_fy not in (None, "", 0) else None
+    for field in ["contract_number", "unit_id", "customer_id", "monthly_rent", "status"]:
+        if field in data:
+            setattr(contract, field, data[field])
+    if "start_date" in data:
+        contract.start_date = parse_date(data["start_date"])
+    if "end_date" in data:
+        contract.end_date = parse_date(data["end_date"])
+    db.session.commit()
+    from utils.workflow import submit_document_for_approval
+    if contract.approval_status == "rejected":
+        submit_document_for_approval("rental_contract", contract.id)
+    if contract.approval_status == "not_required":
+        from utils import accounting as acct
+        try:
+            acct.post_contract_entries(contract)
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    _log("update", "rental", contract.id, contract.contract_number)
+    return jsonify(contract.to_dict())
+
+
+@api_bp.route("/rental-contracts/<int:contract_id>", methods=["DELETE"])
+@require_api("rentals", "delete")
+def delete_rental_contract(contract_id):
+    contract = RentalContract.query.get_or_404(contract_id)
+    err = _guard_closed_year(contract.financial_year_id)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    num = contract.contract_number
+    from utils.workflow import cancel_document_approval
+    cancel_document_approval("rental_contract", contract_id)
+    from utils import accounting as acct
+    acct.delete_source_entries("contract", "rental_contract", contract_id)
+    db.session.delete(contract)
+    db.session.commit()
+    _log("delete", "rental", contract_id, num)
+    return jsonify({"success": True})
+
+
+# ============ البحث الشامل ============
+
+# تطبيع النص العربي لتحمّل اختلافات التهجئة والأخطاء الإملائية (أ/إ/آ→ا، ة→ه، ى→ي، ؤ→و، ئ→ا)
+_AR_MAP = [("إ", "ا"), ("أ", "ا"), ("آ", "ا"), ("ى", "ي"),
+           ("ة", "ه"), ("ؤ", "و"), ("ئ", "ا"), ("ء", "")]
+
+
+def _norm_ar(value):
+    if value is None:
+        return ""
+    s = str(value)
+    for a, b in _AR_MAP:
+        s = s.replace(a, b)
+    return "".join(ch for ch in s if ch.isalnum() or ch.isspace()).lower().strip()
+
+
+def _ar_norm_expr(expr):
+    n = expr
+    for a, b in _AR_MAP:
+        n = sa_func.replace(n, a, b)
+    return sa_func.lower(n)
+
+
+def _ar_like(expr, q):
+    return _ar_norm_expr(expr).like("%" + _norm_ar(q) + "%")
+
+
+def _score(text, q):
+    """درجة تطابق بين 0 و1 — تفضل البداية ثم الاحتواء ثم درجة التشابه (لكل كلمة على حدة)."""
+    nt = _norm_ar(text)
+    nq = _norm_ar(q)
+    if not nt or not nq:
+        return 0.0
+    if nt == nq or nt.startswith(nq):
+        return 1.0
+    if nq in nt:
+        return 0.9
+    best = SequenceMatcher(None, nt, nq).ratio()
+    for token in nt.split():
+        best = max(best, SequenceMatcher(None, nq, token).ratio())
+    return best
+
+
+def _pick(rows, q, haystack_fn, limit):
+    scored = []
+    for r in rows:
+        sc = max((_score(x or "", q) for x in haystack_fn(r)), default=0.0)
+        if sc >= 0.55:
+            scored.append((sc, r))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    return scored[:limit]
+
+
+@api_bp.route("/search")
+@require_any_view
+def global_search():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify([])
+    like = f"%{q}%"
+    groups = []
+
+    def add(group, rows, text_fn, subtext_fn, href_fn, haystack_fn=None, limit=5, fallback_model=None):
+        if haystack_fn is None:
+            haystack_fn = lambda r: [text_fn(r) or "", subtext_fn(r) or ""]
+        items = _pick(rows, q, haystack_fn, limit)
+        # للجداول الصغيرة: فحص ضبابي كامل عندما لا يوجد تطابق في SQL
+        if fallback_model and not items:
+            items = _pick(fallback_model.query.all(), q, haystack_fn, limit)
+        if not items:
+            return
+        out = [{
+            "group": group, "id": r.id,
+            "text": text_fn(r) or "", "subtext": subtext_fn(r) or "",
+            "href": href_fn(r),
+        } for sc, r in items]
+        groups.append((items[0][0], group, out))
+
+    # العملاء
+    if can("sales", "view"):
+        add("customers",
+            Customer.query.filter(db.or_(
+                _ar_like(Customer.full_name, q),
+                Customer.phone.ilike(like),
+                Customer.email.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.full_name, lambda r: r.phone or r.email,
+            lambda r: "/sales")
+
+    # الموردون
+    if can("procurement", "view"):
+        add("suppliers",
+            Supplier.query.filter(db.or_(
+                _ar_like(Supplier.company_name, q),
+                _ar_like(Supplier.contact_name, q),
+                Supplier.phone.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.company_name, lambda r: r.contact_name or r.phone,
+            lambda r: "/procurement")
+
+    # المشاريع
+    if can("projects", "view"):
+        add("projects",
+            Project.query.filter(db.or_(
+                _ar_like(Project.name, q),
+                _ar_like(Project.location, q),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.location,
+            lambda r: "/projects")
+
+    # الوحدات العقارية
+    if can("realestate", "view"):
+        add("units",
+            RealEstateUnit.query.filter(db.or_(
+                RealEstateUnit.unit_code.ilike(like),
+                _ar_like(RealEstateUnit.unit_type, q),
+            )).limit(40).all(),
+            lambda r: r.unit_code, lambda r: r.unit_type,
+            lambda r: "/real-estate")
+
+    # الفواتير
+    if can("finance", "view"):
+        add("invoices",
+            Invoice.query.filter(db.or_(
+                Invoice.invoice_number.ilike(like),
+                _ar_like(Invoice.description, q),
+            )).limit(40).all(),
+            lambda r: r.invoice_number, lambda r: r.description,
+            lambda r: "/finance")
+
+    # الموظفون
+    if can("hr", "view"):
+        add("employees",
+            Employee.query.filter(db.or_(
+                _ar_like(Employee.full_name, q),
+                _ar_like(Employee.position, q),
+                _ar_like(Employee.department, q),
+                Employee.email.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.full_name, lambda r: r.position or r.department or r.email,
+            lambda r: "/hr")
+
+    # الأقسام
+    if can("hr", "view"):
+        add("departments",
+            Department.query.filter(db.or_(
+                _ar_like(Department.name, q),
+                Department.code.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code,
+            lambda r: "/hr/departments", fallback_model=Department)
+
+    # الوظائف
+    if can("hr", "view"):
+        add("positions",
+            Position.query.filter(db.or_(
+                _ar_like(Position.name, q),
+                Position.code.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code,
+            lambda r: "/hr/positions", fallback_model=Position)
+
+    # عقود الإيجار
+    if can("rentals", "view"):
+        add("rentals",
+            RentalContract.query.filter(
+                RentalContract.contract_number.ilike(like),
+            ).limit(40).all(),
+            lambda r: r.contract_number, lambda r: "",
+            lambda r: "/rentals")
+
+    # أوامر البيع
+    if can("sales", "view"):
+        add("sales_orders",
+            SalesOrder.query.filter(SalesOrder.order_number.ilike(like)).limit(40).all(),
+            lambda r: r.order_number,
+            lambda r: r.customer.full_name if r.customer else "",
+            lambda r: f"/sales?q={r.id}")
+
+    # مرتجعات البيع
+    if can("sales", "view"):
+        add("sales_returns",
+            SalesReturn.query.filter(db.or_(
+                SalesReturn.return_number.ilike(like),
+                _ar_like(SalesReturn.reason, q),
+            )).limit(40).all(),
+            lambda r: r.return_number, lambda r: r.reason,
+            lambda r: f"/sales?q={r.id}")
+
+    # أوامر الشراء
+    if can("procurement", "view"):
+        add("purchase_orders",
+            PurchaseOrder.query.filter(db.or_(
+                PurchaseOrder.po_number.ilike(like),
+                _ar_like(PurchaseOrder.items_description, q),
+            )).limit(40).all(),
+            lambda r: r.po_number,
+            lambda r: r.supplier.company_name if r.supplier else "",
+            lambda r: "/procurement")
+
+    # الأصناف
+    if can("inventory", "view"):
+        add("items",
+            Item.query.filter(db.or_(
+                _ar_like(Item.name, q),
+                Item.code.ilike(like),
+                Item.barcode.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code or r.barcode,
+            lambda r: "/inventory/items")
+
+    # المستودعات
+    if can("inventory", "view"):
+        add("warehouses",
+            Warehouse.query.filter(db.or_(
+                _ar_like(Warehouse.name, q),
+                Warehouse.code.ilike(like),
+                _ar_like(Warehouse.location, q),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code or r.location,
+            lambda r: "/inventory/warehouses", fallback_model=Warehouse)
+
+    # دليل الحسابات
+    if can("accounting", "view"):
+        add("accounts",
+            Account.query.filter(db.or_(
+                _ar_like(Account.name, q),
+                Account.code.ilike(like),
+                Account.account_number.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code or r.account_number,
+            lambda r: "/accounting/chart", fallback_model=Account)
+
+    # قيود اليومية
+    if can("accounting", "view"):
+        add("journal_entries",
+            JournalEntry.query.filter(db.or_(
+                JournalEntry.entry_number.ilike(like),
+                _ar_like(JournalEntry.description, q),
+            )).limit(40).all(),
+            lambda r: r.entry_number,
+            lambda r: (r.date.strftime("%Y-%m-%d") if r.date else "") + (" " + (r.description or ""))[:30],
+            lambda r: "/accounting/journal")
+
+    # مراكز التكلفة
+    if can("accounting", "view"):
+        add("cost_centers",
+            CostCenter.query.filter(db.or_(
+                _ar_like(CostCenter.name, q),
+                CostCenter.code.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.code,
+            lambda r: "/accounting/cost-centers", fallback_model=CostCenter)
+
+    # الأصول الثابتة
+    if can("accounting", "view"):
+        add("fixed_assets",
+            FixedAsset.query.filter(db.or_(
+                _ar_like(FixedAsset.name, q),
+                FixedAsset.asset_code.ilike(like),
+            )).limit(40).all(),
+            lambda r: r.name, lambda r: r.asset_code,
+            lambda r: "/accounting/fixed-assets")
+
+    # ترتيب المجموعات حسب أعلى درجة تطابق ثم إرجاع النتائج المدمجة
+    groups.sort(key=lambda t: t[0], reverse=True)
+    results = []
+    for _, _, out in groups:
+        results.extend(out)
+    return jsonify(results[:30])
+
+
+# ============ الإشعارات ============
+
+NOTIF_MSGS = {
+    "ar": {
+        "overdue": "فواتير متأخرة",
+        "overdue_msg": "فاتورة {num} متأخرة {days} يوم، الرصيد {amount}",
+        "expiring": "عقود تنتهي قريباً",
+        "expiring_msg": "عقد {num} ينتهي في {date}",
+        "vacant": "وحدات شاغرة",
+        "vacant_msg": "الوحدة {code} شاغرة",
+        "overdue_inst": "أقساط متأخرة",
+        "overdue_inst_msg": "القسط رقم {num} للخطة #{plan} متأخر {days} يوم، المتبقي {amount}",
+        "pending_approval": "موافقات معلقة",
+        "pending_approval_msg": "يوجد {count} مستند بانتظار موافقتك",
+    },
+    "en": {
+        "overdue": "Overdue invoices",
+        "overdue_msg": "Invoice {num} is {days} day(s) overdue, balance {amount}",
+        "expiring": "Contracts expiring soon",
+        "expiring_msg": "Contract {num} ends on {date}",
+        "vacant": "Vacant units",
+        "vacant_msg": "Unit {code} is vacant",
+        "overdue_inst": "Overdue installments",
+        "overdue_inst_msg": "Installment #{num} of plan #{plan} is {days} day(s) overdue, balance {amount}",
+        "pending_approval": "Pending approvals",
+        "pending_approval_msg": "{count} document(s) await your approval",
+    },
+}
+
+
+@api_bp.route("/notifications")
+@require_any_view
+def notifications():
+    today = datetime.now().date()
+    lang = request.args.get("lang") if request.args.get("lang") in NOTIF_MSGS else "ar"
+    L = NOTIF_MSGS[lang]
+    notifs = []
+
+    for inv in Invoice.query.filter(
+        Invoice.status.in_(["pending", "partial", "overdue"]),
+        Invoice.due_date.isnot(None),
+        Invoice.due_date < today,
+    ).limit(10).all():
+        days = (today - inv.due_date).days
+        balance = float((inv.amount or 0) - (inv.paid_amount or 0))
+        notifs.append({
+            "type": "overdue_invoice",
+            "severity": "high",
+            "href": "/finance",
+            "title": L["overdue"],
+            "message": L["overdue_msg"].format(
+                num=inv.invoice_number, days=days, amount="%.2f" % balance),
+        })
+
+    end_soon = today + timedelta(days=30)
+    for rc in RentalContract.query.filter(
+        RentalContract.status == "active",
+        RentalContract.end_date.isnot(None),
+        RentalContract.end_date >= today,
+        RentalContract.end_date <= end_soon,
+    ).limit(10).all():
+        notifs.append({
+            "type": "expiring_contract",
+            "severity": "medium",
+            "href": "/rentals",
+            "title": L["expiring"],
+            "message": L["expiring_msg"].format(
+                num=rc.contract_number, date=rc.end_date.isoformat()),
+        })
+
+    for u in RealEstateUnit.query.options(
+        selectinload(RealEstateUnit.project)
+    ).filter_by(status="available").limit(10).all():
+        project = u.project.name if u.project else ""
+        notifs.append({
+            "type": "vacant_unit",
+            "severity": "low",
+            "href": "/real-estate",
+            "title": L["vacant"],
+            "message": L["vacant_msg"].format(code=u.unit_code, project=project),
+        })
+
+    from sqlalchemy.orm import joinedload
+    for inst in Installment.query.options(
+        joinedload(Installment.plan)
+    ).filter(
+        Installment.status.in_(["pending", "partial", "overdue"]),
+        Installment.due_date.isnot(None),
+        Installment.due_date < today,
+    ).limit(10).all():
+        plan = inst.plan
+        if not plan:
+            continue
+        days = (today - inst.due_date).days
+        balance = float(inst.amount or 0) - float(inst.paid_amount or 0)
+        notifs.append({
+            "type": "overdue_installment",
+            "severity": "high",
+            "href": "/real-estate",
+            "title": L["overdue_inst"],
+            "message": L["overdue_inst_msg"].format(
+                num=inst.installment_number, plan=plan.id, days=days, amount="%.2f" % balance),
+        })
+
+    from models import ApprovalRequest
+    from utils.workflow import user_is_approver
+    my_role = session.get("role", "")
+    pending_reqs = [r for r in ApprovalRequest.query.filter_by(
+        status="pending").all() if user_is_approver(r)]
+    if pending_reqs:
+        notifs.append({
+            "type": "pending_approval",
+            "severity": "medium",
+            "href": "/workflow/approvals",
+            "title": L["pending_approval"],
+            "message": L["pending_approval_msg"].format(count=len(pending_reqs)),
+        })
+
+    severity_order = {"high": 0, "medium": 1, "low": 2}
+    notifs.sort(key=lambda n: severity_order[n["severity"]])
+    return jsonify(notifs)
+
+
+# ============ خطط الأقساط ============
+
+def _installment_status(inst, today=None):
+    today = today or datetime.now().date()
+    balance = float(inst.amount or 0) - float(inst.paid_amount or 0)
+    if balance <= 0:
+        return "paid"
+    if float(inst.paid_amount or 0) > 0:
+        return "partial"
+    if inst.due_date and inst.due_date < today:
+        return "overdue"
+    return "pending"
+
+
+def _plan_status(plan):
+    today = datetime.now().date()
+    if not plan.installments:
+        return "active"
+    for inst in plan.installments:
+        if _installment_status(inst, today) in ("overdue",):
+            return "overdue"
+    if all(_installment_status(i, today) == "paid" for i in plan.installments):
+        return "completed"
+    return "active"
+
+
+@api_bp.route("/payment-plans", methods=["GET"])
+@require_api("realestate", "view")
+def list_payment_plans():
+    q = PaymentPlan.query
+    fy_id = request.args.get("financial_year_id", type=int)
+    if fy_id:
+        q = q.filter_by(financial_year_id=fy_id)
+
+    def _plan_dict(p):
+        # حساب الحالة ديناميكياً دون تعديل قاعدة البيانات في طلب GET
+        p.status = _plan_status(p)
+        for i in p.installments:
+            i.status = _installment_status(i)
+        return p.to_dict()
+
+    items, envelope = paged_or_cap(q.order_by(PaymentPlan.id.desc()), serializer=_plan_dict)
+    return jsonify(envelope if envelope else items)
+
+
+@api_bp.route("/payment-plans", methods=["POST"])
+@require_api("realestate", "create")
+def create_payment_plan():
+    data = request.get_json(silent=True) or {}
+    unit_id = data.get("unit_id")
+    customer_id = data.get("customer_id")
+    fy_id, err = _resolve_financial_year(data)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    total = float(data.get("total_amount") or 0)
+    down = float(data.get("down_payment") or 0)
+    months = int(data.get("months") or 1)
+    start = parse_date(data.get("start_date"))
+    monthly = float(data.get("monthly_amount") or 0)
+
+    if not unit_id or months <= 0:
+        return jsonify({"error": "invalid_plan"}), 400
+
+    unit = RealEstateUnit.query.get_or_404(unit_id)
+    if not total:
+        total = float(unit.price or 0)
+    if not monthly and total > down:
+        monthly = round((total - down) / months, 2)
+
+    plan = PaymentPlan(
+        unit_id=unit_id,
+        customer_id=customer_id or None,
+        financial_year_id=fy_id,
+        total_amount=total,
+        down_payment=down,
+        monthly_amount=monthly,
+        start_date=start,
+        months=months,
+        status="active",
+    )
+    db.session.add(plan)
+    db.session.flush()
+
+    def add_months(d, n):
+        total = d.month - 1 + n
+        year = d.year + total // 12
+        month = total % 12 + 1
+        day = min(d.day, 28)
+        return d.replace(year=year, month=month, day=day)
+
+    start = start or datetime.now().date()
+    for n in range(1, months + 1):
+        due = add_months(start, n)
+        if n == months and total > down:
+            last = round(total - down - monthly * (months - 1), 2)
+            amount = last if last > 0 else monthly
+        else:
+            amount = monthly
+        db.session.add(Installment(
+            plan_id=plan.id,
+            installment_number=n,
+            amount=amount,
+            paid_amount=0,
+            due_date=due,
+            status="pending",
+        ))
+
+    if unit.status != "sold":
+        unit.status = "sold"
+    db.session.commit()
+    _log("create", "plan", plan.id, f"unit={unit_id}")
+    return jsonify(plan.to_dict()), 201
+
+
+@api_bp.route("/payment-plans/aging", methods=["GET"])
+@require_api("realestate", "view")
+def installments_aging():
+    """تقرير متأخرات الأقساط (Aging) — أرصدة غير المسدد مجمعة بأشرطة التأخر.
+
+    bars: 0-30 / 31-60 / 61-90 / 90+ يوم تأخر عن الاستحقاق.
+    """
+    today = datetime.now().date()
+
+    def _bar(days_late):
+        if days_late <= 30:
+            return "0-30"
+        if days_late <= 60:
+            return "31-60"
+        if days_late <= 90:
+            return "61-90"
+        return "90+"
+
+    rows = []
+    overdue_insts = (Installment.query
+                     .filter(Installment.due_date.isnot(None),
+                             Installment.due_date < today,
+                             Installment.status.in_(["pending", "partial", "overdue"]))
+                     .all())
+    for inst in overdue_insts:
+        balance = float((inst.amount or 0) - (inst.paid_amount or 0))
+        if balance <= 0:
+            continue
+        days_late = (today - inst.due_date).days
+        plan = db.session.get(PaymentPlan, inst.plan_id)
+        unit_code = plan.unit.unit_code if plan and plan.unit else None
+        customer_name = (plan.customer.full_name if plan and plan.customer else None)
+        rows.append({
+            "installment_id": inst.id,
+            "plan_id": inst.plan_id,
+            "unit_code": unit_code,
+            "customer_name": customer_name,
+            "due_date": inst.due_date.isoformat(),
+            "days_late": days_late,
+            "bar": _bar(days_late),
+            "balance": round(balance, 2),
+        })
+    rows.sort(key=lambda r: r["days_late"], reverse=True)
+
+    buckets = ["0-30", "31-60", "61-90", "90+"]
+    summary = {b: {"count": 0, "total": 0.0} for b in buckets}
+    for r in rows:
+        summary[r["bar"]]["count"] += 1
+        summary[r["bar"]]["total"] = round(summary[r["bar"]]["total"] + r["balance"], 2)
+    total_due = round(sum(r["balance"] for r in rows), 2)
+
+    # قوائم المتأخرات القادمة خلال 30 يوماً (تنبيه استباقي)
+    upcoming = (Installment.query
+                .filter(Installment.due_date.isnot(None),
+                        Installment.due_date >= today,
+                        Installment.due_date <= today + timedelta(days=30),
+                        Installment.status.in_(["pending", "partial"]))
+                .count())
+
+    return jsonify({
+        "as_of": today.isoformat(),
+        "rows": rows,
+        "summary": summary,
+        "total_overdue": total_due,
+        "overdue_count": len(rows),
+        "due_within_30d_count": upcoming,
+    })
+
+
+@api_bp.route("/payment-plans/<int:plan_id>", methods=["PUT"])
+@require_api("realestate", "edit")
+def update_payment_plan(plan_id):
+    plan = PaymentPlan.query.get_or_404(plan_id)
+    err = _guard_closed_year(plan.financial_year_id)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    data = request.get_json(silent=True) or {}
+
+    # تعديل العميل مسموح دائماً
+    customer_id = data.get("customer_id")
+    if customer_id not in (None, ""):
+        plan.customer_id = customer_id or None
+
+    # بعد تسجيل أي دفعات يُمنع تعديل بنية الخطة (مبلغ/شهور/وحدة/سنة/تاريخ)
+    has_payments = any(float(i.paid_amount or 0) > 0 for i in plan.installments)
+    if has_payments:
+        db.session.commit()
+        _log("update", "plan", plan_id, "تعديل العميل فقط (توجد دفعات)")
+        return jsonify(plan.to_dict())
+
+    unit_id = data.get("unit_id")
+    if unit_id in (None, ""):
+        return jsonify({"error": "invalid_plan"}), 400
+    fy_id, err = _resolve_financial_year(data)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+
+    new_unit = RealEstateUnit.query.get_or_404(unit_id)
+    old_unit = db.session.get(RealEstateUnit, plan.unit_id)
+    if fy_id is not None:
+        plan.financial_year_id = fy_id
+    plan.unit_id = new_unit.id
+    if new_unit.status != "sold":
+        new_unit.status = "sold"
+    if old_unit and old_unit.id != new_unit.id and not old_unit.payment_plans:
+        old_unit.status = "available"
+
+    total = float(data.get("total_amount") or 0)
+    if not total:
+        total = float(plan.total_amount or 0)
+    if not total:
+        total = float(new_unit.price or 0)
+    if "down_payment" in data:
+        down = float(data.get("down_payment") or 0)
+    else:
+        down = float(plan.down_payment or 0)
+    months = int(data.get("months") or 0)
+    if not months:
+        months = int(plan.months or 1)
+    if months <= 0:
+        return jsonify({"error": "invalid_plan"}), 400
+    start = parse_date(data.get("start_date")) or plan.start_date or datetime.now().date()
+    if "monthly_amount" in data:
+        monthly = float(data.get("monthly_amount") or 0)
+    else:
+        monthly = float(plan.monthly_amount or 0)
+    if not monthly and total > down:
+        monthly = round((total - down) / months, 2)
+
+    plan.total_amount = total
+    plan.down_payment = down
+    plan.months = months
+    plan.monthly_amount = monthly
+    plan.start_date = start
+    plan.status = "active"
+
+    # إعادة بناء جدول الأقساط
+    for inst in list(plan.installments):
+        db.session.delete(inst)
+    db.session.flush()
+
+    def add_months(d, n):
+        t = d.month - 1 + n
+        year = d.year + t // 12
+        month = t % 12 + 1
+        day = min(d.day, 28)
+        return d.replace(year=year, month=month, day=day)
+
+    start = start or datetime.now().date()
+    for n in range(1, months + 1):
+        due = add_months(start, n)
+        if n == months and total > down:
+            last = round(total - down - monthly * (months - 1), 2)
+            amount = last if last > 0 else monthly
+        else:
+            amount = monthly
+        db.session.add(Installment(
+            plan_id=plan.id,
+            installment_number=n,
+            amount=amount,
+            paid_amount=0,
+            due_date=due,
+            status="pending",
+        ))
+
+    db.session.commit()
+    _log("update", "plan", plan_id, f"unit={unit_id} months={months}")
+    plan.status = _plan_status(plan)
+    return jsonify(plan.to_dict())
+
+
+@api_bp.route("/payment-plans/<int:plan_id>", methods=["DELETE"])
+@require_api("realestate", "delete")
+def delete_payment_plan(plan_id):
+    plan = PaymentPlan.query.get_or_404(plan_id)
+    err = _guard_closed_year(plan.financial_year_id)
+    if err:
+        return jsonify({"message": err, "error_key": err}), 400
+    from utils import accounting as acct
+    for inst in plan.installments:
+        acct.delete_source_entries("installment", "installment", inst.id)
+    db.session.delete(plan)
+    db.session.commit()
+    _log("delete", "plan", plan_id, f"plan={plan_id}")
+    return jsonify({"success": True})
+
+
+@api_bp.route("/installments/<int:installment_id>", methods=["PUT"])
+@require_api("realestate", "edit")
+def pay_installment(installment_id):
+    data = request.get_json(silent=True) or {}
+    inst = Installment.query.get_or_404(installment_id)
+    amount = float(data.get("paid_amount") or 0)
+    if amount < 0:
+        return jsonify({"error": "invalid_amount"}), 400
+    inst.paid_amount = amount
+    inst.paid_date = parse_date(data.get("paid_date")) or datetime.now().date()
+    inst.status = _installment_status(inst)
+    plan = db.session.get(PaymentPlan, inst.plan_id)
+    if plan:
+        plan.status = _plan_status(plan)
+    db.session.commit()
+    from utils import accounting as acct
+    if amount > 0:
+        try:
+            # حذف قيد الدفعة السابقة لمنع الترحيل المكرر عند تعديل السداد
+            acct.delete_source_entries("installment", "installment", inst.id)
+            acct.post_payment_entries(
+                "installment", "installment", inst.id, amount,
+                date=inst.paid_date,
+                financial_year_id=plan.financial_year_id if plan else None,
+                is_receipt=True,
+                description=f"قسط {inst.installment_number}")
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"success": False, "message": str(e) or "invalid input"}), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "internal server error"}), 500
+    else:
+        acct.delete_source_entries("installment", "installment", inst.id)
+    _log("payment", "installment", inst.id, f"inst={inst.id} plan={inst.plan_id} amount={amount}")
+    return jsonify(inst.to_dict())
+
+
+# ── AI Query Engine ────────────────────────────────────────────
+_AI_DAILY_LIMIT = 40
+_AI_QUOTA = {}
+_AI_MINUTE_LIMIT = 10
+_AI_MINUTE = {}
+
+# ── AI Quota Cleanup Timer (prune stale entries every 10 min) ──
+import threading as _threading
+_ai_cleanup_lock = _threading.Lock()
+_today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")  # noqa: F841 (kept for compatibility)
+
+
+def _schedule_ai_cleanup():
+    """Periodically prune stale AI quota/minute entries to prevent memory leak."""
+    def _cleanup():
+        while True:
+            _threading.Event().wait(600)
+            now = datetime.now(timezone.utc)
+            today = now.strftime("%Y-%m-%d")
+            current_minute = now.strftime("%Y-%m-%d %H:%M")
+            with _ai_cleanup_lock:
+                stale_days = [k for k in _AI_QUOTA if not k.endswith(today)]
+                for k in stale_days:
+                    _AI_QUOTA.pop(k, None)
+                stale_ips = [ip for ip, v in _AI_MINUTE.items() if v[0] != current_minute]
+                for ip in stale_ips:
+                    _AI_MINUTE.pop(ip, None)
+    t = _threading.Thread(target=_cleanup, daemon=True, name="ai-quota-cleanup")
+    t.start()
+
+
+try:
+    _schedule_ai_cleanup()
+except Exception:
+    import logging
+    logging.getLogger(__name__).warning("AI quota cleanup timer failed to start", exc_info=True)
+
+
+def _ai_quota_consume():
+    """سجل استهلاك للكوتا اليومية لكل مستخدم (في الذاكرة)."""
+    uid = session.get("user_id") or "anon"
+    key = f"{uid}:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    with _ai_cleanup_lock:
+        used = _AI_QUOTA.get(key, 0)
+        if used >= _AI_DAILY_LIMIT:
+            return False, 0
+        _AI_QUOTA[key] = used + 1
+        return True, _AI_DAILY_LIMIT - used - 1
+
+
+def _ai_minute_allow(ip):
+    """حد 10 طلبات/دقيقة لكل IP (عداد في الذاكرة بدقة دقيقة)."""
+    minute = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    with _ai_cleanup_lock:
+        cur = _AI_MINUTE.get(ip)
+        if cur and cur[0] == minute:
+            if cur[1] >= _AI_MINUTE_LIMIT:
+                return False
+            cur[1] += 1
+            return True
+        _AI_MINUTE[ip] = [minute, 1]
+        return True
+
+
+@api_bp.route("/ai/query", methods=["POST"])
+@require_any_view
+def ai_query():
+    """Accept a natural-language question, run via Gemini, execute the result."""
+    from ai_engine import ask_ai
+    from sqlalchemy import text
+
+    if not _ai_minute_allow(request.remote_addr):
+        return jsonify({"success": False,
+                        "message": "طلبات كثيرة جداً. انتظر دقيقة قبل المحاولة.",
+                        "error_key": "common.aiRateLimit"}), 429
+
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"success": False, "message": "يرجى كتابة سؤال",
+                        "error_key": "common.aiEmpty"}), 400
+
+    # محرك البحث المحلي أولاً — يعمل بدون مفتاح Gemini ولا يستهلك الكوتا
+    try:
+        from report_engine import analyze_question
+        local = analyze_question(question)
+        if local is not None:
+            return jsonify({"success": True, **local})
+    except Exception:
+        current_app.logger.error("local report engine error", exc_info=True)
+
+    ok, remaining = _ai_quota_consume()
+    if not ok:
+        return jsonify({"success": False, "message": "لقد وصلت لحد الاستخدام اليومي للذكاء الصناعي.",
+                        "error_key": "common.aiRateLimit", "remaining": 0}), 429
+
+    history = data.get("history") or []
+    if not isinstance(history, list):
+        history = []
+    history = [h for h in history if isinstance(h, dict) and (h.get("q") or "").strip()]
+    result = ask_ai(question, history[-6:] or None)
+    if not result.get("success"):
+        return jsonify(result)
+
+    plan = result.get("data", {})
+    action = plan.get("action", "CLARIFY")
+
+    if action == "CLARIFY":
+        return jsonify({"success": True, "type": "clarify",
+                        "answer": plan.get("answer_hint", "يرجى توضيح السؤال")})
+
+    if action == "TEXT":
+        return jsonify({"success": True, "type": "text",
+                        "answer": plan.get("answer", "")})
+
+    # Execute query actions
+    try:
+        params = plan.get("params", {})
+        answer_hint = plan.get("answer_hint", "")
+
+        if action == "SQL_QUERY":
+            import re as _re
+            sql = params.get("sql", "")
+            stripped = sql.strip()
+            if not stripped.upper().startswith("SELECT"):
+                return jsonify({"success": False, "message": "غير مسموح إلا بـ SELECT"})
+            # Block dangerous SQL patterns
+            _SQL_BLOCKED_COLS = {"password_hash", "password", "secret"}
+            _SQL_SENSITIVE_COLS = {
+                "salary", "national_id", "bank_account", "passport_number",
+                "iban", "tax_id", "nationality_id",
+            }
+            _SQL_BLOCKED_KW = [";--", "/*", "*/", "@@", "pg_", "information_schema",
+                               "pg_catalog", "intersect", "except", "pg_read_file",
+                               "pg_write_file", "copy", "lo_import", "lo_export"]
+            lower_sql = stripped.lower()
+            for col in _SQL_BLOCKED_COLS:
+                if col in lower_sql:
+                    return jsonify({"success": False, "message": "استعلام غير مسموح (عمود محظور)"}), 403
+            for kw in _SQL_BLOCKED_KW:
+                if kw in lower_sql:
+                    return jsonify({"success": False, "message": "است thống غير مسموح (نمط محظور)"}), 403
+            # Column-level whitelist per table
+            _SQL_ALLOWED_COLUMNS = {
+                "employees": {"id", "full_name", "phone", "email", "address", "department", "position", "status", "hire_date", "birth_date", "gender"},
+                "customers": {"id", "name", "phone", "email", "address", "company", "status"},
+                "suppliers": {"id", "name", "phone", "email", "address", "company", "status"},
+                "projects": {"id", "name", "description", "location", "status", "priority", "budget", "spent", "completion"},
+                "invoices": {"id", "invoice_number", "invoice_type", "amount", "paid_amount", "status", "issue_date", "due_date", "customer_id"},
+                "rental_contracts": {"id", "contract_number", "tenant_name", "monthly_rent", "status", "start_date", "end_date"},
+                "real_estate_units": {"id", "unit_code", "unit_type_id", "floor_id", "building_id", "status", "area"},
+                "items": {"id", "name", "code", "category", "unit", "cost_price", "sell_price"},
+                "accounts": {"id", "code", "name", "type", "group_name"},
+                "journal_entries": {"id", "entry_number", "entry_date", "description", "source_type"},
+                "installments": {"id", "plan_id", "installment_number", "amount", "paid_amount", "status", "due_date"},
+                "payment_plans": {"id", "plan_number", "total_amount", "status", "customer_name"},
+                "fixed_assets": {"id", "asset_number", "name", "category", "purchase_date", "cost", "status"},
+                "hr_departments": {"id", "name", "manager_name"},
+                "hr_positions": {"id", "name", "department_name"},
+            }
+            # Table whitelist
+            _SQL_ALLOW = set(_SQL_ALLOWED_COLUMNS.keys())
+            tables_in_sql = set(_re.findall(r'(?:from|join)\s+"?(\w+)"?', lower_sql))
+            unknown = tables_in_sql - _SQL_ALLOW
+            if unknown:
+                return jsonify({"success": False,
+                                "message": f"جداول غير مسموحة: {', '.join(sorted(unknown))}"}), 403
+            if not tables_in_sql:
+                return jsonify({"success": False, "message": "الاستعلام لا يحدد جدولاً مسموحاً"}), 400
+            # Check for sensitive column references
+            for tbl in tables_in_sql:
+                allowed = _SQL_ALLOWED_COLUMNS.get(tbl, set())
+                if not allowed:
+                    continue
+                for col in _SQL_SENSITIVE_COLS:
+                    if col in lower_sql and col not in allowed:
+                        return jsonify({"success": False, "message": f"عمود حساس غير مسموح: {col}"}), 403
+            if _re.search(r'\bunion\b', lower_sql) or stripped.count(";") > 1:
+                return jsonify({"success": False, "message": "UNION وتعدد العبارات غير مسموح"}), 403
+            if _re.search(r'\bsubquery|cte|with\s+\w+\s+as', lower_sql):
+                return jsonify({"success": False, "message": "CTE وsubqueries غير مسموحة"}), 403
+            # Enforce LIMIT to prevent full-table dumps
+            if not _re.search(r'\blimit\s+\d+', lower_sql):
+                stripped = stripped.rstrip(";") + " LIMIT 100"
+            rows = db.session.execute(text(stripped)).fetchall()
+            cols = list(rows[0].keys()) if rows else []
+            data_list = [dict(zip(cols, row)) for row in rows]
+            return jsonify({"success": True, "type": "sql",
+                            "answer": answer_hint, "data": data_list,
+                            "columns": cols,
+                            "source": ", ".join(sorted(tables_in_sql))})
+
+        elif action == "COUNT":
+            table = params.get("table", "")
+            filters = params.get("filters", {})
+            count = _ai_count(table, filters)
+            return jsonify({"success": True, "type": "count",
+                            "answer": answer_hint, "count": count,
+                            "source": _resolve_table(table)})
+
+        elif action == "SUM":
+            table = params.get("table", "")
+            column = params.get("column", "amount")
+            filters = params.get("filters", {})
+            total = _ai_sum(table, column, filters)
+            return jsonify({"success": True, "type": "sum",
+                            "answer": answer_hint, "total": float(total or 0),
+                            "source": _resolve_table(table)})
+
+        elif action == "SEARCH":
+            table = params.get("table", "")
+            columns = params.get("columns", [])
+            query = params.get("query", "")
+            limit = params.get("limit", 10)
+            data_list = _ai_search(table, columns, query, limit)
+            return jsonify({"success": True, "type": "search",
+                            "answer": answer_hint, "data": data_list,
+                            "source": _resolve_table(table)})
+
+        elif action == "DASHBOARD":
+            stats = _ai_dashboard()
+            return jsonify({"success": True, "type": "dashboard",
+                            "answer": answer_hint, "data": stats})
+
+        else:
+            return jsonify({"success": True, "type": "text",
+                            "answer": answer_hint or "تم الاستعلام بنجاح"})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"AI query error: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "خطأ في تنفيذ الاستعلام",
+                        "answer": "عذراً، حدث خطأ أثناء تنفيذ الاستعلام. يرجى المحاولة مرة أخرى."})
+
+
+_TABLE_MAP = {
+    "employees": "employees", "employee": "employees",
+    "customers": "customers", "customer": "customers",
+    "suppliers": "suppliers", "supplier": "suppliers",
+    "projects": "projects", "project": "projects",
+    "invoices": "invoices", "invoice": "invoices",
+    "items": "items", "item": "items",
+    "warehouses": "warehouses", "warehouse": "warehouses",
+    "accounts": "accounts", "account": "accounts",
+    "journal_entries": "journal_entries",
+    "installments": "installments", "installment": "installments",
+    "rental_contracts": "rental_contracts",
+    "hr_departments": "hr_departments", "department": "hr_departments",
+}
+
+
+_AI_ALLOWED_TABLES = set(_TABLE_MAP.values())
+
+def _resolve_table(name):
+    """يحل اسم الجدول — يرفض أي جدول غير مسموح."""
+    real = _TABLE_MAP.get(name.lower().strip())
+    if real not in _AI_ALLOWED_TABLES:
+        raise ValueError(f"جدول غير مسموح: {name}")
+    return real
+
+
+# أعمدة مسموحة لكل جدول (لمنع حقن أسماء الأعمدة)
+_AI_ALLOWED_COLUMNS = {
+    "employees": {"id", "full_name", "phone", "email", "department", "status", "hire_date"},
+    "customers": {"id", "full_name", "phone", "email", "type", "is_active"},
+    "suppliers": {"id", "company_name", "phone", "email", "category"},
+    "projects": {"id", "name", "location", "status", "priority"},
+    "invoices": {"id", "invoice_number", "amount", "status", "invoice_type"},
+    "items": {"id", "code", "name", "sale_price"},
+    "warehouses": {"id", "code", "name"},
+    "accounts": {"id", "code", "name", "type"},
+    "journal_entries": {"id", "entry_number", "status"},
+    "installments": {"id", "amount", "status", "due_date"},
+    "rental_contracts": {"id", "contract_number", "status", "monthly_rent"},
+    "hr_departments": {"id", "name", "is_active"},
+}
+
+
+def _ai_count(table, filters):
+    real = _resolve_table(table)
+    allowed_cols = _AI_ALLOWED_COLUMNS.get(real, set())
+    sql = f"SELECT COUNT(*) as cnt FROM {real}"
+    wheres, vals = [], {}
+    for k, v in filters.items():
+        if k not in allowed_cols:
+            raise ValueError(f"عمود غير مسموح: {k}")
+        wheres.append(f"{k} = :{k}")
+        vals[k] = v
+    if wheres:
+        sql += " WHERE " + " AND ".join(wheres)
+    row = db.session.execute(text(sql), vals).fetchone()
+    return row[0] if row else 0
+
+
+def _ai_sum(table, column, filters):
+    real = _resolve_table(table)
+    allowed_cols = _AI_ALLOWED_COLUMNS.get(real, set())
+    if column not in allowed_cols:
+        raise ValueError(f"عمود غير مسموح: {column}")
+    sql = f"SELECT COALESCE(SUM({column}), 0) as total FROM {real}"
+    wheres, vals = [], {}
+    for k, v in filters.items():
+        if k not in allowed_cols:
+            raise ValueError(f"عمود غير مسموح: {k}")
+        wheres.append(f"{k} = :{k}")
+        vals[k] = v
+    if wheres:
+        sql += " WHERE " + " AND ".join(wheres)
+    row = db.session.execute(text(sql), vals).fetchone()
+    return row[0] if row else 0
+
+
+def _ai_search(table, columns, query, limit):
+    real = _resolve_table(table)
+    allowed_cols = _AI_ALLOWED_COLUMNS.get(real, set())
+    cols = [c for c in (columns or ["id"]) if c in allowed_cols]
+    if not cols:
+        cols = ["id"]
+    # تحديد الحد الأقصى
+    try:
+        limit = min(max(int(limit), 1), 50)
+    except (TypeError, ValueError):
+        limit = 10
+    col_str = ", ".join(cols)
+    if "sqlite" in str(db.engine.url).lower():
+        conditions = " OR ".join([f"LOWER({c}) LIKE LOWER(:q)" for c in cols])
+    else:
+        conditions = " OR ".join([f"{c} ILIKE :q" for c in cols])
+    sql = f"SELECT {col_str} FROM {real} WHERE {conditions} LIMIT :lim"
+    rows = db.session.execute(text(sql), {"q": f"%{query}%", "lim": limit}).fetchall()
+    return [dict(zip(cols, row)) for row in rows]
+
+
+def _ai_dashboard():
+    stats = {}
+    try:
+        stats["employees_active"] = _ai_count("employees", {"status": "active"})
+        stats["customers_count"] = _ai_count("customers", {})
+        stats["invoices_count"] = _ai_count("invoices", {})
+        stats["overdue_installments"] = _ai_count("installments", {"status": "overdue"})
+        row = db.session.execute(text(
+            "SELECT COALESCE(SUM(amount), 0) FROM invoices WHERE status='paid'"
+        )).fetchone()
+        stats["total_revenue"] = float(row[0] or 0)
+        row2 = db.session.execute(text(
+            "SELECT COALESCE(SUM(amount - paid_amount), 0) FROM invoices WHERE status != 'paid'"
+        )).fetchone()
+        stats["total_receivable"] = float(row2[0] or 0)
+    except Exception:
+        from utils.errlog import log_exc
+        log_exc("api.dashboard-stats")
+    return stats
+
+
+# ── CSV Export ────────────────────────────────────────────────
+
+@api_bp.route("/export/<table_name>", methods=["GET"])
+@require_api("dashboard", "view")
+def export_table_csv(table_name):
+    """Export a table as CSV download."""
+    import csv
+    import io
+    from flask import Response
+
+    _EXPORT_TABLES = {
+        "employees", "customers", "suppliers", "projects", "invoices",
+        "invoice_items", "real_estate_units", "real_estate_buildings",
+        "rental_contracts", "sales_contracts", "installments",
+        "payment_plans", "journal_entries", "items", "fixed_assets",
+    }
+    if table_name not in _EXPORT_TABLES:
+        return jsonify({"message": "جدول غير مسموح به"}), 403
+
+    real = _resolve_table(table_name)
+    allowed_cols = _AI_ALLOWED_COLUMNS.get(real, set())
+    if not allowed_cols:
+        cols_str = "*"
+    else:
+        cols_str = ", ".join(sorted(allowed_cols))
+
+    rows = db.session.execute(text(f"SELECT {cols_str} FROM {real} LIMIT 10000")).fetchall()
+    if not rows:
+        cols = allowed_cols or []
+        data_rows = []
+    else:
+        cols = list(rows[0]._mapping.keys())
+        data_rows = rows
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(cols)
+    for row in data_rows:
+        writer.writerow([str(c) if c is not None else "" for c in row])
+
+    output = buf.getvalue()
+    return Response(
+        "\ufeff" + output,  # BOM for Excel Arabic support
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={table_name}_export.csv"},
+    )

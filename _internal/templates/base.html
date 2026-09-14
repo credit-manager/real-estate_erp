@@ -1,0 +1,358 @@
+﻿<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'ar' else 'ltr' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}2TO{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/icon-192.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2026082910">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+      (function () {
+        try {
+          var t = localStorage.getItem("dp-theme") || "{{ default_theme }}";
+          document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+    {% if debug %}
+    <script type="module">
+      import RefreshRuntime from 'http://localhost:3000/@vite/client'
+      RefreshRuntime.injectIntoGlobalHook(window)
+      RefreshRuntime.install()
+    </script>
+    {% endif %}
+  <script>
+    window.LANG = {{ lang|tojson }};
+    window.T = {{ translations_json|safe }};
+    window.PERMS = {{ permissions_json|safe }};
+    window.APP_SETTINGS = {{ app_settings_json|safe }};
+    window.CSRF_TOKEN = {{ csrf_token|tojson }};
+  </script>
+</head>
+<body data-page="{% block page %}{% endblock %}">
+  <div class="app-layout">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-mark">{% if system_logo %}<img src="{{ system_logo }}" alt="logo" style="width:28px;height:28px;border-radius:6px;object-fit:cover;">{% else %}<img src="{{ url_for('static', filename='img/logo-mark.svg') }}" alt="2TO" style="width:28px;height:28px;border-radius:6px;object-fit:cover;">{% endif %}</div>
+        <div class="sidebar-brand">
+          <span class="brand-name">{{ system_name }}</span>
+          <span class="brand-sub">{{ t('app.subtitle') }}</span>
+        </div>
+        <button class="sidebar-toggle-mobile" id="sidebar-close">âœ•</button>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav">
+{% if can('dashboard', 'view') %}
+        <a href="/dashboard" class="nav-item" data-page="dashboard">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          {{ t('nav.groupMain') }}
+        </a>
+        {% endif %}
+
+        {% if can('projects','view') or can('sales','view') or can('procurement','view') or can('crm','view') or can('hr','view') %}
+        <a href="/operations" class="nav-item" data-page="operations">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4z"/></svg>
+          {{ t('nav.groupOperations') }}
+        </a>
+        {% endif %}
+
+        {% if can('hr', 'view') %}
+        <a href="/hr" class="nav-item" data-page="hr">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          {{ t('nav.hr') }}
+        </a>
+        {% endif %}
+
+        {% if can('payroll', 'view') %}
+        <a href="/payroll-hub" class="nav-item" data-page="payroll">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+          {{ t('payroll.title') }}
+        </a>
+        {% endif %}
+
+        {% if can('inventory', 'view') %}
+        <a href="/inventory" class="nav-item" data-page="inventory">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+          {{ t('nav.inventory') }}
+        </a>
+        {% endif %}
+
+        {% if can('manufacturing', 'view') %}
+        <a href="/manufacturing-hub" class="nav-item" data-page="manufacturing">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M22 9V7h-2V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v2H2v2h2v2H2v2h2v2H2v2h2v2c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2v-2h-2V9h2zM6 5h12v14H6V5zm2 3v2h3V8H8zm5 0v2h3V8h-3zM8 12v2h3v-2H8zm5 0v2h3v-2h-3zM8 16v2h3v-2H8zm5 0v2h3v-2h-3z"/></svg>
+          {{ t('nav.groupManufacturing') }}
+        </a>
+        {% endif %}
+
+        {% if can('finance','view') or can('taxes','view') or can('reports','view') %}
+        <a href="/finance-hub" class="nav-item" data-page="finance">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.63 4.18 3.91c-.01 1.7-1.38 2.83-3.12 3.16z"/></svg>
+          {{ t('nav.groupFinance') }}
+        </a>
+        {% endif %}
+
+        {% if can('accounting', 'view') %}
+        <a href="/accounting" class="nav-item" data-page="accounting">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          {{ t('nav.groupAccounting') }}
+        </a>
+        {% endif %}
+
+        {% if can('realestate', 'view') or can('rentals', 'view') or can('accounting', 'view') %}
+        <a href="/assets-hub" class="nav-item" data-page="assets">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          {{ t('nav.groupAssets') }}
+        </a>
+        {% endif %}
+
+        {% if can('workflow', 'view') %}
+        <a href="/workflow-hub" class="nav-item" data-page="workflow">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          {{ t('nav.groupWorkflow') }}
+        </a>
+        {% endif %}
+
+        <a href="/system-hub" class="nav-item" data-page="system">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M12 2a1 1 0 011 1v.5A7 7 0 0119.5 10h.5a1 1 0 010 2h-.5a7 7 0 01-6.5 6.5V19a1 1 0 01-2 0v-.5A7 7 0 014.5 12H4a1 1 0 010-2h.5A7 7 0 0111 3.5V3a1 1 0 011-1zm-1 3.06a5 5 0 102 0v.44h-2V5.06zM12 8a2 2 0 110 4 2 2 0 010-4z"/></svg>
+          {{ t('nav.groupSystem') }}
+        </a>
+
+        {% if can('roles', 'view') or can('companies', 'view') or can('financial_years', 'view') or can('currencies', 'view') or can('users', 'view') %}
+        <a href="/admin-hub" class="nav-item" data-page="admin">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          {{ t('nav.groupAdmin') }}
+        </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">{{ full_name[0] if full_name else 'DP' }}</div>
+          <div class="user-details">
+            <span class="user-name">{{ full_name or t('common.user') }}</span>
+            <span class="user-role">{{ t('common.role') }}</span>
+          </div>
+        </div>
+        <button class="logout-btn" id="logout-btn" title="{{ t('common.logout') }}">
+          <svg viewBox="0 0 24 24" class="nav-icon"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ===== Main Area ===== -->
+    <div class="main-area">
+      <!-- Topbar -->
+      <header class="topbar">
+        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="{{ t('common.menu') }}">
+          <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        </button>
+        <div class="topbar-search" id="topbar-search">
+          <button class="search-ai-toggle" id="search-ai-toggle" title="{{ t('common.aiSearch') }}" aria-label="{{ t('common.aiSearch') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1a2 2 0 012 2v1a2 2 0 01-2 2h-1l4 4H5l4-4H8a2 2 0 01-2-2V9a2 2 0 012-2h1V6a4 4 0 014-4z"/></svg>
+          </button>
+          <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 001.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 00-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 005.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="text" id="global-search" placeholder="{{ t('common.search') }}" autocomplete="off">
+          <button class="search-voice-btn" id="search-voice-btn" title="{{ t('common.voiceSearch') }}" aria-label="{{ t('common.voiceSearch') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <div class="search-dropdown" id="search-dropdown" hidden>
+            <div id="search-results"></div>
+            <div class="ai-inline" id="ai-inline" hidden>
+              <div class="ai-inline-head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 014 4v1a2 2 0 012 2v1a2 2 0 01-2 2h-1l4 4H5l4-4H8a2 2 0 01-2-2V9a2 2 0 012-2h1V6a4 4 0 014-4z"/></svg>
+                <span>{{ t('common.aiSearch') }}</span>
+                <button class="ai-clear-btn" id="ai-clear-btn" title="{{ t('common.aiClear') }}" aria-label="{{ t('common.aiClear') }}">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>
+                </button>
+              </div>
+              <div class="ai-chat-log" id="ai-chat-log">
+                <div class="ai-empty-hint" id="ai-empty-hint">{{ t('common.aiEmptyHint') }}</div>
+              </div>
+              <div class="ai-chips" id="ai-chips">
+                <button type="button" class="ai-chip" data-q="{{ t('common.aiChip1') }}">{{ t('common.aiChip1') }}</button>
+                <button type="button" class="ai-chip" data-q="{{ t('common.aiChip2') }}">{{ t('common.aiChip2') }}</button>
+                <button type="button" class="ai-chip" data-q="{{ t('common.aiChip3') }}">{{ t('common.aiChip3') }}</button>
+                <button type="button" class="ai-chip" data-q="{{ t('common.aiChip4') }}">{{ t('common.aiChip4') }}</button>
+              </div>
+              <div class="ai-search-input-wrap">
+                <textarea id="ai-search-input" rows="1" placeholder="{{ t('common.askAI') }}"></textarea>
+                <button class="ai-search-send" id="ai-search-send">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="theme-toggle" title="{{ t('common.light') if is_dark else t('common.dark') }}">
+            <svg viewBox="0 0 24 24" class="theme-icon-dark" style="{{ 'display:none;' if is_dark }}"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+            <svg viewBox="0 0 24 24" class="theme-icon-light" style="{{ '' if is_dark else 'display:none;' }}"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zm0-5a1 1 0 011 1v2a1 1 0 01-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v2a1 1 0 01-2 0v-2a1 1 0 011-1zm9-9a1 1 0 01-1 1h-2a1 1 0 010-2h2a1 1 0 011 1zM5 12a1 1 0 01-1 1H2a1 1 0 010-2h2a1 1 0 011 1zm14.36 6.36a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM5.05 5.05a1 1 0 010 1.41L3.64 7.87a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zm12.02 12.02a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM7.87 7.87a1 1 0 010 1.41L6.46 9.7a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0z"/></svg>
+          </button>
+          <button class="lang-toggle" id="lang-toggle" title="{{ 'English' if lang == 'ar' else '\u0627\u0644\u0639\u0631\u0628\u064a\u0629' }}">
+            {{ 'EN' if lang == 'ar' else '\u0639\u0631\u0628\u064a' }}
+          </button>
+          <button class="layout-toggle-btn" id="layout-toggle" title="{{ t('nav.layoutToggle') }}" aria-label="{{ t('nav.layoutToggle') }}">
+            <svg class="layout-icon-vertical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="18" rx="1.5"/>
+              <rect x="14" y="3" width="7" height="18" rx="1.5"/>
+            </svg>
+            <svg class="layout-icon-horizontal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="18" height="7" rx="1.5"/>
+            </svg>
+            <span class="layout-toggle-label">{{ t('nav.layoutToggle') }}</span>
+          </button>
+          <div class="topbar-date" id="topbar-date"></div>
+          <button class="icon-btn" id="btn-master-panel" title="{{ t('nav.masterPanel') }}" hidden>
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm2.5 12.5l-4.89 3.11a.5.5 0 01-.76-.43V9.82a.5.5 0 01.76-.43l4.89 3.11a.5.5 0 010 .84z"/></svg>
+          </button>
+          <div class="topbar-notif">
+            <button class="icon-btn" id="notif-btn" title="{{ t('common.notifications') }}">
+              <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+              <span class="badge-dot" id="notif-badge" hidden></span>
+            </button>
+            <div class="notif-dropdown" id="notif-dropdown" hidden>
+              <div class="notif-header">{{ t('common.notifications') }}</div>
+              <div class="notif-list" id="notif-list"></div>
+            </div>
+          </div>
+          <div class="topbar-user">
+            <button class="topbar-user-btn" id="topbar-user-btn">
+              <div class="topbar-avatar">{{ full_name[0] if full_name else 'DP' }}</div>
+              <span class="topbar-username">{{ full_name or t('common.user') }}</span>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="topbar-user-dd" id="topbar-user-dd" hidden>
+              <a href="/profile" class="topbar-dd-item">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {{ t('nav.profile') }}
+              </a>
+              <button class="topbar-dd-item topbar-logout-btn" id="topbar-logout-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                {{ t('common.logout') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ===== Horizontal Navigation Bar (Landscape Mode) ===== -->
+      <nav class="hnav" id="hnav" role="navigation" aria-label="{{ t('nav.modules') }}">
+        <div class="hnav-inner">
+          <div class="hnav-scroll" id="hnav-scroll">
+{% if can('dashboard', 'view') %}
+            <div class="hnav-item direct" data-group="main">
+              <a href="/dashboard" data-page="dashboard">{{ t('nav.dashboard') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('projects','view') or can('sales','view') or can('procurement','view') or can('crm','view') %}
+            <div class="hnav-item direct" data-group="operations">
+              <a href="/operations" data-page="operations">{{ t('nav.groupOperations') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('hr', 'view') %}
+            <div class="hnav-item direct" data-group="hr">
+              <a href="/hr" data-page="hr">{{ t('nav.hr') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('payroll', 'view') %}
+            <div class="hnav-item direct" data-group="payroll">
+              <a href="/payroll-hub" data-page="payroll">{{ t('payroll.title') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('inventory', 'view') %}
+            <div class="hnav-item direct" data-group="inventory">
+              <a href="/inventory" data-page="inventory">{{ t('nav.inventory') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('manufacturing', 'view') %}
+            <div class="hnav-item direct" data-group="manufacturing">
+              <a href="/manufacturing-hub" data-page="manufacturing">{{ t('nav.groupManufacturing') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('finance','view') or can('taxes','view') or can('reports','view') %}
+            <div class="hnav-item direct" data-group="finance">
+              <a href="/finance-hub" data-page="finance">{{ t('nav.groupFinance') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('accounting', 'view') %}
+            <div class="hnav-item direct" data-group="accounting">
+              <a href="/accounting" data-page="accounting">{{ t('nav.groupAccounting') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('realestate', 'view') or can('rentals', 'view') or can('accounting', 'view') %}
+            <div class="hnav-item direct" data-group="assets">
+              <a href="/assets-hub" data-page="assets">{{ t('nav.groupAssets') }}</a>
+            </div>
+            {% endif %}
+
+            {% if can('workflow', 'view') %}
+            <div class="hnav-item direct" data-group="workflow">
+              <a href="/workflow-hub" data-page="workflow">{{ t('nav.groupWorkflow') }}</a>
+            </div>
+            {% endif %}
+
+            <div class="hnav-item direct" data-group="system">
+              <a href="/system-hub" data-page="system">{{ t('nav.groupSystem') }}</a>
+            </div>
+
+            {% if can('roles', 'view') or can('companies', 'view') or can('financial_years', 'view') or can('currencies', 'view') or can('users', 'view') %}
+            <div class="hnav-item direct" data-group="admin">
+              <a href="/admin-hub" data-page="admin">{{ t('nav.groupAdmin') }}</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="hnav-indicator" id="hnav-indicator"></div>
+        </div>
+      </nav>
+
+      <!-- Page Content -->
+      <main class="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=2026082910"></script>
+  <script>
+    (function () {
+      var btn = document.getElementById('btn-master-panel');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        window.open('/admin', '_blank');
+      });
+      fetch('/api/me', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          var role = d && d.authenticated && d.type === 'employee' && d.user ? d.user.role : null;
+          if (role === 'admin') { btn.hidden = false; }
+        })
+        .catch(function () {});
+    })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

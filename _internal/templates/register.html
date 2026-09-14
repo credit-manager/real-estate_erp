@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynamicPro | تسجيل شركة جديدة</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2026082907">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("dp-theme") || "dark";
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root {
+      --reg-primary: #2563eb;
+      --reg-primary-hover: #1d4ed8;
+      --reg-accent: #3b82f6;
+      --reg-success: #10b981;
+      --reg-bg: #0b0f1a;
+      --reg-card: rgba(15, 23, 42, 0.85);
+      --reg-card-border: rgba(59, 130, 246, 0.15);
+      --reg-input-bg: rgba(30, 41, 59, 0.6);
+      --reg-input-border: rgba(100, 116, 139, 0.3);
+      --reg-input-focus: rgba(59, 130, 246, 0.5);
+      --reg-text: #e2e8f0;
+      --reg-text-muted: #94a3b8;
+      --reg-text-heading: #f1f5f9;
+      --reg-error: #ef4444;
+      --reg-error-bg: rgba(239, 68, 68, 0.1);
+      --reg-success-bg: rgba(16, 185, 129, 0.1);
+      --reg-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 50%, #a855f7 100%);
+    }
+
+    [data-theme="light"] {
+      --reg-bg: #f0f4f8;
+      --reg-card: rgba(255, 255, 255, 0.95);
+      --reg-card-border: rgba(59, 130, 246, 0.12);
+      --reg-input-bg: #f8fafc;
+      --reg-input-border: rgba(148, 163, 184, 0.4);
+      --reg-input-focus: rgba(59, 130, 246, 0.5);
+      --reg-text: #1e293b;
+      --reg-text-muted: #64748b;
+      --reg-text-heading: #0f172a;
+      --reg-error-bg: rgba(239, 68, 68, 0.06);
+      --reg-success-bg: rgba(16, 185, 129, 0.06);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans Arabic', 'Almarai', sans-serif;
+      background: var(--reg-bg);
+      color: var(--reg-text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* ── Background orbs ── */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.15;
+      z-index: 0;
+      pointer-events: none;
+    }
+    body::before {
+      width: 600px; height: 600px;
+      background: #2563eb;
+      top: -200px; right: -150px;
+    }
+    body::after {
+      width: 500px; height: 500px;
+      background: #7c3aed;
+      bottom: -200px; left: -100px;
+    }
+
+    /* ── Grid pattern ── */
+    .reg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* ── Main container ── */
+    .reg-container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* ── Header ── */
+    .reg-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .reg-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      background: var(--reg-gradient);
+      color: #fff;
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3);
+    }
+    .reg-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--reg-text-heading);
+      margin-bottom: 0.5rem;
+      line-height: 1.3;
+    }
+    .reg-subtitle {
+      color: var(--reg-text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .reg-trial-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      background: var(--reg-success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--reg-success);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* ── Card ── */
+    .reg-card {
+      background: var(--reg-card);
+      border: 1px solid var(--reg-card-border);
+      border-radius: 20px;
+      padding: 2.5rem;
+      backdrop-filter: blur(20px);
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+    }
+
+    /* ── Form fields ── */
+    .reg-field {
+      margin-bottom: 1.25rem;
+    }
+    .reg-field label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--reg-text);
+      margin-bottom: 0.5rem;
+    }
+    .reg-field label .required {
+      color: var(--reg-error);
+      margin-inline-start: 2px;
+    }
+    .reg-field input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--reg-input-border);
+      border-radius: 12px;
+      background: var(--reg-input-bg);
+      color: var(--reg-text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+      direction: rtl;
+    }
+    .reg-field input::placeholder {
+      color: var(--reg-text-muted);
+      opacity: 0.6;
+    }
+    .reg-field input:focus {
+      outline: none;
+      border-color: var(--reg-primary);
+      box-shadow: 0 0 0 3px var(--reg-input-focus);
+    }
+    .reg-field input.error {
+      border-color: var(--reg-error);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+    }
+    .reg-field .field-hint {
+      font-size: 0.8rem;
+      color: var(--reg-text-muted);
+      margin-top: 0.35rem;
+    }
+    .reg-field .field-error {
+      font-size: 0.8rem;
+      color: var(--reg-error);
+      margin-top: 0.35rem;
+      display: none;
+    }
+    .reg-field input.error + .field-error {
+      display: block;
+    }
+
+    /* ── Password wrapper ── */
+    .reg-pw-wrap {
+      position: relative;
+    }
+    .reg-pw-wrap input {
+      padding-start: 3rem;
+      padding-end: 1rem;
+    }
+    .pw-toggle {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      inset-inline-start: 0.75rem;
+      background: none;
+      border: none;
+      color: var(--reg-text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pw-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+    .pw-toggle .pw-eye-closed { display: none; }
+    .pw-toggle.active .pw-eye-open { display: none; }
+    .pw-toggle.active .pw-eye-closed { display: block; }
+
+    /* ── Password strength bar ── */
+    .pw-strength {
+      display: flex;
+      gap: 4px;
+      margin-top: 0.5rem;
+    }
+    .pw-strength .bar {
+      flex: 1;
+      height: 3px;
+      border-radius: 3px;
+      background: var(--reg-input-border);
+      transition: background 0.3s ease;
+    }
+    .pw-strength.weak .bar:nth-child(1) { background: var(--reg-error); }
+    .pw-strength.fair .bar:nth-child(-n+2) { background: #f59e0b; }
+    .pw-strength.good .bar:nth-child(-n+3) { background: #22c55e; }
+    .pw-strength.strong .bar { background: var(--reg-success); }
+    .pw-strength-label {
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      color: var(--reg-text-muted);
+    }
+    .pw-strength.weak + .pw-strength-label { color: var(--reg-error); }
+    .pw-strength.fair ~ .pw-strength-label { color: #f59e0b; }
+    .pw-strength.good ~ .pw-strength-label { color: #22c55e; }
+    .pw-strength.strong ~ .pw-strength-label { color: var(--reg-success); }
+
+    /* ── Row layout ── */
+    .reg-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* ── Terms checkbox ── */
+    .reg-terms {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+      padding: 1rem;
+      border-radius: 12px;
+      background: var(--reg-input-bg);
+      border: 1px solid var(--reg-input-border);
+    }
+    .reg-terms input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--reg-primary);
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .reg-terms label {
+      font-size: 0.85rem;
+      color: var(--reg-text-muted);
+      line-height: 1.6;
+      cursor: pointer;
+    }
+    .reg-terms a {
+      color: var(--reg-primary);
+      text-decoration: none;
+    }
+    .reg-terms a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Submit button ── */
+    .reg-btn {
+      width: 100%;
+      padding: 0.85rem 2rem;
+      border: none;
+      border-radius: 12px;
+      background: var(--reg-gradient);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .reg-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+    }
+    .reg-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .reg-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .reg-btn .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto;
+    }
+    .reg-btn.loading .btn-text { display: none; }
+    .reg-btn.loading .spinner { display: block; }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ── Alert box ── */
+    .reg-alert {
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+      display: none;
+      line-height: 1.5;
+    }
+    .reg-alert.error {
+      background: var(--reg-error-bg);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: var(--reg-error);
+    }
+    .reg-alert.success {
+      background: var(--reg-success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--reg-success);
+    }
+
+    /* ── Success screen ── */
+    .reg-success-screen {
+      display: none;
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+    .reg-success-screen .success-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--reg-success-bg);
+      border: 2px solid var(--reg-success);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+    }
+    .reg-success-screen .success-icon svg {
+      width: 40px;
+      height: 40px;
+      color: var(--reg-success);
+    }
+    .reg-success-screen h2 {
+      font-size: 1.4rem;
+      color: var(--reg-text-heading);
+      margin-bottom: 0.75rem;
+    }
+    .reg-success-screen p {
+      color: var(--reg-text-muted);
+      line-height: 1.7;
+      margin-bottom: 0.5rem;
+    }
+    .reg-success-screen .trial-info {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 10px;
+      background: rgba(37, 99, 235, 0.1);
+      border: 1px solid rgba(37, 99, 235, 0.2);
+      color: var(--reg-accent);
+      font-weight: 600;
+      margin: 1.25rem 0;
+    }
+
+    /* ── Footer ── */
+    .reg-footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      color: var(--reg-text-muted);
+    }
+    .reg-footer a {
+      color: var(--reg-primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .reg-footer a:hover {
+      text-decoration: underline;
+    }
+
+    .reg-copyright {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--reg-text-muted);
+      opacity: 0.5;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 560px) {
+      .reg-card { padding: 1.75rem 1.25rem; }
+      .reg-row { grid-template-columns: 1fr; gap: 0; }
+      .reg-title { font-size: 1.4rem; }
+    }
+
+    /* ── Direction toggle ── */
+    [dir="ltr"] .reg-field input { direction: ltr; text-align: left; }
+    [dir="ltr"] .reg-pw-wrap input { padding-left: 3rem; padding-right: 1rem; }
+    [dir="ltr"] .pw-toggle { left: 0.75rem; right: auto; }
+
+    /* ── Theme toggle ── */
+    .reg-tools {
+      position: fixed;
+      top: 1.25rem;
+      inset-inline-end: 1.25rem;
+      z-index: 10;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .reg-tool-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--reg-card-border);
+      background: var(--reg-card);
+      color: var(--reg-text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      backdrop-filter: blur(10px);
+    }
+    .reg-tool-btn:hover {
+      border-color: var(--reg-primary);
+      color: var(--reg-primary);
+    }
+    .reg-tool-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="reg-grid" aria-hidden="true"></div>
+
+  <!-- Tools: Language & Theme -->
+  <div class="reg-tools">
+    <button class="reg-tool-btn" id="lang-toggle" title="English">
+      EN
+    </button>
+    <button class="reg-tool-btn" id="theme-toggle" title="تبديل المظهر">
+      <svg viewBox="0 0 24 24" class="theme-icon-dark" style="display:none;"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z" fill="currentColor"/></svg>
+      <svg viewBox="0 0 24 24" class="theme-icon-light"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zm0-5a1 1 0 011 1v2a1 1 0 01-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v2a1 1 0 01-2 0v-2a1 1 0 011-1zm9-9a1 1 0 01-1 1h-2a1 1 0 010-2h2a1 1 0 011 1zM5 12a1 1 0 01-1 1H2a1 1 0 010-2h2a1 1 0 011 1zm14.36 6.36a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM5.05 5.05a1 1 0 010 1.41L3.64 7.87a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zm12.02 12.02a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM7.87 7.87a1 1 0 010 1.41L6.46 9.7a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0z" fill="currentColor"/></svg>
+    </button>
+  </div>
+
+  <div class="reg-container">
+    <!-- Header -->
+    <div class="reg-header">
+      <div class="reg-logo" style="overflow:hidden;"><img src="/static/img/logo-mark.svg" alt="2TO" style="width:100%;height:100%;border-radius:16px;object-fit:cover;"></div>
+      <h1 class="reg-title">سجل شركتك مجاناً</h1>
+      <p class="reg-subtitle">ابدأ تجربتك المجانية واستكشف ميزات DynamicPro ERP</p>
+      <div class="reg-trial-badge">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        تجربة مجانية لمدة {{ trial_days }} يوماً
+      </div>
+    </div>
+
+    <!-- Registration Form -->
+    <div class="reg-card">
+      <form id="register-form" novalidate>
+        <!-- Alert -->
+        <div id="reg-alert" class="reg-alert"></div>
+
+        <!-- Company Name -->
+        <div class="reg-field">
+          <label for="company_name">اسم الشركة <span class="required">*</span></label>
+          <input type="text" id="company_name" name="company_name" placeholder="مثال: شركة النخبة للتقنية" required autocomplete="organization">
+          <div class="field-error" id="err-company_name"></div>
+        </div>
+
+        <!-- Admin Name -->
+        <div class="reg-field">
+          <label for="admin_name">اسم المدير <span class="required">*</span></label>
+          <input type="text" id="admin_name" name="admin_name" placeholder="مثال: أحمد محمد" required autocomplete="name">
+          <div class="field-error" id="err-admin_name"></div>
+        </div>
+
+        <!-- Email & Phone Row -->
+        <div class="reg-row">
+          <div class="reg-field">
+            <label for="admin_email">البريد الإلكتروني <span class="required">*</span></label>
+            <input type="email" id="admin_email" name="admin_email" placeholder="admin@company.com" required autocomplete="email" dir="ltr">
+            <div class="field-error" id="err-admin_email"></div>
+          </div>
+          <div class="reg-field">
+            <label for="phone">رقم الهاتف</label>
+            <input type="tel" id="phone" name="phone" placeholder="+20 100 000 0000" autocomplete="tel" dir="ltr">
+            <div class="field-error" id="err-phone"></div>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="reg-field">
+          <label for="admin_password">كلمة المرور <span class="required">*</span></label>
+          <div class="reg-pw-wrap">
+            <input type="password" id="admin_password" name="admin_password" placeholder="8 أحرف على الأقل" required autocomplete="new-password">
+            <button type="button" class="pw-toggle" tabindex="-1" aria-label="إظهار/إخفاء كلمة المرور">
+              <svg class="pw-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="pw-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+          <div class="pw-strength" id="pw-strength">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          </div>
+          <div class="pw-strength-label" id="pw-label"></div>
+          <div class="field-error" id="err-admin_password"></div>
+        </div>
+
+        <!-- Terms -->
+        <div class="reg-terms">
+          <input type="checkbox" id="accept_terms" name="accept_terms">
+          <label for="accept_terms">
+            أوافق على <a href="#" onclick="event.preventDefault();">الشروط والأحكام</a> و<a href="#" onclick="event.preventDefault();">سياسة الخصوصية</a>
+          </label>
+        </div>
+        <div class="field-error" id="err-accept_terms" style="margin-top:-1rem;margin-bottom:1rem;"></div>
+
+        <!-- Submit -->
+        <button type="submit" class="reg-btn" id="submit-btn">
+          <span class="btn-text">إنشاء حساب تجريبي</span>
+          <div class="spinner"></div>
+        </button>
+      </form>
+
+      <!-- Success Screen -->
+      <div class="reg-success-screen" id="success-screen">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h2>تم التسجيل بنجاح!</h2>
+        <p>تم إنشاء حسابك التجريبي بنجاح.</p>
+        <div class="trial-info" id="trial-info">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="trial-days-text">تجربتك تنتهي خلال {{ trial_days }} يوماً</span>
+        </div>
+        <p style="font-size:0.85rem;">يمكنك تسجيل الدخول الآن باستخدام بياناتك.</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="reg-footer">
+      <p>لديك حساب بالفعل؟ <a href="/admin/">سجّل الدخول</a></p>
+    </div>
+    <div class="reg-copyright">© {{ 2026 }} DynamicPro ERP</div>
+  </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById('register-form');
+      var submitBtn = document.getElementById('submit-btn');
+      var alertBox = document.getElementById('reg-alert');
+      var successScreen = document.getElementById('success-screen');
+
+      // ── Theme toggle ──
+      var themeToggle = document.getElementById('theme-toggle');
+      themeToggle.addEventListener('click', function () {
+        var current = document.documentElement.dataset.theme;
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('dp-theme', next);
+      });
+
+      // ── Password toggle ──
+      document.querySelectorAll('.pw-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var input = btn.closest('.reg-pw-wrap').querySelector('input');
+          var isPassword = input.type === 'password';
+          input.type = isPassword ? 'text' : 'password';
+          btn.classList.toggle('active', isPassword);
+        });
+      });
+
+      // ── Password strength ──
+      var pwInput = document.getElementById('admin_password');
+      var pwStrength = document.getElementById('pw-strength');
+      var pwLabel = document.getElementById('pw-label');
+      var strengthLabels = ['', 'ضعيفة', 'مقبولة', 'جيدة', 'قوية'];
+      var strengthClasses = ['', 'weak', 'fair', 'good', 'strong'];
+
+      function calcStrength(pw) {
+        var score = 0;
+        if (pw.length >= 8) score++;
+        if (pw.length >= 12) score++;
+        if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+        if (/\d/.test(pw)) score++;
+        if (/[^a-zA-Z0-9]/.test(pw)) score++;
+        return Math.min(score, 4);
+      }
+
+      pwInput.addEventListener('input', function () {
+        var s = calcStrength(pwInput.value);
+        pwStrength.className = 'pw-strength ' + (strengthClasses[s] || '');
+        pwLabel.textContent = pwInput.value ? strengthLabels[s] : '';
+      });
+
+      // ── Clear errors on input ──
+      form.querySelectorAll('input').forEach(function (input) {
+        input.addEventListener('input', function () {
+          input.classList.remove('error');
+          var errEl = document.getElementById('err-' + input.name);
+          if (errEl) errEl.textContent = '';
+          alertBox.style.display = 'none';
+        });
+      });
+
+      // ── Submit ──
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        // Client-side validation
+        var errors = {};
+        var company_name = document.getElementById('company_name').value.trim();
+        var admin_name = document.getElementById('admin_name').value.trim();
+        var admin_email = document.getElementById('admin_email').value.trim();
+        var admin_password = document.getElementById('admin_password').value;
+        var phone = document.getElementById('phone').value.trim();
+        var accept_terms = document.getElementById('accept_terms').checked;
+
+        if (!company_name) errors.company_name = 'اسم الشركة مطلوب';
+        if (!admin_name) errors.admin_name = 'اسم المدير مطلوب';
+        if (!admin_email) errors.admin_email = 'البريد الإلكتروني مطلوب';
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin_email)) errors.admin_email = 'البريد الإلكتروني غير صالح';
+        if (!admin_password) errors.admin_password = 'كلمة المرور مطلوبة';
+        else if (admin_password.length < 8) errors.admin_password = 'كلمة المرور يجب ألا تقل عن 8 أحرف';
+        if (!accept_terms) errors.accept_terms = 'يجب الموافقة على الشروط';
+
+        var hasError = false;
+        for (var key in errors) {
+          if (errors[key]) {
+            var errEl = document.getElementById('err-' + key);
+            if (errEl) errEl.textContent = errors[key];
+            var inputEl = document.getElementById(key);
+            if (inputEl) inputEl.classList.add('error');
+            hasError = true;
+          }
+        }
+        if (hasError) return;
+
+        // Show loading
+        submitBtn.classList.add('loading');
+        submitBtn.disabled = true;
+        alertBox.style.display = 'none';
+
+        var payload = {
+          company_name: company_name,
+          admin_name: admin_name,
+          admin_email: admin_email,
+          admin_password: admin_password,
+          phone: phone || undefined,
+          accept_terms: true,
+        };
+
+        fetch('/admin/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data.success) {
+              form.style.display = 'none';
+              successScreen.style.display = 'block';
+              if (data.trial_ends_at) {
+                var endDate = new Date(data.trial_ends_at);
+                var now = new Date();
+                var daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                document.getElementById('trial-days-text').textContent =
+                  'تجربتك تنتهي خلال ' + daysLeft + ' يوماً (' + data.trial_ends_at + ')';
+              }
+            } else {
+              showAlert(data.message || 'حدث خطأ أثناء التسجيل', 'error');
+            }
+          })
+          .catch(function (err) {
+            showAlert('حدث خطأ في الاتصال. يُرجى المحاولة لاحقاً.', 'error');
+          })
+          .finally(function () {
+            submitBtn.classList.remove('loading');
+            submitBtn.disabled = false;
+          });
+      });
+
+      function showAlert(msg, type) {
+        alertBox.textContent = msg;
+        alertBox.className = 'reg-alert ' + type;
+        alertBox.style.display = 'block';
+        alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    })();
+  </script>
+</body>
+</html>

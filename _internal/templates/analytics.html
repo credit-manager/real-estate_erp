@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav.analytics') }} | 2TO{% endblock %}
+{% block page %}analytics{% endblock %}
+{% block content %}
+<style>
+  .anx-wrap{max-width:1280px;margin:0 auto;padding:24px 20px 60px}
+  .anx-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  .anx-title{font-size:1.45rem;font-weight:800}
+  .anx-sub{color:var(--text-muted);font-size:.85rem;margin-top:4px}
+  .anx-version{font-size:.78rem;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);padding:6px 12px;border-radius:10px;white-space:nowrap}
+  .anx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+  .anx-kpi{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;transition:transform .15s ease}
+  .anx-kpi:hover{transform:translateY(-2px)}
+  .anx-kpi-label{font-size:.78rem;color:var(--text-muted);display:flex;align-items:center;gap:6px}
+  .anx-kpi-value{font-size:1.35rem;font-weight:800;letter-spacing:-.02em}
+  .anx-kpi-value small{font-size:.72rem;color:var(--text-muted);font-weight:500}
+  .anx-kpi.bad .anx-kpi-value{color:#e5484d}
+  .anx-kpi.good .anx-kpi-value{color:#30a46c}
+  .anx-kpi.warn .anx-kpi-value{color:#f76b15}
+  .anx-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px}
+  .anx-row.wide{grid-template-columns:1fr 1fr}
+  .anx-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+  .anx-panel h3{margin:0 0 14px;font-size:.95rem;font-weight:700}
+  .anx-canvas{position:relative;height:260px}
+  .anx-alerts{margin-top:0}
+  .anx-badges{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .anx-badge{padding:7px 14px;border-radius:999px;font-size:.8rem;font-weight:700}
+  .anx-badge.critical{background:rgba(229,72,77,.14);color:#e5484d}
+  .anx-badge.warning{background:rgba(247,107,21,.14);color:#f76b15}
+  .anx-badge.info{background:rgba(0,136,204,.14);color:#0086cc}
+  .anx-badge.ok{background:rgba(48,164,108,.14);color:#30a46c}
+  .anx-alert{display:flex;gap:10px;padding:11px 13px;border-radius:11px;border:1px solid var(--border);background:var(--surface-2);margin-bottom:8px;align-items:flex-start}
+  .anx-alert .anx-dot{width:9px;height:9px;border-radius:50%;margin-top:7px;flex:none}
+  .anx-alert .anx-dot.critical{background:#e5484d}
+  .anx-alert .anx-dot.warning{background:#f76b15}
+  .anx-alert .anx-dot.info{background:#0086cc}
+  .anx-alert b{font-size:.84rem}
+  .anx-alert p{margin:2px 0 0;font-size:.78rem;color:var(--text-muted)}
+  .anx-empty{color:var(--text-muted);font-size:.85rem;text-align:center;padding:26px 0}
+  .anx-table{width:100%;border-collapse:collapse;font-size:.82rem}
+  .anx-table th{text-align:right;color:var(--text-muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border)}
+  .anx-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
+  .anx-table tr:last-child td{border-bottom:none}
+  .anx-state{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;color:var(--text-muted);padding:10px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
+  .anx-spin{width:16px;height:16px;border:2px solid rgba(127,127,127,.3);border-top-color:var(--accent,var(--primary,#3b82f6));border-radius:50%;animation:anx-spin 1s linear infinite}
+  @keyframes anx-spin{to{transform:rotate(360deg)}}
+  .anx-lowstock-inline{overflow-x:auto}
+  .anx-banner{margin-top:16px}
+  @media (max-width:900px){.anx-row,.anx-row.wide{grid-template-columns:1fr}}
+</style>
+
+<div class="anx-wrap">
+  <div class="anx-head">
+    <div>
+      <div class="anx-title">{{ t('nav.analytics') }}</div>
+      <div class="anx-sub">مؤشرات الأداء الرئيسية والتنبيهات الذكية — محسوبة محلياً من بياناتك</div>
+    </div>
+    <div class="anx-version" id="anx-version">{{ app_name }} ｜ الإصدار {{ version }}</div>
+  </div>
+
+  <div class="anx-state" id="anx-loading"><span class="anx-spin"></span> جاري احتساب المؤشرات...</div>
+
+  <div id="anx-body" hidden>
+    <div class="anx-grid" id="anx-kpis"></div>
+
+    <div class="anx-row">
+      <div class="anx-panel">
+        <h3>الإيرادات مقابل المصروفات (آخر ١٢ شهراً)</h3>
+        <div class="anx-canvas"><canvas id="anx-chart-trend"></canvas></div>
+      </div>
+      <div class="anx-panel">
+        <h3>الذمم المتأخرة (توزيع العمر)</h3>
+        <div class="anx-canvas"><canvas id="anx-chart-aging"></canvas></div>
+      </div>
+    </div>
+
+    <div class="anx-row wide">
+      <div class="anx-panel">
+        <h3>أفضل المنتجات (إيراداً)</h3>
+        <div class="anx-canvas"><canvas id="anx-chart-products"></canvas></div>
+      </div>
+      <div class="anx-panel">
+        <h3>أفضل العملاء (إيراداً)</h3>
+        <div class="anx-canvas"><canvas id="anx-chart-customers"></canvas></div>
+      </div>
+    </div>
+
+    <div class="anx-row wide" style="grid-template-columns:1.4fr 1fr">
+      <div class="anx-panel">
+        <h3>بنود تحتاج إعادة طلب</h3>
+        <div class="anx-lowstock-inline" id="anx-lowstock"></div>
+      </div>
+      <div class="anx-panel anx-alerts">
+        <h3>تنبيهات ذكية</h3>
+        <div class="anx-badges" id="anx-badges"></div>
+        <div id="anx-alerts"></div>
+      </div>
+    </div>
+
+    <div class="anx-row wide">
+      <div class="anx-panel">
+        <h3>🔄 توصيات كميات إعادة الطلب (حسب الاستهلاك + مهلة التوريد {{ reorder_lead_days }} يوم)</h3>
+        <div class="anx-lowstock-inline" id="anx-reorder"></div>
+        <div class="form-hint" style="margin-top:8px;font-size:.74rem">
+          الاستهلاك محسوب من حركات المخزون خلال آخر 90 يوماً — الكمية المقترحة = استهلاك فترة التوريد + الحد الأدنى − الرصيد الحالي
+        </div>
+      </div>
+      <div class="anx-panel">
+        <h3>🏗️ مشاريع — ميزانية وإنجاز ومخاطر</h3>
+        <div class="anx-lowstock-inline" id="anx-projects"></div>
+      </div>
+    </div>
+
+    <div class="anx-row wide anx-banner">
+      <div class="anx-panel">
+        <h3>🗺️ خطّة تحديثات 2026</h3>
+        <div id="anx-roadmap" style="font-size:.82rem;line-height:1.7;color:var(--text-muted)"></div>
+      </div>
+      <div class="anx-panel">
+        <h3>🏛️ الفوترة الإلكترونية (ETA / ZATCA)</h3>
+        <div id="anx-einv" style="font-size:.82rem;line-height:1.7;color:var(--text-muted)"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}?v=2026091302"></script>
+{% endblock %}

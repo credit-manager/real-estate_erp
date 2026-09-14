@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2TO ERP - Brand Guidelines v2.1</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  
+  :root {
+    --deep-navy: #071C2A;
+    --enterprise-navy: #102B3C;
+    --enterprise-teal: #0B7285;
+    --silver: #D5DADF;
+    --silver-hi: #F4F6F7;
+    --silver-shadow: #8D9AA3;
+    --white: #FFFFFF;
+    --bg: #F8F9FA;
+  }
+  
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: #1a1a1a;
+    line-height: 1.6;
+  }
+  
+  .cover {
+    background: linear-gradient(135deg, var(--deep-navy) 0%, var(--enterprise-navy) 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+    padding: 60px 40px;
+  }
+  
+  .cover img { width: 200px; margin-bottom: 40px; }
+  .cover h1 { font-size: 48px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+  .cover h2 { font-size: 24px; font-weight: 300; color: var(--silver); margin-bottom: 40px; }
+  .cover .version { font-size: 14px; color: var(--silver-shadow); }
+  
+  .section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 80px 40px;
+  }
+  
+  .section-title {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--enterprise-teal);
+    margin-bottom: 12px;
+  }
+  
+  .section h2 {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--deep-navy);
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+  }
+  
+  .section p { font-size: 16px; color: #555; max-width: 700px; margin-bottom: 32px; }
+  
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    margin-bottom: 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  
+  .card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--deep-navy);
+    margin-bottom: 16px;
+  }
+  
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; }
+  
+  .color-swatch {
+    border-radius: 12px;
+    padding: 24px;
+    color: white;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .color-swatch .name { font-weight: 700; font-size: 14px; }
+  .color-swatch .hex { font-weight: 400; font-size: 13px; opacity: 0.8; }
+  .color-swatch .usage { font-weight: 400; font-size: 12px; opacity: 0.7; margin-top: 4px; }
+  .color-swatch.light { color: var(--deep-navy); }
+  
+  .logo-box {
+    background: var(--bg);
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+  }
+  
+  .logo-box.dark { background: var(--deep-navy); border-color: var(--deep-navy); }
+  
+  .logo-box img { max-height: 80px; max-width: 100%; }
+  .logo-box .label { font-size: 12px; color: var(--silver-shadow); margin-top: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  
+  .ratio-table { width: 100%; border-collapse: collapse; }
+  .ratio-table th, .ratio-table td { text-align: left; padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 14px; }
+  .ratio-table th { color: var(--enterprise-navy); font-weight: 600; }
+  
+  .spec-box {
+    background: #f0f4f7;
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 13px;
+    color: var(--enterprise-navy);
+    line-height: 2;
+  }
+  
+  .do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .do-box, .dont-box { border-radius: 12px; padding: 24px; }
+  .do-box { background: #e8f5e9; border-left: 4px solid #43a047; }
+  .dont-box { background: #ffebee; border-left: 4px solid #e53935; }
+  .do-box h4 { color: #2e7d32; }
+  .dont-box h4 { color: #c62828; }
+  .do-box li, .dont-box li { font-size: 13px; margin-bottom: 8px; color: #444; }
+  
+  .typo-sample { margin-bottom: 16px; }
+  .typo-sample .label { font-size: 12px; color: var(--silver-shadow); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .typo-sample .demo { color: var(--deep-navy); }
+  
+  .usage-ratio {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .usage-ratio div { height: 100%; }
+  
+  .footer {
+    background: var(--deep-navy);
+    color: var(--silver);
+    text-align: center;
+    padding: 40px;
+    font-size: 13px;
+  }
+  
+  @media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4, .do-dont { grid-template-columns: 1fr; }
+    .cover h1 { font-size: 32px; }
+    .section h2 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== COVER ===== -->
+<div class="cover">
+  <img src="logo-2to-3d.svg" alt="2TO Logo">
+  <h1>Brand Guidelines</h1>
+  <h2>2TO ERP - Enterprise Resource Planning</h2>
+  <div class="version">Version 2.1 &bull; September 2026</div>
+</div>
+
+<!-- ===== 01. BRAND OVERVIEW ===== -->
+<div class="section">
+  <div class="section-title">01 &mdash; Brand Overview</div>
+  <h2>Our Brand Identity</h2>
+  <p>2TO ERP is an enterprise resource planning system built for organizations that demand precision, security, and scalability. Our brand identity reflects these values through a distinctive corporate shield symbol and the architectural integration of the number "2" as our recognizable corporate asset.</p>
+  
+  <div class="card">
+    <h3>Brand Architecture</h3>
+    <div class="grid-3" style="margin-top:16px;">
+      <div style="text-align:center;">
+        <img src="logo-mark.svg" style="height:80px;margin-bottom:12px;">
+        <div style="font-weight:700;color:var(--deep-navy);">Corporate Brand</div>
+        <div style="font-size:13px;color:#888;">2TO - The parent company identity. Always present.</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--enterprise-teal);margin-bottom:12px;">EOS</div>
+        <div style="font-weight:700;color:var(--deep-navy);">Product / Platform</div>
+        <div style="font-size:13px;color:#888;">EOS - The ERP platform. Uses 2TO logo + accent color.</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:80px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--enterprise-navy);margin-bottom:12px;border:2px solid var(--silver);border-radius:8px;padding:8px 16px;">Sub-Brand</div>
+        <div style="font-weight:700;color:var(--deep-navy);">Division / Module</div>
+        <div style="font-size:13px;color:#888;">Same logo + unique accent color. No fragmentation.</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>UI Color Ratios</h3>
+    <div class="usage-ratio">
+      <div style="width:70%;background:#fff;border:1px solid #ddd;"></div>
+      <div style="width:20%;background:var(--enterprise-navy);"></div>
+      <div style="width:10%;background:var(--enterprise-teal);"></div>
+    </div>
+    <div class="grid-3" style="font-size:13px;color:#666;">
+      <div><strong style="color:var(--deep-navy);">70% Neutral</strong><br>White, Light Gray, Charcoal — backgrounds, body text, cards</div>
+      <div><strong style="color:var(--enterprise-navy);">20% Navy</strong><br>Navigation, headers, footer, sidebar, borders</div>
+      <div><strong style="color:var(--enterprise-teal);">10% Teal</strong><br>CTAs, active states, highlights, links, accents</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 02. LOGO SYSTEM ===== -->
+<div class="section" style="background:white;">
+  <div class="section-title">02 &mdash; Logo System</div>
+  <h2>Logo Versions</h2>
+  <p>The 2TO logo has three approved versions. The Flat Primary is used for all daily applications. The Digital version adds color depth for screens. The Premium 3D version is reserved for presentations and high-impact signage only.</p>
+  
+  <div class="grid-3">
+    <div>
+      <div class="logo-box">
+        <img src="logo-2to.svg" alt="Flat Primary">
+        <div class="label">A) Flat Primary</div>
+      </div>
+      <div style="padding:8px;font-size:12px;color:#888;">Daily use. Stationery, web, documents, email signatures, forms.</div>
+    </div>
+    <div>
+      <div class="logo-box">
+        <img src="logo-2to-3d.svg" alt="Premium 3D">
+        <div class="label">C) Premium 3D</div>
+      </div>
+      <div style="padding:8px;font-size:12px;color:#888;">Presentations, signage, hero sections. Use sparingly.</div>
+    </div>
+    <div>
+      <div class="logo-box dark">
+        <img src="logo-mark-white.svg" alt="White">
+        <div class="label" style="color:var(--silver-shadow);">B) White / Dark BG</div>
+      </div>
+      <div style="padding:8px;font-size:12px;color:#888;">Dark backgrounds, login screens, dashboards with dark mode.</div>
+    </div>
+  </div>
+  
+  <div class="grid-2" style="margin-top:32px;">
+    <div>
+      <div class="logo-box">
+        <img src="logo-mark.svg" alt="Symbol">
+        <div class="label">Symbol (Shield + 2)</div>
+      </div>
+    </div>
+    <div>
+      <div class="logo-box dark">
+        <img src="logo-mark-black.svg" alt="Black">
+        <div class="label" style="color:var(--silver-shadow);">Black / Monochrome</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 03. LOGO SPECIFICATIONS ===== -->
+<div class="section">
+  <div class="section-title">03 &mdash; Logo Specifications</div>
+  <h2>Construction & Dimensions</h2>
+  
+  <div class="grid-2">
+    <div class="card">
+      <h3>Shield Construction</h3>
+      <table class="ratio-table">
+        <tr><th>Element</th><th>Value</th></tr>
+        <tr><td>Shield Width</td><td>100 units</td></tr>
+        <tr><td>Shield Height</td><td>118 units</td></tr>
+        <tr><td>Width:Height Ratio</td><td>1 : 1.18</td></tr>
+        <tr><td>Bottom Point</td><td>Sharp, symmetrical center</td></tr>
+        <tr><td>Corner Radius</td><td>0 (sharp geometric)</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Number "2" Specifications</h3>
+      <table class="ratio-table">
+        <tr><th>Element</th><th>Value</th></tr>
+        <tr><td>Width</td><td>52 units (52% of shield)</td></tr>
+        <tr><td>Height</td><td>70 units (62% of shield)</td></tr>
+        <tr><td>Style</td><td>Custom geometric/bold</td></tr>
+        <tr><td>Stroke Width</td><td>8 units</td></tr>
+        <tr><td>Stroke Cap</td><td>Round</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Full Horizontal Lockup</h3>
+      <table class="ratio-table">
+        <tr><th>Element</th><th>Value</th></tr>
+        <tr><td>Total Width</td><td>307 units</td></tr>
+        <tr><td>Total Height</td><td>118 units</td></tr>
+        <tr><td>Ratio (W:H)</td><td>2.60 : 1</td></tr>
+        <tr><td>Gap (Shield → Wordmark)</td><td>22 units</td></tr>
+        <tr><td>Wordmark Height</td><td>74 units</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Minimum Sizes</h3>
+      <table class="ratio-table">
+        <tr><th>Application</th><th>Minimum</th></tr>
+        <tr><td>Full Lockup (Print)</td><td>30mm wide</td></tr>
+        <tr><td>Full Lockup (Screen)</td><td>120px wide</td></tr>
+        <tr><td>Symbol Only (Print)</td><td>10mm wide</td></tr>
+        <tr><td>Symbol Only (Screen)</td><td>32px wide</td></tr>
+        <tr><td>Favicon</td><td>16px × 16px</td></tr>
+        <tr><td>App Icon</td><td>512px × 512px</td></tr>
+      </table>
+    </div>
+  </div>
+  
+  <div class="card" style="margin-top:32px;">
+    <h3>Clear Space</h3>
+    <p style="margin-bottom:16px;">Maintain a minimum clear space around the logo equal to the height of the number "2" (70% of shield height). No text, imagery, or graphic elements should intrude into this zone.</p>
+    <div style="background:#f0f4f7;border-radius:12px;padding:32px;text-align:center;">
+      <div style="display:inline-block;border:2px dashed var(--enterprise-teal);padding:40px 60px;border-radius:8px;position:relative;">
+        <img src="logo-2to.svg" style="height:48px;">
+        <div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--enterprise-teal);">Clear Space = 70 units</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 04. COLOR SYSTEM ===== -->
+<div class="section" style="background:white;">
+  <div class="section-title">04 &mdash; Color System</div>
+  <h2>Brand Colors</h2>
+  <p>The 2TO color system is built on a foundation of deep navy for authority, enterprise teal for innovation, and silver for precision. Each color has a defined role in the visual hierarchy.</p>
+  
+  <div class="card">
+    <h3>Primary Colors</h3>
+    <div class="grid-3" style="margin-top:16px;">
+      <div class="color-swatch" style="background:#071C2A;">
+        <div class="name">Deep Navy</div>
+        <div class="hex">#071C2A &bull; RGB 7, 28, 42</div>
+        <div class="usage">Outer shield, headlines, primary text</div>
+      </div>
+      <div class="color-swatch" style="background:#102B3C;">
+        <div class="name">Enterprise Navy</div>
+        <div class="hex">#102B3C &bull; RGB 16, 43, 60</div>
+        <div class="usage">Inner shield, navigation, headers</div>
+      </div>
+      <div class="color-swatch" style="background:#0B7285;">
+        <div class="name">Enterprise Teal</div>
+        <div class="hex">#0B7285 &bull; RGB 11, 114, 133</div>
+        <div class="usage">CTAs, links, active states, accents</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>Secondary Colors</h3>
+    <div class="grid-4" style="margin-top:16px;">
+      <div class="color-swatch light" style="background:#D5DADF;">
+        <div class="name">Silver</div>
+        <div class="hex">#D5DADF</div>
+        <div class="usage">Number "2", borders</div>
+      </div>
+      <div class="color-swatch light" style="background:#F4F6F7;">
+        <div class="name">Silver Highlight</div>
+        <div class="hex">#F4F6F7</div>
+        <div class="usage">Backgrounds, cards</div>
+      </div>
+      <div class="color-swatch" style="background:#8D9AA3;">
+        <div class="name">Silver Shadow</div>
+        <div class="hex">#8D9AA3</div>
+        <div class="usage">Disabled states, captions</div>
+      </div>
+      <div class="color-swatch light" style="background:#FFFFFF;border:1px solid #e0e0e0;">
+        <div class="name">White</div>
+        <div class="hex">#FFFFFF</div>
+        <div class="usage">Backgrounds, overlays</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>Semantic Colors</h3>
+    <div class="grid-4" style="margin-top:16px;">
+      <div class="color-swatch" style="background:#2E7D32;">
+        <div class="name">Success</div>
+        <div class="hex">#2E7D32</div>
+        <div class="usage">Confirmations, approvals</div>
+      </div>
+      <div class="color-swatch" style="background:#E53935;">
+        <div class="name">Error</div>
+        <div class="hex">#E53935</div>
+        <div class="usage">Errors, destructive actions</div>
+      </div>
+      <div class="color-swatch" style="background:#F57C00;">
+        <div class="name">Warning</div>
+        <div class="hex">#F57C00</div>
+        <div class="usage">Alerts, attention needed</div>
+      </div>
+      <div class="color-swatch" style="background:#1976D2;">
+        <div class="name">Info</div>
+        <div class="hex">#1976D2</div>
+        <div class="usage">Informational messages</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 05. TYPOGRAPHY ===== -->
+<div class="section">
+  <div class="section-title">05 &mdash; Typography</div>
+  <h2>Type System</h2>
+  
+  <div class="card">
+    <h3>Primary Typeface: Inter</h3>
+    <div class="typo-sample">
+      <div class="label">Black (900) — Logo, Hero Headings</div>
+      <div class="demo" style="font-size:48px;font-weight:900;letter-spacing:-1px;">2TO Enterprise</div>
+    </div>
+    <div class="typo-sample">
+      <div class="label">Bold (700) — Section Headings</div>
+      <div class="demo" style="font-size:32px;font-weight:700;">Dashboard Overview</div>
+    </div>
+    <div class="typo-sample">
+      <div class="label">SemiBold (600) — Subheadings, Labels</div>
+      <div class="demo" style="font-size:20px;font-weight:600;">Financial Summary</div>
+    </div>
+    <div class="typo-sample">
+      <div class="label">Regular (400) — Body Text</div>
+      <div class="demo" style="font-size:16px;font-weight:400;color:#555;">Enterprise resource planning systems enable organizations to manage core business processes with precision and scalability.</div>
+    </div>
+    <div class="typo-sample">
+      <div class="label">Light (300) — Captions, Metadata</div>
+      <div class="demo" style="font-size:13px;font-weight:300;color:#888;">Last updated: September 14, 2026 at 10:30 AM</div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>Type Scale</h3>
+    <table class="ratio-table">
+      <tr><th>Level</th><th>Size</th><th>Weight</th><th>Usage</th></tr>
+      <tr><td>H1</td><td>36-48px</td><td>800-900</td><td>Page titles, login hero</td></tr>
+      <tr><td>H2</td><td>28-32px</td><td>700</td><td>Section headings</td></tr>
+      <tr><td>H3</td><td>20-24px</td><td>600-700</td><td>Card titles, subheadings</td></tr>
+      <tr><td>H4</td><td>16-18px</td><td>600</td><td>Group headers, labels</td></tr>
+      <tr><td>Body</td><td>14-16px</td><td>400</td><td>Paragraphs, descriptions</td></tr>
+      <tr><td>Small</td><td>12-13px</td><td>400</td><td>Captions, metadata, footnotes</td></tr>
+      <tr><td>Micro</td><td>10-11px</td><td>500</td><td>Badges, tooltips</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===== 06. DO / DON'T ===== -->
+<div class="section" style="background:white;">
+  <div class="section-title">06 &mdash; Logo Usage</div>
+  <h2>Do &amp; Don't</h2>
+  
+  <div class="do-dont">
+    <div class="do-box">
+      <h4>Correct Usage</h4>
+      <ul>
+        <li>Always use approved logo files from the brand kit</li>
+        <li>Maintain clear space around the logo</li>
+        <li>Use flat primary version for most applications</li>
+        <li>Scale proportionally when resizing</li>
+        <li>Use white version on dark backgrounds</li>
+        <li>Place on solid, uncluttered backgrounds</li>
+        <li>Use premium 3D only for presentations/signage</li>
+      </ul>
+    </div>
+    <div class="dont-box">
+      <h4>Incorrect Usage</h4>
+      <ul>
+        <li>Do not stretch, distort, or rotate the logo</li>
+        <li>Do not change the logo colors</li>
+        <li>Do not add effects (glow, blur, outline)</li>
+        <li>Do not place on busy backgrounds without contrast</li>
+        <li>Do not recreate the logo from scratch</li>
+        <li>Do not use the premium 3D version in documents</li>
+        <li>Do not separate the shield from the wordmark in lockup</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 07. APPLICATIONS ===== -->
+<div class="section">
+  <div class="section-title">07 &mdash; Applications</div>
+  <h2>Brand in Context</h2>
+  
+  <div class="grid-2">
+    <div class="card">
+      <h3>Login Screen</h3>
+      <div style="background:linear-gradient(135deg,var(--deep-navy),var(--enterprise-navy));border-radius:12px;padding:40px;text-align:center;">
+        <img src="logo-2to.svg" style="height:48px;margin-bottom:24px;">
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;">
+          <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px;margin-bottom:12px;color:var(--silver);font-size:13px;text-align:left;">Username</div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:8px;padding:10px;margin-bottom:16px;color:var(--silver);font-size:13px;text-align:left;">Password</div>
+          <div style="background:var(--enterprise-teal);color:white;border-radius:8px;padding:10px;font-size:13px;font-weight:600;">Sign In</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Sidebar Navigation</h3>
+      <div style="display:flex;border-radius:12px;overflow:hidden;height:300px;">
+        <div style="width:240px;background:var(--deep-navy);padding:20px;">
+          <img src="logo-2to.svg" style="height:32px;margin-bottom:24px;filter:brightness(10);">
+          <div style="color:var(--enterprise-teal);font-size:13px;font-weight:600;padding:8px 12px;border-radius:6px;background:rgba(11,114,133,0.15);margin-bottom:4px;">Dashboard</div>
+          <div style="color:var(--silver);font-size:13px;padding:8px 12px;">Finance</div>
+          <div style="color:var(--silver);font-size:13px;padding:8px 12px;">HR</div>
+          <div style="color:var(--silver);font-size:13px;padding:8px 12px;">Inventory</div>
+          <div style="color:var(--silver);font-size:13px;padding:8px 12px;">Reports</div>
+        </div>
+        <div style="flex:1;background:var(--bg);padding:20px;">
+          <div style="font-size:20px;font-weight:700;color:var(--deep-navy);">Dashboard</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Email Signature</h3>
+      <div style="border:1px solid #e0e0e0;border-radius:12px;padding:24px;">
+        <img src="logo-2to.svg" style="height:28px;margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:600;color:var(--deep-navy);">Ahmed Al-Rashid</div>
+        <div style="font-size:12px;color:var(--enterprise-teal);">Senior Consultant</div>
+        <div style="font-size:12px;color:#888;margin-top:4px;">ahmed@2to-erp.com | +966 XX XXX XXXX</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Business Card</h3>
+      <div style="background:white;border:1px solid #e0e0e0;border-radius:12px;padding:24px;aspect-ratio:1.75;">
+        <img src="logo-mark.svg" style="height:40px;margin-bottom:16px;">
+        <div style="font-size:16px;font-weight:700;color:var(--deep-navy);">2TO ERP</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">Enterprise Resource Planning</div>
+        <div style="margin-top:auto;padding-top:24px;">
+          <div style="font-size:12px;font-weight:600;color:var(--deep-navy);">Mohammed Al-Faisal</div>
+          <div style="font-size:11px;color:var(--enterprise-teal);">CEO &amp; Founder</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 08. ASSET LIST ===== -->
+<div class="section" style="background:white;">
+  <div class="section-title">08 &mdash; Asset Inventory</div>
+  <h2>Brand Kit Contents</h2>
+  
+  <div class="card">
+    <table class="ratio-table">
+      <tr><th>File</th><th>Format</th><th>Size</th><th>Usage</th></tr>
+      <tr><td>logo-mark.svg</td><td>SVG</td><td>Vector</td><td>Symbol (Shield+2) — general use</td></tr>
+      <tr><td>logo-2to.svg</td><td>SVG</td><td>Vector</td><td>Full horizontal lockup — general use</td></tr>
+      <tr><td>logo-mark-white.svg</td><td>SVG</td><td>Vector</td><td>White symbol — dark backgrounds</td></tr>
+      <tr><td>logo-mark-black.svg</td><td>SVG</td><td>Vector</td><td>Black symbol — monochrome printing</td></tr>
+      <tr><td>logo-mark-3d.svg</td><td>SVG</td><td>Vector</td><td>Premium 3D symbol — presentations</td></tr>
+      <tr><td>logo-2to-3d.svg</td><td>SVG</td><td>Vector</td><td>Premium 3D lockup — presentations</td></tr>
+      <tr><td>favicon.svg</td><td>SVG</td><td>Vector</td><td>Browser favicon</td></tr>
+      <tr><td>icon-512.png</td><td>PNG</td><td>512×512</td><td>PWA icon, social media</td></tr>
+      <tr><td>icon-192.png</td><td>PNG</td><td>192×192</td><td>PWA icon, app tile</td></tr>
+      <tr><td>logo-2to.png</td><td>PNG</td><td>Transparent</td><td>Documents, presentations</td></tr>
+      <tr><td>logo-2to-3d.png</td><td>PNG</td><td>Transparent</td><td>Hero sections, signage</td></tr>
+      <tr><td>logo-mark-3d.png</td><td>PNG</td><td>Transparent</td><td>High-impact presentations</td></tr>
+      <tr><td>app.ico</td><td>ICO</td><td>Multi-size</td><td>Windows application icon</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===== FOOTER ===== -->
+<div class="footer">
+  <img src="logo-mark.svg" style="height:32px;margin-bottom:16px;opacity:0.5;">
+  <div>2TO ERP Brand Guidelines &bull; Version 2.1 &bull; September 2026</div>
+  <div style="margin-top:4px;font-size:12px;opacity:0.6;">Confidential &mdash; For internal use and authorized partners only</div>
+</div>
+
+</body>
+</html>

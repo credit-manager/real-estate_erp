@@ -1,0 +1,704 @@
+from flask import Blueprint, render_template, redirect, url_for, session, send_file, request
+from io import BytesIO
+import datetime
+import logging
+from routes.auth import login_required
+from permissions import require_page, admin_required
+from database import db
+from models import User, Invoice, RentalContract, PurchaseOrder, FinancialYear, PaymentPlan, Quote, CrmContract, SalesOrder, SalesReturn
+from i18n import get_lang
+import utils.settings as settings_module
+from utils.pdf import (
+build_invoice_pdf, build_po_pdf, build_contract_pdf, build_financial_year_report_pdf,
+build_tax_report_pdf, build_crm_quote_pdf, build_crm_contract_pdf,
+build_sales_order_pdf, build_sales_return_pdf,
+)
+from routes.taxes import compute_tax_report
+
+log = logging.getLogger(__name__)
+
+
+def _fmt_date(d):
+    fmt = settings_module.get("date_format", "dd/mm/yyyy")
+    if not d:
+        return "—"
+    return d.strftime("%Y-%m-%d") if fmt == "yyyy-mm-dd" else d.strftime("%d/%m/%Y")
+
+
+def _fmt_money(v):
+    try:
+        f = float(v or 0)
+    except (TypeError, ValueError):
+        f = 0
+    dec = settings_module.get_int("number_decimals", 2)
+    return f"{f:,.{dec}f}"
+
+pages_bp = Blueprint("pages", __name__)
+
+
+@pages_bp.route("/sw.js")
+def service_worker():
+    """سيرفر الـ Service Worker — يُخدَّم من الجذر ليغطي نطاق التطبيق كاملاً."""
+    import os
+    from flask import current_app
+    base = current_app.static_folder
+    if not base or not os.path.isfile(os.path.join(base, "sw.js")):
+        base = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    resp = send_file(os.path.join(base, "sw.js"), mimetype="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@pages_bp.route("/dashboard")
+@require_page("dashboard")
+def dashboard():
+    return render_template("dashboard.html", full_name=session.get("full_name", ""))
+
+
+@pages_bp.route("/projects")
+@require_page("projects")
+def projects():
+    return render_template("projects.html")
+
+
+@pages_bp.route("/projects/map")
+@require_page("projects")
+def project_map():
+    return render_template("project_map.html")
+
+
+@pages_bp.route("/finance")
+@require_page("finance")
+def finance():
+    return render_template("finance.html")
+
+
+@pages_bp.route("/procurement")
+@require_page("procurement")
+def procurement():
+    return render_template("procurement.html")
+
+
+@pages_bp.route("/sales")
+@require_page("sales")
+def sales():
+    return render_template("sales.html")
+
+
+@pages_bp.route("/hr")
+@require_page("hr")
+def hr():
+    return render_template("hr.html")
+
+
+@pages_bp.route("/real-estate")
+@require_page("realestate")
+def real_estate():
+    return render_template("real-estate.html")
+
+
+@pages_bp.route("/rentals")
+@require_page("rentals")
+def rentals():
+    return render_template("rentals.html")
+
+
+@pages_bp.route("/crm")
+@require_page("crm")
+def crm():
+    return render_template("crm.html")
+
+
+@pages_bp.route("/reports")
+@require_page("reports")
+def reports():
+    return render_template("reports.html")
+
+
+@pages_bp.route("/analytics")
+@require_page("reports")
+def analytics():
+    """لوحة التحليل التنفيذي المحلية (KPIs + تنبيهات ذكية)."""
+    from utils.settings import get_int as _get_int
+    from version import VERSION, APP_NAME
+    return render_template(
+        "analytics.html",
+        version=VERSION, app_name=APP_NAME,
+        reorder_lead_days=_get_int("reorder_lead_days", 14) or 14,
+    )
+
+
+@pages_bp.route("/users")
+@require_page("users")
+def users():
+    return render_template("users.html")
+
+
+@pages_bp.route("/roles")
+@require_page("roles")
+def roles():
+    return render_template("roles.html")
+
+
+@pages_bp.route("/companies")
+@require_page("companies")
+def companies():
+    return render_template("companies.html")
+
+
+@pages_bp.route("/financial-years")
+@require_page("financial_years")
+def financial_years():
+    return render_template("financial_years.html")
+
+
+@pages_bp.route("/currencies")
+@require_page("currencies")
+def currencies():
+    return render_template("currencies.html")
+
+
+@pages_bp.route("/taxes")
+@require_page("taxes")
+def taxes():
+    return render_template("taxes.html")
+
+
+@pages_bp.route("/permission-denied")
+@login_required
+def permission_denied():
+    return render_template("permission_denied.html"), 403
+
+
+@pages_bp.route("/change-password")
+@login_required
+def change_password():
+    return render_template("change_password.html")
+
+
+@pages_bp.route("/profile")
+@login_required
+def profile():
+    user = db.session.get(User, session.get("user_id"))
+    if not user:
+        return redirect(url_for("auth.login"))
+    return render_template("profile.html", user=user)
+
+
+@pages_bp.route("/audit")
+@require_page("audit")
+def audit():
+    return render_template("audit.html")
+
+
+@pages_bp.route("/backup")
+@require_page("backup")
+def backup():
+    return render_template("backup.html")
+
+
+def _hub(title_key, sub_key, cards, hub_id=""):
+    from i18n import make_t
+    t = make_t()
+    return render_template("module_hub.html",
+        hub_title=t(title_key), hub_sub=t(sub_key), hub_id=hub_id, cards=cards)
+
+
+def _hc(url, icon, title_key, sub_key="", target=""):
+    from i18n import make_t
+    t = make_t()
+    return {"url": url, "icon": icon, "title": t(title_key), "sub": t(sub_key) if sub_key else "", "target": target}
+
+
+@pages_bp.route("/operations")
+@require_page("projects")
+def operations_hub():
+    return _hub("nav.groupOperations", "hub.operationsSub", [
+        _hc("/projects", "📋", "nav.projects", "hub.projectsSub"),
+        _hc("/sales", "💰", "nav.sales", "hub.salesSub"),
+        _hc("/procurement", "🛒", "nav.procurement", "hub.procurementSub"),
+        _hc("/crm", "🤝", "nav.crm", "hub.crmSub"),
+    ], "operations")
+
+
+@pages_bp.route("/payroll-hub")
+@require_page("payroll")
+def payroll_hub():
+    return _hub("payroll.title", "hub.payrollSub", [
+        _hc("/hr/payroll", "📊", "payroll.payroll", "hub.payrollMainSub"),
+        _hc("/hr/salaries", "💵", "payroll.salaries", "hub.salariesSub"),
+        _hc("/hr/allowances", "🎁", "payroll.allowances", "hub.allowancesSub"),
+        _hc("/hr/deductions", "📉", "payroll.deductions", "hub.deductionsSub"),
+        _hc("/hr/bonuses", "⭐", "payroll.bonuses", "hub.bonusesSub"),
+        _hc("/hr/taxes", "🏛️", "payroll.taxes", "hub.taxesSub"),
+        _hc("/hr/insurance", "🛡️", "payroll.insurance", "hub.insuranceSub"),
+        _hc("/hr/end-of-service", "🏁", "payroll.eos", "hub.eosSub"),
+    ], "payroll")
+
+
+@pages_bp.route("/manufacturing-hub")
+@require_page("manufacturing")
+def manufacturing_hub():
+    return _hub("nav.groupManufacturing", "hub.manufacturingSub", [
+        _hc("/mf/work-centers", "🏭", "mf.workCenters", "hub.workCentersSub"),
+        _hc("/mf/raw-materials", "🧱", "mf.rawMaterials", "hub.rawMaterialsSub"),
+        _hc("/mf/bom", "📑", "mf.bomTitle", "hub.bomSub"),
+        _hc("/mf/orders", "📝", "mf.ordersTitle", "hub.ordersSub"),
+        _hc("/mf/operations", "⚙️", "mf.operationsTitle", "hub.operationsTitleSub"),
+        _hc("/mf/quality", "✅", "mf.qualityTitle", "hub.qualitySub"),
+        _hc("/mf/tracking", "📍", "mf.trackingTitle", "hub.trackingSub"),
+        _hc("/mf/costing", "💲", "mf.costingTitle", "hub.costingSub"),
+    ], "manufacturing")
+
+
+@pages_bp.route("/finance-hub")
+@require_page("finance")
+def finance_hub():
+    return _hub("nav.groupFinance", "hub.financeSub", [
+        _hc("/finance", "💰", "nav.finance", "hub.financeMainSub"),
+        _hc("/analytics", "📊", "nav.analytics", "hub.analyticsSub"),
+        _hc("/taxes", "🏛️", "nav.taxes", "hub.taxesPageSub"),
+        _hc("/reports", "📈", "nav.reports", "hub.reportsSub"),
+    ], "finance")
+
+
+@pages_bp.route("/assets-hub")
+@require_page("accounting")
+def assets_hub():
+    return _hub("nav.groupAssets", "hub.assetsSub", [
+        _hc("/assets", "🏠", "assets.title", "hub.assetsMainSub"),
+        _hc("/assets/assets", "📋", "assets.registry", "hub.registrySub"),
+        _hc("/assets/equipment", "🔧", "assets.equipment", "hub.equipmentSub"),
+        _hc("/assets/maintenance", "🛠️", "assets.maintenance", "hub.maintenanceSub"),
+        _hc("/assets/movements", "🔄", "assets.movements", "hub.movementsSub"),
+        _hc("/assets/custody", "👤", "assets.custody", "hub.custodySub"),
+        _hc("/assets/depreciation", "📉", "assets.depreciation", "hub.depreciationSub"),
+        _hc("/real-estate", "🏢", "nav.realestate", "hub.realEstateSub"),
+        _hc("/projects/map", "🗺️", "projects.masterPlan", "hub.projectMapSub"),
+        _hc("/rentals", "🏘️", "rentals.tabContracts", "hub.rentalsSub"),
+        _hc("/rentals/tenants", "👥", "rentals.tabTenants", "hub.tenantsSub"),
+        _hc("/rentals/renewals", "🔁", "rentals.tabRenewals", "hub.renewalsSub"),
+        _hc("/rentals/collections", "💰", "rentals.tabCollections", "hub.collectionsSub"),
+        _hc("/rentals/notifications", "🔔", "rentals.tabNotifications", "hub.notificationsSub"),
+    ], "assets")
+
+
+@pages_bp.route("/workflow-hub")
+@require_page("workflow")
+def workflow_hub():
+    return _hub("nav.groupWorkflow", "hub.workflowSub", [
+        _hc("/workflow/approvals", "✅", "nav.workflowApprovals", "hub.approvalsSub"),
+        _hc("/workflow/templates", "📑", "nav.workflowTemplates", "hub.templatesSub"),
+        _hc("/workflow/requests", "📝", "nav.workflowRequests", "hub.requestsSub"),
+    ], "workflow")
+
+
+@pages_bp.route("/system-hub")
+@login_required
+def system_hub():
+    cards = [
+        _hc("/profile", "👤", "nav.profile", "hub.profileSub"),
+        _hc("/audit", "📋", "nav.audit", "hub.auditSub"),
+        _hc("/general-settings", "⚙️", "nav.generalSettings", "hub.settingsSub"),
+        _hc("/server-settings", "🖥️", "nav.serverSettings", "hub.serverSub"),
+        _hc("/backup", "💾", "nav.backup", "hub.backupSub"),
+    ]
+    if session.get("role") == "admin":
+        cards.insert(0, _hc("/admin", "🛡️", "nav.masterPanel", "hub.masterPanelSub", "_blank"))
+    return _hub("nav.groupSystem", "hub.systemSub", cards, "system")
+
+
+@pages_bp.route("/admin-hub")
+@require_page("roles")
+def admin_hub():
+    return _hub("nav.groupAdmin", "hub.adminSub", [
+        _hc("/users", "👥", "nav.users", "hub.usersSub"),
+        _hc("/roles", "🛡️", "nav.roles", "hub.rolesSub"),
+        _hc("/companies", "🏢", "nav.companies", "hub.companiesSub"),
+        _hc("/financial-years", "📅", "nav.financialYears", "hub.financialYearsSub"),
+        _hc("/currencies", "💱", "nav.currencies", "hub.currenciesSub"),
+        _hc("/portal", "🌐", "nav.portal", "hub.portalSub"),
+    ], "admin")
+
+
+@pages_bp.route("/documents/invoice/<int:invoice_id>")
+@require_page("finance")
+def print_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    party = None
+    if invoice.invoice_type == "sales" and invoice.customer:
+        party = {
+            "name": invoice.customer.full_name,
+            "phone": invoice.customer.phone,
+            "email": invoice.customer.email,
+            "address": invoice.customer.address,
+        }
+    elif invoice.supplier:
+        party = {
+            "name": invoice.supplier.company_name,
+            "phone": invoice.supplier.phone,
+            "email": invoice.supplier.email,
+            "address": invoice.supplier.address,
+        }
+    items = []
+    subtotal = 0.0
+    total_tax = 0.0
+    for it in invoice.items:
+        line = float(it.quantity or 0) * float(it.unit_price or 0)
+        tax = line * float(it.tax_rate or 0) / 100
+        subtotal += line
+        total_tax += tax
+        items.append({
+            "description": it.description,
+            "quantity": it.quantity,
+            "unit_price": it.unit_price,
+            "tax_rate": it.tax_rate,
+            "line": line,
+            "tax": tax,
+            "total": line + tax,
+        })
+    company = invoice.financial_year.company if invoice.financial_year else None
+    # الفاتورة الإلكترونية: QR + الحالة (تظهر في المطبوعة عند وجودها)
+    import base64 as _b64
+    qr_data_url = None
+    if invoice.einv_qr:
+        try:
+            _b64.b64decode(invoice.einv_qr, validate=True)
+            qr_data_url = "data:image/png;base64," + invoice.einv_qr
+        except Exception:
+            log.debug("Failed to decode QR data for invoice %d", invoice_id, exc_info=True)
+            qr_data_url = None  # QR نصي (TLV base64) — يُطبع كنص
+    return render_template(
+        "print_invoice.html",
+        invoice=invoice,
+        party=party,
+        project_name=invoice.project.name if invoice.project else None,
+        company_name=company.name if company else None,
+        company_tax_number=company.tax_number if company else None,
+        einv_status=invoice.einv_status,
+        einv_reference=invoice.einv_reference,
+        einv_qr=invoice.einv_qr,
+        einv_qr_is_png=bool(qr_data_url),
+        items=items,
+        subtotal=subtotal,
+        total_tax=total_tax,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/po/<int:po_id>")
+@require_page("procurement")
+def print_po(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    items = []
+    subtotal = 0.0
+    total_tax = 0.0
+    for it in po.items:
+        line = float(it.quantity or 0) * float(it.unit_price or 0)
+        tax = line * float(it.tax_rate or 0) / 100
+        subtotal += line
+        total_tax += tax
+        items.append({
+            "description": it.description,
+            "quantity": it.quantity,
+            "unit_price": it.unit_price,
+            "tax_rate": it.tax_rate,
+            "line": line,
+            "tax": tax,
+            "total": line + tax,
+        })
+    return render_template(
+        "print_po.html",
+        po=po,
+        supplier=po.supplier,
+        project_name=po.project.name if po.project else None,
+        items=items,
+        subtotal=subtotal,
+        total_tax=total_tax,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+def _pdf_response(data, filename):
+    return send_file(
+        BytesIO(bytes(data)),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@pages_bp.route("/documents/invoice/<int:invoice_id>/pdf")
+@require_page("finance")
+def download_invoice_pdf(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    return _pdf_response(build_invoice_pdf(invoice, get_lang()),
+                         f"invoice-{invoice.invoice_number}.pdf")
+
+
+@pages_bp.route("/documents/po/<int:po_id>/pdf")
+@require_page("procurement")
+def download_po_pdf(po_id):
+    po = PurchaseOrder.query.get_or_404(po_id)
+    return _pdf_response(build_po_pdf(po, get_lang()),
+                         f"po-{po.po_number}.pdf")
+
+
+@pages_bp.route("/documents/sales-order/<int:order_id>")
+@require_page("sales")
+def print_sales_order(order_id):
+    order = SalesOrder.query.get_or_404(order_id)
+    party = None
+    if order.customer:
+        c = order.customer
+        party = {"name": c.full_name, "phone": c.phone, "email": c.email, "address": c.address}
+    items = []
+    subtotal = 0.0
+    total_tax = 0.0
+    for it in order.items:
+        line = float(it.quantity or 0) * float(it.unit_price or 0)
+        tax = line * float(it.tax_rate or 0) / 100
+        subtotal += line
+        total_tax += tax
+        items.append({
+            "description": it.description,
+            "quantity": it.quantity,
+            "unit_price": it.unit_price,
+            "tax_rate": it.tax_rate,
+            "line": line,
+            "tax": tax,
+            "total": line + tax,
+        })
+    company = order.financial_year.company if order.financial_year else None
+    return render_template(
+        "print_sales_order.html",
+        order=order,
+        party=party,
+        salesperson=order.salesperson,
+        company_name=company.name if company else None,
+        company_tax_number=company.tax_number if company else None,
+        items=items,
+        subtotal=subtotal,
+        total_tax=total_tax,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/sales-order/<int:order_id>/pdf")
+@require_page("sales")
+def download_sales_order_pdf(order_id):
+    order = SalesOrder.query.get_or_404(order_id)
+    return _pdf_response(build_sales_order_pdf(order, get_lang()),
+                         f"sales-order-{order.order_number}.pdf")
+
+
+@pages_bp.route("/documents/sales-return/<int:return_id>")
+@require_page("sales")
+def print_sales_return(return_id):
+    ret = SalesReturn.query.get_or_404(return_id)
+    party = None
+    if ret.customer:
+        c = ret.customer
+        party = {"name": c.full_name, "phone": c.phone, "email": c.email, "address": c.address}
+    items = []
+    subtotal = 0.0
+    total_tax = 0.0
+    for it in ret.items:
+        line = float(it.quantity or 0) * float(it.unit_price or 0)
+        tax = line * float(it.tax_rate or 0) / 100
+        subtotal += line
+        total_tax += tax
+        items.append({
+            "description": it.description,
+            "quantity": it.quantity,
+            "unit_price": it.unit_price,
+            "tax_rate": it.tax_rate,
+            "line": line,
+            "tax": tax,
+            "total": line + tax,
+        })
+    company = ret.financial_year.company if ret.financial_year else None
+    return render_template(
+        "print_sales_return.html",
+        ret=ret,
+        party=party,
+        company_name=company.name if company else None,
+        company_tax_number=company.tax_number if company else None,
+        items=items,
+        subtotal=subtotal,
+        total_tax=total_tax,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/sales-return/<int:return_id>/pdf")
+@require_page("sales")
+def download_sales_return_pdf(return_id):
+    ret = SalesReturn.query.get_or_404(return_id)
+    return _pdf_response(build_sales_return_pdf(ret, get_lang()),
+                         f"sales-return-{ret.return_number}.pdf")
+
+
+@pages_bp.route("/documents/contract/<int:rental_id>/pdf")
+@require_page("rentals")
+def download_contract_pdf(rental_id):
+    contract = RentalContract.query.get_or_404(rental_id)
+    return _pdf_response(build_contract_pdf(contract, get_lang()),
+                         f"contract-{contract.contract_number}.pdf")
+
+
+@pages_bp.route("/documents/financial-year/<int:year_id>/pdf")
+@require_page("financial_years")
+def download_financial_year_pdf(year_id):
+    year = FinancialYear.query.get_or_404(year_id)
+    return _pdf_response(build_financial_year_report_pdf(year, get_lang()),
+                         f"financial-year-{year.name}.pdf")
+
+
+@pages_bp.route("/documents/tax-report/pdf")
+@require_page("taxes")
+def download_tax_report_pdf():
+    from datetime import datetime
+    year_id = request.args.get("year_id", type=int)
+    company_id = request.args.get("company_id", type=int)
+    start = end = None
+    for key in ("start", "end"):
+        val = request.args.get(key)
+        if val:
+            try:
+                parsed = datetime.strptime(val, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                continue
+            if key == "start":
+                start = parsed
+            else:
+                end = parsed
+    report = compute_tax_report(year_id=year_id, start=start, end=end, company_id=company_id)
+    filename = "tax-report-" + (report.get("company_name") or "all") + ".pdf"
+    return _pdf_response(build_tax_report_pdf(report, get_lang()), filename)
+
+
+@pages_bp.route("/documents/contract/<int:rental_id>")
+@require_page("rentals")
+def print_contract(rental_id):
+    contract = RentalContract.query.get_or_404(rental_id)
+    unit = contract.unit
+    return render_template(
+        "print_contract.html",
+        contract=contract,
+        unit=unit,
+        project_name=unit.project.name if unit and unit.project else None,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/crm-quote/<int:quote_id>")
+@require_page("crm")
+def print_crm_quote(quote_id):
+    quote = Quote.query.get_or_404(quote_id)
+    items = []
+    subtotal = float(quote.subtotal or 0)
+    for it in quote.items:
+        items.append({
+            "description": it.description,
+            "qty": it.qty,
+            "unit_price": it.unit_price,
+            "total": float(it.qty or 1) * float(it.unit_price or 0),
+        })
+    tax = subtotal * float(quote.tax_rate or 0) / 100
+    return render_template(
+        "print_crm_quote.html",
+        quote=quote,
+        items=items,
+        subtotal=subtotal,
+        tax=tax,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/crm-contract/<int:contract_id>")
+@require_page("crm")
+def print_crm_contract(contract_id):
+    contract = CrmContract.query.get_or_404(contract_id)
+    return render_template(
+        "print_crm_contract.html",
+        contract=contract,
+        fmt=_fmt_date,
+        money=_fmt_money,
+    )
+
+
+@pages_bp.route("/documents/crm-quote/<int:quote_id>/pdf")
+@require_page("crm")
+def download_crm_quote_pdf(quote_id):
+    quote = Quote.query.get_or_404(quote_id)
+    return _pdf_response(build_crm_quote_pdf(quote, get_lang()),
+                         f"quote-{quote.quote_number}.pdf")
+
+
+@pages_bp.route("/documents/crm-contract/<int:contract_id>/pdf")
+@require_page("crm")
+def download_crm_contract_pdf(contract_id):
+    contract = CrmContract.query.get_or_404(contract_id)
+    return _pdf_response(build_crm_contract_pdf(contract, get_lang()),
+                         f"contract-{contract.contract_number}.pdf")
+
+
+@pages_bp.route("/reports/financial-year/<int:year_id>")
+@require_page("financial_years")
+def financial_year_report(year_id):
+    year = FinancialYear.query.get_or_404(year_id)
+    invoices = Invoice.query.filter_by(financial_year_id=year.id).all()
+    orders = PurchaseOrder.query.filter_by(financial_year_id=year.id).all()
+    contracts = RentalContract.query.filter_by(financial_year_id=year.id).all()
+    plans = PaymentPlan.query.filter_by(financial_year_id=year.id).all()
+
+    total_sales = sum(float(i.amount or 0) for i in invoices if i.invoice_type == "sales")
+    total_purchases = sum(float(i.amount or 0) for i in invoices if i.invoice_type == "purchase")
+    total_invoices = total_sales + total_purchases
+    total_orders = sum(float(o.total or 0) for o in orders)
+    rental_monthly = sum(float(c.monthly_rent or 0) for c in contracts)
+    plans_total = sum(float(p.total_amount or 0) for p in plans)
+    plans_paid = sum(p.paid_total() for p in plans)
+    plans_balance = plans_total - plans_paid
+
+    cur_info = _base_currency_info(year)
+    currency_code = (cur_info or {}).get("code")
+    currency_symbol = (cur_info or {}).get("symbol")
+    currency_name = (cur_info or {}).get("name")
+
+    def moneyc(v):
+        suffix = currency_symbol or currency_code
+        return (_fmt_money(v) + (f" {suffix}" if suffix else ""))
+
+    return render_template(
+        "financial_year_report.html",
+        year=year,
+        company=year.company,
+        invoices=invoices,
+        orders=orders,
+        contracts=contracts,
+        plans=plans,
+        total_sales=total_sales,
+        total_purchases=total_purchases,
+        total_invoices=total_invoices,
+        total_orders=total_orders,
+        rental_monthly=rental_monthly,
+        plans_total=plans_total,
+        plans_paid=plans_paid,
+        plans_balance=plans_balance,
+        currency_code=currency_code,
+        currency_symbol=currency_symbol,
+        currency_name=currency_name,
+        today=datetime.date.today(),
+        fmt=_fmt_date,
+        money=_fmt_money,
+        moneyc=moneyc,
+    )

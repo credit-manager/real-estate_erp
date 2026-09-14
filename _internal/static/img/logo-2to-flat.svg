@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" viewBox="0 0 400 120">
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="0" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0D2738"/>
+      <stop offset="1" stop-color="#0A1E2D"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield: small, clean -->
+  <g transform="translate(10, 5) scale(0.45)">
+    <path d="M 24 12 L 176 12 C 182 12, 186 16, 186 22 L 186 140 C 186 170, 170 195, 140 210 L 100 252 L 60 210 C 30 195, 14 170, 14 140 L 14 22 C 14 16, 18 12, 24 12 Z" fill="url(#navy)"/>
+    <path d="M 56 82 C 56 58, 72 48, 96 48 L 112 48 C 136 48, 148 60, 148 78 C 148 96, 136 106, 116 108 L 56 118" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 116 108 L 144 184" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+    <path d="M 48 184 L 152 184" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  </g>
+
+  <!-- "2TO" text: bold, geometric, corporate -->
+  <text x="115" y="78" font-family="Inter, Manrope, system-ui, sans-serif" font-size="72" font-weight="800" fill="#0D2738" letter-spacing="-2">2TO</text>
+
+  <!-- Tagline: subtle, professional -->
+  <text x="115" y="105" font-family="Inter, Manrope, system-ui, sans-serif" font-size="14" font-weight="500" fill="#6B7B8D" letter-spacing="3">ENTERPRISE GOVERNANCE</text>
+</svg>

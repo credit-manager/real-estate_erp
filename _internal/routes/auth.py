@@ -1,0 +1,369 @@
+import hashlib
+import logging
+import os
+import secrets
+import sys
+import threading
+import time
+from functools import wraps
+from typing import Any, Dict, Optional, Tuple
+
+from flask import Blueprint, current_app, jsonify, make_response, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash
+from werkzeug.wrappers import Response
+
+from database import db
+from i18n import DEFAULT_LANG, make_t
+from models import User
+import config
+import server_config
+
+log = logging.getLogger(__name__)
+
+auth_bp = Blueprint("auth", __name__)
+
+MAX_LOGIN_ATTEMPTS: int = config.MAX_LOGIN_ATTEMPTS
+LOGIN_LOCK_SECONDS: int = config.LOGIN_LOCK_SECONDS
+_LOGIN_FAILURES: Dict[str, Dict[str, Any]] = {}
+_cleanup_lock = threading.Lock()
+_REDIS_CLIENT: Any = None
+_REDIS_UNAVAILABLE: bool = False
+
+
+def _csrf_token() -> str:
+    """Get or create a CSRF token for the current session."""
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _redis_login_store() -> Any:
+    """Return the distributed login store; production never falls back silently."""
+    global _REDIS_CLIENT, _REDIS_UNAVAILABLE
+    if getattr(sys, "frozen", False):
+        return None  # Frozen desktop is single-user: in-memory store is correct.
+    env = str(os.environ.get("DYNAMICPRO_ENV", "")).strip().lower()
+    if env not in {"production", "prod"}:
+        return None
+    if _REDIS_CLIENT is not None:
+        return _REDIS_CLIENT
+    if _REDIS_UNAVAILABLE:
+        raise RuntimeError("Production login protection cannot connect to Redis.")
+    uri = os.environ.get("REDIS_URL") or os.environ.get("RATELIMIT_STORAGE_URI")
+    if not uri:
+        raise RuntimeError("Production login protection requires REDIS_URL or RATELIMIT_STORAGE_URI.")
+    if not uri.lower().startswith(("redis://", "rediss://")):
+        raise RuntimeError("Production login protection requires a redis:// or rediss:// storage URI.")
+    try:
+        import redis
+        _REDIS_CLIENT = redis.Redis.from_url(
+            uri,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        _REDIS_CLIENT.ping()
+        return _REDIS_CLIENT
+    except Exception as exc:
+        _REDIS_CLIENT = None
+        _REDIS_UNAVAILABLE = True
+        raise RuntimeError("Production login protection cannot connect to Redis.") from exc
+
+
+def _redis_key(prefix: str, key: str) -> str:
+    """Generate a Redis key with SHA-256 hashed identifier."""
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return f"dynamicpro:login:{prefix}:{digest}"
+
+
+def _cleanup_old_failures() -> None:
+    """Remove expired login failure records from memory."""
+    now = time.time()
+    with _cleanup_lock:
+        expired = [
+            k for k, v in _LOGIN_FAILURES.items()
+            if v.get("lock_until", 0) < now and v.get("lock_until", 0) > 0
+        ]
+        for k in expired:
+            _LOGIN_FAILURES.pop(k, None)
+
+
+def _schedule_cleanup() -> None:
+    """Schedule periodic cleanup of old login failures."""
+    try:
+        t = threading.Timer(600, _schedule_cleanup)
+        t.daemon = True
+        t.start()
+        _cleanup_old_failures()
+    except Exception:
+        log.exception("Login cleanup timer failed")
+
+
+_schedule_cleanup()
+
+
+def _login_key(username: str) -> str:
+    """Generate a unique key for login attempts (IP + username)."""
+    ip = request.remote_addr or "unknown"
+    return f"{ip}:{str(username or '').lower()}"
+
+
+def _check_login_lock(key: str) -> int:
+    """Check if login is locked for the given key. Returns seconds remaining."""
+    store = _redis_login_store()
+    if store is not None:
+        lock_key = _redis_key("lock", key)
+        remaining = store.ttl(lock_key)
+        return max(int(remaining), 0)
+    with _cleanup_lock:
+        rec = _LOGIN_FAILURES.get(key)
+        if not rec:
+            return 0
+        lock_until = rec.get("lock_until") or 0
+        remaining = int(lock_until - time.time())
+        if remaining > 0:
+            return remaining
+        if lock_until:
+            _LOGIN_FAILURES.pop(key, None)
+        return 0
+
+
+def _register_login_failure(key: str) -> None:
+    """Register a login failure and apply rate limiting."""
+    store = _redis_login_store()
+    if store is not None:
+        count_key = _redis_key("count", key)
+        count = store.incr(count_key)
+        if count == 1:
+            store.expire(count_key, LOGIN_LOCK_SECONDS)
+        if count >= MAX_LOGIN_ATTEMPTS:
+            store.set(_redis_key("lock", key), "1", ex=LOGIN_LOCK_SECONDS)
+        if count >= 3:
+            time.sleep(min(0.3 * (count - 2), 2.0))
+        return
+    sleep_seconds = 0
+    with _cleanup_lock:
+        rec = _LOGIN_FAILURES.setdefault(key, {"count": 0, "lock_until": 0})
+        rec["count"] += 1
+        if rec["count"] >= MAX_LOGIN_ATTEMPTS:
+            rec["lock_until"] = time.time() + LOGIN_LOCK_SECONDS
+        if rec["count"] >= 3:
+            sleep_seconds = min(0.3 * (rec["count"] - 2), 2.0)
+    if sleep_seconds > 0:
+        time.sleep(sleep_seconds)
+
+
+def _reset_login_failures(key: str) -> None:
+    """Reset login failure counter for the given key."""
+    store = _redis_login_store()
+    if store is not None:
+        store.delete(_redis_key("count", key), _redis_key("lock", key))
+        return
+    with _cleanup_lock:
+        _LOGIN_FAILURES.pop(key, None)
+
+
+def login_required(f):
+    """Decorator to require authentication for a route."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" in session:
+            return f(*args, **kwargs)
+        try:
+            from licensing.auth import is_company_user_logged_in
+            if is_company_user_logged_in():
+                company_id = session.get("lic_company_id")
+                if company_id:
+                    from licensing.engine import can_access
+                    access = can_access(company_id)
+                    if not access["allowed"]:
+                        return redirect(url_for("auth.login"))
+                    return f(*args, **kwargs)
+        except ImportError:
+            pass
+        return redirect(url_for("auth.login"))
+    return decorated
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login() -> Response:
+    """Handle user login (GET for form, POST for authentication)."""
+    if request.method == "GET":
+        if "user_id" in session:
+            return redirect(url_for("pages.dashboard"))
+        _branding_ctx = {}
+        try:
+            from utils.branding import info as _branding_info
+            _bi = _branding_info()
+            _branding_ctx = {
+                "customer_logo": _bi.get("customer_logo", ""),
+                "branding_override": _bi.get("override", False),
+                "has_active_customer": _bi.get("customer") is not None,
+            }
+        except Exception:
+            pass
+        resp = make_response(render_template("login.html", **_branding_ctx))
+        if not request.cookies.get("lang"):
+            try:
+                import utils.settings as settings_module
+                default_lang = settings_module.get("default_lang", "ar")
+                if default_lang not in ("ar", "en"):
+                    default_lang = "ar"
+                resp.set_cookie("lang", default_lang, max_age=60 * 60 * 24 * 365)
+            except Exception:
+                resp.set_cookie("lang", DEFAULT_LANG, max_age=60 * 60 * 24 * 365)
+        return resp
+
+    data = request.get_json(silent=True) or {}
+    username: str = data.get("username", "")
+    password: str = data.get("password", "")
+
+    access_password: str = data.get("access_password", "")
+    required: str = current_app.config.get("SERVER_ACCESS_PASSWORD", "")
+    if required and not server_config.check_access_password(required, access_password):
+        lang = request.cookies.get("lang", DEFAULT_LANG)
+        try:
+            from auditlog import log_action
+            log_action("login_failed", "server_access", None, "كلمة مرور وصول الخادم خاطئة")
+        except ImportError:
+            log.warning("auditlog module not available")
+        return jsonify({
+            "success": False,
+            "code": "bad_access",
+            "message": make_t(lang)("login.badAccess"),
+        }), 401
+
+    email_lower = (username or "").strip().lower()
+    if "@" in email_lower:
+        try:
+            from licensing.models import LicCompanyUser
+            cu = LicCompanyUser.query.filter_by(email=email_lower, is_active=True).first()
+            if cu:
+                from licensing.auth import authenticate_company_user, _check_lock as lic_check_lock
+                lock_key = f"{request.remote_addr}:{email_lower}"
+                if lic_check_lock(lock_key):
+                    return jsonify({
+                        "success": False,
+                        "code": "locked",
+                        "message": "تم قفل محاولات الدخول مؤقتاً.",
+                    }), 429
+                result = authenticate_company_user(email_lower, password)
+                if result.get("success"):
+                    result["csrf_token"] = _csrf_token()
+                    return jsonify(result)
+                _register_login_failure(_login_key(username))
+                return jsonify(result), 401
+        except ImportError:
+            pass
+
+    key = _login_key(username)
+    lock_remaining = _check_login_lock(key)
+    if lock_remaining:
+        return jsonify({
+            "success": False,
+            "code": "locked",
+            "message": "تم قفل محاولات الدخول مؤقتاً بسبب محاولات خاطئة متكررة. "
+                       f"حاول مجدداً بعد {lock_remaining // 60} دقيقة.",
+            "retry_after": lock_remaining,
+        }), 429
+
+    user = User.query.filter_by(username=username).first()
+    if user and user.is_active and check_password_hash(user.password_hash, password):
+        _reset_login_failures(key)
+        session.clear()
+        session["user_id"] = user.id
+        session["username"] = user.username
+        session["full_name"] = user.full_name
+        session["role"] = user.role
+        session["must_change_password"] = bool(user.must_change_password)
+        csrf_token = _csrf_token()
+        try:
+            from auditlog import log_action
+            log_action("login", "user", user.id, user.username)
+        except ImportError:
+            log.info("User logged in: %s", user.username)
+        try:
+            from routes.license import create_owner_notification, log_license_activity
+            log_license_activity("login", f"user={user.username}", user.id, user.username)
+            if user.username != "admin":
+                create_owner_notification(
+                    title=f"دخول مستخدم: {user.username}",
+                    message=f"المستخدم {user.full_name} ({user.username}) قام بتسجيل الدخول من {request.remote_addr}",
+                    notif_type="login",
+                    related_user=user.username,
+                )
+        except Exception as exc:
+            log.warning("Login notification error: %s", exc)
+        return jsonify({"success": True, "user": user.to_dict(), "csrf_token": csrf_token})
+
+    try:
+        from auditlog import log_action
+        log_action(
+            "login_failed",
+            "user",
+            getattr(user, "id", None),
+            f"محاولة دخول خاطئة ({username})",
+        )
+    except ImportError:
+        log.warning("Failed login attempt for user: %s", username)
+    _register_login_failure(key)
+    if _check_login_lock(key):
+        return jsonify({
+            "success": False,
+            "code": "locked",
+            "message": "تم قفل محاولات الدخول مؤقتاً بسبب محاولات خاطئة متكررة. "
+                       f"حاول مجدداً بعد {LOGIN_LOCK_SECONDS // 60} دقيقة.",
+            "retry_after": LOGIN_LOCK_SECONDS,
+        }), 429
+
+    return jsonify({"success": False, "message": "بيانات الدخول غير صحيحة"}), 401
+
+
+@auth_bp.route("/logout", methods=["POST"])
+def logout() -> Response:
+    """Handle user logout."""
+    try:
+        from auditlog import log_action
+        log_action("logout", "user", session.get("user_id"), session.get("username", ""))
+    except ImportError:
+        log.info("User logged out: %s", session.get("username", ""))
+    try:
+        from licensing.auth import is_company_user_logged_in, logout_company_user
+        if is_company_user_logged_in():
+            logout_company_user()
+            try:
+                from licensing.auth import logout_master_user
+                logout_master_user()
+            except ImportError:
+                pass
+            return jsonify({"success": True})
+    except ImportError:
+        pass
+    session.clear()
+    return jsonify({"success": True})
+
+
+@auth_bp.route("/api/me")
+def me() -> Response:
+    """Return current authenticated user information."""
+    try:
+        from licensing.auth import is_company_user_logged_in, get_company_session_data
+        if is_company_user_logged_in():
+            data = get_company_session_data()
+            return jsonify({"authenticated": True, "type": "company", "csrf_token": _csrf_token(), **data})
+    except ImportError:
+        pass
+    if "user_id" not in session:
+        return jsonify({"authenticated": False}), 401
+    user = db.session.get(User, session["user_id"])
+    if not user:
+        session.clear()
+        return jsonify({"authenticated": False}), 401
+    return jsonify({
+        "authenticated": True,
+        "type": "employee",
+        "user": user.to_dict(),
+        "csrf_token": _csrf_token(),
+    })

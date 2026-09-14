@@ -1,0 +1,311 @@
+/* ============================================================
+   2TO ERP — Motion Identity
+   Version 2.1 | September 2026
+   ============================================================
+   Usage: <link rel="stylesheet" href="css/motion.css">
+   All animations respect prefers-reduced-motion.
+   ============================================================ */
+
+/* ---------- TOKENS ---------- */
+:root {
+  --2to-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --2to-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --2to-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --2to-duration-fast: 150ms;
+  --2to-duration-base: 250ms;
+  --2to-duration-slow: 400ms;
+  --2to-duration-enter: 600ms;
+}
+
+/* ---------- LOGO ENTRANCE ---------- */
+@keyframes logo-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(12px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.logo-animate {
+  animation: logo-enter 0.7s var(--2to-ease-out) both;
+}
+
+/* Staggered children: shield first, then text */
+.logo-animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.logo-animate-stagger > *:nth-child(2) { animation-delay: 120ms; }
+
+/* ---------- SHIELD DRAW (stroke animation) ---------- */
+@keyframes shield-draw {
+  0% {
+    stroke-dashoffset: 400;
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+.shield-draw {
+  stroke-dasharray: 400;
+  animation: shield-draw 1.2s var(--2to-ease) both;
+}
+
+/* ---------- NUMBER "2" REVEAL ---------- */
+@keyframes number-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.number-animate {
+  animation: number-reveal 0.5s var(--2to-ease-out) 0.4s both;
+}
+
+/* ---------- FADE IN UP (general content) ---------- */
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fade-in-up var(--2to-duration-enter) var(--2to-ease-out) both;
+}
+
+/* Stagger utility: add data-delay="0|1|2|3|4" */
+.fade-in-up[data-delay="1"] { animation-delay: 80ms; }
+.fade-in-up[data-delay="2"] { animation-delay: 160ms; }
+.fade-in-up[data-delay="3"] { animation-delay: 240ms; }
+.fade-in-up[data-delay="4"] { animation-delay: 320ms; }
+.fade-in-up[data-delay="5"] { animation-delay: 400ms; }
+
+/* ---------- SCALE IN (modals, dropdowns) ---------- */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.scale-in {
+  animation: scale-in var(--2to-duration-base) var(--2to-ease-out) both;
+}
+
+/* ---------- SLIDE IN FROM RIGHT (panels, drawers) ---------- */
+@keyframes slide-in-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in-right {
+  animation: slide-in-right var(--2to-duration-slow) var(--2to-ease-out) both;
+}
+
+/* ---------- SLIDE IN FROM LEFT (sidebar) ---------- */
+@keyframes slide-in-left {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in-left {
+  animation: slide-in-left var(--2to-duration-slow) var(--2to-ease-out) both;
+}
+
+/* ---------- HOVER: Card lift ---------- */
+.card-hover {
+  transition: transform var(--2to-duration-base) var(--2to-ease),
+              box-shadow var(--2to-duration-base) var(--2to-ease);
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(7, 28, 42, 0.12);
+}
+
+/* ---------- HOVER: Button scale ---------- */
+.btn-hover {
+  transition: transform var(--2to-duration-fast) var(--2to-ease),
+              background-color var(--2to-duration-fast) ease;
+}
+.btn-hover:active {
+  transform: scale(0.97);
+}
+
+/* ---------- HOVER: Logo pulse ---------- */
+@keyframes logo-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(11, 114, 133, 0)); }
+  50% { filter: drop-shadow(0 0 12px rgba(11, 114, 133, 0.25)); }
+}
+
+.logo-hover:hover {
+  animation: logo-pulse 1.5s var(--2to-ease-in-out) infinite;
+}
+
+/* ---------- LOADING SPINNER (shield-based) ---------- */
+@keyframes spinner-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spinner-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.spinner-shield {
+  width: 32px;
+  height: 38px;
+  position: relative;
+}
+
+.spinner-shield::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--enterprise-teal);
+  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+  border-top-color: transparent;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+/* ---------- SKELETON LOADING ---------- */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+.skeleton-dark {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.05) 25%,
+    rgba(255,255,255,0.1) 50%,
+    rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ---------- PAGE TRANSITION ---------- */
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 0.4s var(--2to-ease-out) both;
+}
+
+/* ---------- COUNTER ANIMATION ---------- */
+@keyframes count-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.count-animate {
+  animation: count-up 0.5s var(--2to-ease-out) both;
+}
+
+/* ---------- NOTIFICATION SLIDE ---------- */
+@keyframes notification-in {
+  0% {
+    transform: translateX(100%) scale(0.95);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes notification-out {
+  0% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%) scale(0.95);
+    opacity: 0;
+  }
+}
+
+.notification-enter {
+  animation: notification-in 0.4s var(--2to-ease-out) both;
+}
+
+.notification-exit {
+  animation: notification-out 0.3s var(--2to-ease-in-out) both;
+}
+
+/* ---------- TEAL ACCENT LINE ---------- */
+@keyframes accent-grow {
+  0% { width: 0; }
+  100% { width: 100%; }
+}
+
+.accent-line {
+  height: 2px;
+  background: var(--enterprise-teal);
+  animation: accent-grow 0.6s var(--2to-ease-out) 0.3s both;
+}
+
+/* ---------- REDUCED MOTION ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

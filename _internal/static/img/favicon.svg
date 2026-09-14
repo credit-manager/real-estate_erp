@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72">
+  <defs>
+    <linearGradient id="shieldNavy" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B2545" />
+      <stop offset="50%" stop-color="#134074" />
+      <stop offset="100%" stop-color="#001229" />
+    </linearGradient>
+    <linearGradient id="silverMetallic" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#D0D7DE" />
+    </linearGradient>
+    <linearGradient id="techBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00AEEF" />
+      <stop offset="100%" stop-color="#0072CE" />
+    </linearGradient>
+  </defs>
+  <path d="M 6 6 L 58 6 L 58 43 L 32 66 L 6 43 Z" fill="url(#shieldNavy)" stroke="url(#techBlue)" stroke-width="2" stroke-linejoin="round" />
+  <path d="M 10 41 L 32 60 L 54 41" fill="none" stroke="url(#techBlue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8" />
+  <path d="M 21 22 C 21 16, 43 16, 43 23 C 43 30, 21 37, 21 48 L 44 48 L 44 54 L 18 54 L 18 46 C 30 36, 36 32, 36 25 C 36 22, 28 21, 22 23 Z" fill="url(#silverMetallic)" />
+</svg>

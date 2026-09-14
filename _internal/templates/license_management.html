@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('license.title') }} | {{ system_name }}{% endblock %}
+
+{% block page %}license-management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ t('license.title') }}</h1>
+    <p>{{ t('license.subtitle') }}</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-primary" id="btn-new-license">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      {{ t('license.new') }}
+    </button>
+  </div>
+</div>
+
+<!-- License Status Card -->
+<div class="card" id="license-status-card" style="margin-bottom:20px;">
+  <div class="card-body" id="license-status-body">
+    <div class="settings-loading">{{ t('serverSettings.loading') }}</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="settings-page">
+  <nav class="settings-sidebar">
+    <div class="settings-sidebar-header">
+      <h2>{{ t('license.management') }}</h2>
+    </div>
+    <ul class="settings-nav">
+      <li class="settings-nav-item active" data-tab="licenses-list">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        <span>{{ t('license.licenses') }}</span>
+      </li>
+      <li class="settings-nav-item" data-tab="activity-log">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+        <span>{{ t('license.activity') }}</span>
+      </li>
+      <li class="settings-nav-item" data-tab="owner-notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span>{{ t('license.notifications') }}</span>
+        <span class="badge" id="notif-badge" style="display:none;">0</span>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="settings-content">
+    <!-- Licenses List -->
+    <div class="settings-section active" id="tab-licenses-list">
+      <div class="settings-section-header">
+        <h3>{{ t('license.licenses') }}</h3>
+      </div>
+      <div id="licenses-table-wrap">
+        <div class="settings-loading">{{ t('serverSettings.loading') }}</div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="settings-section" id="tab-activity-log">
+      <div class="settings-section-header">
+        <h3>{{ t('license.activity') }}</h3>
+      </div>
+      <div id="activity-table-wrap">
+        <div class="settings-loading">{{ t('serverSettings.loading') }}</div>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="settings-section" id="tab-owner-notifications">
+      <div class="settings-section-header">
+        <h3>{{ t('license.notifications') }}</h3>
+      </div>
+      <div id="notifications-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- New License Modal -->
+<div class="modal-overlay" id="modal-new-license" hidden>
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>{{ t('license.new') }}</h3>
+      <button class="modal-close" id="modal-close-new">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>{{ t('license.companyName') }} *</label>
+        <input type="text" id="new-company-name" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('license.contactName') }} *</label>
+          <input type="text" id="new-contact-name" required>
+        </div>
+        <div class="form-group">
+          <label>{{ t('license.contactEmail') }} *</label>
+          <input type="email" id="new-contact-email" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>{{ t('license.contactPhone') }}</label>
+          <input type="text" id="new-contact-phone">
+        </div>
+        <div class="form-group">
+          <label>{{ t('license.maxUsers') }} *</label>
+          <input type="number" id="new-max-users" min="1" max="10000" value="10">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>{{ t('license.type') }} *</label>
+        <select id="new-license-type">
+          <option value="trial">{{ t('license.typeTrial') }} ({{ t('license.trialDesc') }})</option>
+          <option value="annual">{{ t('license.typeAnnual') }} ({{ t('license.annualDesc') }})</option>
+          <option value="biennial">{{ t('license.typeBiennial') }} ({{ t('license.biennialDesc') }})</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>{{ t('license.notes') }}</label>
+        <textarea id="new-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="modal-cancel-new">{{ t('common.cancel') }}</button>
+      <button class="btn btn-primary" id="modal-save-new">{{ t('license.create') }}</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  "use strict";
+  var T = window.T || {};
+  var lt = function(k){ return T[k]!==undefined&&T[k]!==null?T[k]:k; };
+
+  function api(url, opts){
+    return fetch(url, Object.assign({headers:{"Content-Type":"application/json"}}, opts||{})).then(function(r){return r.json();});
+  }
+
+  var TYPE_LABELS = {trial: lt("license.typeTrial"), annual: lt("license.typeAnnual"), biennial: lt("license.typeBiennial")};
+
+  // ── Tabs ──────────────────────────────────────────────────
+  document.querySelectorAll(".settings-nav-item").forEach(function(item){
+    item.addEventListener("click", function(){
+      var tab = item.getAttribute("data-tab");
+      document.querySelectorAll(".settings-nav-item").forEach(function(n){n.classList.remove("active");});
+      document.querySelectorAll(".settings-section").forEach(function(s){s.classList.remove("active");});
+      item.classList.add("active");
+      var sec = document.getElementById("tab-"+tab);
+      if(sec) sec.classList.add("active");
+    });
+  });
+
+  // ── License Status ────────────────────────────────────────
+  function loadStatus(){
+    api("/license/api/license-status").then(function(d){
+      var wrap = document.getElementById("license-status-body");
+      if(!d.valid){
+        wrap.innerHTML = '<div style="color:#ef4444;font-weight:600;">'+lt("license.noLicense")+'</div>';
+      } else {
+        var pct = Math.min(100, Math.max(0, (d.days_remaining/30)*100));
+        var color = d.days_remaining < 7 ? '#ef4444' : d.days_remaining < 30 ? '#f59e0b' : '#22c55e';
+        wrap.innerHTML =
+          '<div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">'+
+          '<div><div style="font-size:11px;color:var(--muted-foreground);">الشركة</div><div style="font-weight:600;">'+escapeHtml(d.company_name||'')+'</div></div>'+
+          '<div><div style="font-size:11px;color:var(--muted-foreground);">النوع</div><div style="font-weight:600;">'+(TYPE_LABELS[d.license_type]||d.license_type)+'</div></div>'+
+          '<div><div style="font-size:11px;color:var(--muted-foreground);">الأيام المتبقية</div><div style="font-size:24px;font-weight:700;color:'+color+';">'+d.days_remaining+'</div></div>'+
+          '<div style="flex:1;min-width:200px;"><div style="font-size:11px;color:var(--muted-foreground);margin-bottom:4px;">انتهاء الصلاحية: '+d.expires_at.split('T')[0]+'</div>'+
+          '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:3px;"></div></div></div>'+
+          '</div>';
+      }
+    }).catch(function(){});
+  }
+
+  // ── Licenses Table ────────────────────────────────────────
+  function loadLicenses(){
+    api("/license/api/licenses").then(function(d){
+      var wrap = document.getElementById("licenses-table-wrap");
+      if(!d.success||!d.data||!d.data.length){
+        wrap.innerHTML = '<div class="settings-loading" style="color:var(--muted-foreground);">'+lt("license.noLicenses")+'</div>';
+        return;
+      }
+      var html = '<div style="overflow-x:auto;"><table class="table" style="width:100%"><thead><tr>'+
+        '<th>'+lt("license.licenseKey")+'</th>'+
+        '<th>'+lt("license.companyName")+'</th>'+
+        '<th>'+lt("license.type")+'</th>'+
+        '<th>'+lt("license.maxUsers")+'</th>'+
+        '<th>'+lt("license.expiresAt")+'</th>'+
+        '<th>'+lt("license.daysRemaining")+'</th>'+
+        '<th>'+lt("license.status")+'</th>'+
+        '<th>'+lt("common.actions")+'</th>'+
+        '</tr></thead><tbody>';
+      d.data.forEach(function(l){
+        var statusCls = l.is_valid ? 'color:#22c55e;' : 'color:#ef4444;';
+        html += '<tr>'+
+          '<td><code style="font-size:12px;">'+escapeHtml(l.license_key)+'</code></td>'+
+          '<td>'+escapeHtml(l.company_name)+'</td>'+
+          '<td>'+(TYPE_LABELS[l.license_type]||l.license_type)+'</td>'+
+          '<td>'+l.max_users+'</td>'+
+          '<td>'+(l.expires_at?l.expires_at.split('T')[0]:'-')+'</td>'+
+          '<td style="font-weight:600;">'+l.days_remaining+'</td>'+
+          '<td style="'+statusCls+'font-weight:600;">'+(l.is_valid ? lt("license.valid") : lt("license.expired"))+'</td>'+
+          '<td>'+
+            (l.is_active ?
+              '<button class="btn btn-ghost btn-sm" onclick="toggleLicense('+l.id+',false)">'+lt("license.deactivate")+'</button>' :
+              '<button class="btn btn-ghost btn-sm" onclick="toggleLicense('+l.id+',true)">'+lt("license.activate")+'</button>')+
+            ' <button class="btn btn-ghost btn-sm" style="color:#ef4444;" onclick="deleteLicense('+l.id+')">'+lt("common.delete")+'</button>'+
+          '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      wrap.innerHTML = html;
+    });
+  }
+
+  window.toggleLicense = function(id, activate){
+    var url = activate ? '/license/api/licenses/'+id+'/activate' : '/license/api/licenses/'+id+'/deactivate';
+    api(url,{method:"POST"}).then(function(){loadLicenses();loadStatus();});
+  };
+  window.deleteLicense = function(id){
+    if(!confirm(lt("license.confirmDelete"))) return;
+    api('/license/api/licenses/'+id,{method:"DELETE"}).then(function(){loadLicenses();loadStatus();});
+  };
+
+  // ── Activity Log ──────────────────────────────────────────
+  function loadActivity(){
+    api("/license/api/activity?limit=100").then(function(d){
+      var wrap = document.getElementById("activity-table-wrap");
+      if(!d.success||!d.data||!d.data.length){
+        wrap.innerHTML = '<div class="settings-loading" style="color:var(--muted-foreground);">'+lt("license.noActivity")+'</div>';
+        return;
+      }
+      var html = '<div style="overflow-x:auto;"><table class="table" style="width:100%"><thead><tr>'+
+        '<th>'+lt("license.activityDate")+'</th>'+
+        '<th>'+lt("license.activityUser")+'</th>'+
+        '<th>'+lt("license.activityAction")+'</th>'+
+        '<th>'+lt("license.activityDetails")+'</th>'+
+        '<th>'+lt("license.activityIP")+'</th>'+
+        '</tr></thead><tbody>';
+      d.data.forEach(function(a){
+        html += '<tr>'+
+          '<td style="white-space:nowrap;">'+(a.created_at?a.created_at.replace('T',' ').substring(0,19):'')+'</td>'+
+          '<td>'+escapeHtml(a.username||'')+'</td>'+
+          '<td>'+escapeHtml(a.action||'')+'</td>'+
+          '<td>'+escapeHtml(a.details||'')+'</td>'+
+          '<td><code>'+escapeHtml(a.ip_address||'')+'</code></td>'+
+          '</tr>';
+      });
+      html += '</tbody></table></div>';
+      wrap.innerHTML = html;
+    });
+  }
+
+  // ── Notifications ─────────────────────────────────────────
+  function loadNotifications(){
+    api("/license/api/notifications").then(function(d){
+      var wrap = document.getElementById("notifications-list");
+      var badge = document.getElementById("notif-badge");
+      if(d.unread > 0){ badge.style.display=""; badge.textContent=d.unread; }
+      else { badge.style.display="none"; }
+      if(!d.success||!d.data||!d.data.length){
+        wrap.innerHTML = '<div class="settings-loading" style="color:var(--muted-foreground);">'+lt("license.noNotifications")+'</div>';
+        return;
+      }
+      var html = '';
+      d.data.forEach(function(n){
+        var icon = n.notification_type==='login' ? '🔑' : n.notification_type==='license_expiring' ? '⏰' : '🔔';
+        html += '<div style="padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;'+(n.is_read?'':'background:var(--primary-light,rgba(37,99,235,0.04));')+'">'+
+          '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<span>'+icon+'</span>'+
+          '<strong style="font-size:13px;">'+escapeHtml(n.title)+'</strong>'+
+          '<span style="margin-inline-start:auto;font-size:11px;color:var(--muted-foreground);">'+(n.created_at?n.created_at.replace('T',' ').substring(0,16):'')+'</span>'+
+          '</div>'+
+          '<p style="margin:4px 0 0;font-size:13px;color:var(--muted-foreground);">'+escapeHtml(n.message)+'</p>'+
+          '</div>';
+      });
+      wrap.innerHTML = html;
+    });
+  }
+
+  // ── New License Modal ─────────────────────────────────────
+  var modal = document.getElementById("modal-new-license");
+  document.getElementById("btn-new-license").addEventListener("click",function(){modal.hidden=false;});
+  document.getElementById("modal-close-new").addEventListener("click",function(){modal.hidden=true;});
+  document.getElementById("modal-cancel-new").addEventListener("click",function(){modal.hidden=true;});
+  modal.addEventListener("click",function(e){if(e.target===modal)modal.hidden=true;});
+
+  document.getElementById("modal-save-new").addEventListener("click",function(){
+    var body = {
+      company_name: document.getElementById("new-company-name").value.trim(),
+      contact_name: document.getElementById("new-contact-name").value.trim(),
+      contact_email: document.getElementById("new-contact-email").value.trim(),
+      contact_phone: document.getElementById("new-contact-phone").value.trim(),
+      license_type: document.getElementById("new-license-type").value,
+      max_users: parseInt(document.getElementById("new-max-users").value)||10,
+      notes: document.getElementById("new-notes").value.trim()
+    };
+    if(!body.company_name||!body.contact_name||!body.contact_email){
+      alert(lt("license.fillRequired"));
+      return;
+    }
+    api("/license/api/licenses",{method:"POST",body:JSON.stringify(body)}).then(function(d){
+      if(d.success){
+        modal.hidden=true;
+        loadLicenses();
+        loadStatus();
+        document.getElementById("new-company-name").value="";
+        document.getElementById("new-contact-name").value="";
+        document.getElementById("new-contact-email").value="";
+        document.getElementById("new-contact-phone").value="";
+        document.getElementById("new-notes").value="";
+      } else {
+        alert(d.message||lt("serverSettings.error"));
+      }
+    });
+  });
+
+  function escapeHtml(s){var e=document.createElement("div");e.textContent=s;return e.innerHTML;}
+
+  // ── Init ──────────────────────────────────────────────────
+  loadStatus();
+  loadLicenses();
+  loadActivity();
+  loadNotifications();
+})();
+</script>
+{% endblock %}

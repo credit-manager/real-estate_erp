@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>بوابة الفوترة | 2TO</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("dp-theme");
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #0a0f1c;
+      --surface: rgba(255, 255, 255, 0.05);
+      --surface-bright: rgba(255, 255, 255, 0.09);
+      --surface-hover: rgba(255, 255, 255, 0.08);
+      --border: rgba(255, 255, 255, 0.09);
+      --tx: #e6edf7;
+      --tx-secondary: #9aa7bd;
+      --tx-muted: #66748c;
+      --ac: #14b8a6;
+      --ac-hover: #2dd4bf;
+      --ac-light: rgba(20, 184, 166, 0.14);
+      --ok: #34d399;
+      --ok-light: rgba(52, 211, 153, 0.15);
+      --err: #f87171;
+      --err-light: rgba(248, 113, 113, 0.15);
+      --warn: #fbbf24;
+      --warn-light: rgba(251, 191, 36, 0.15);
+      --info: #38bdf8;
+      --info-light: rgba(56, 189, 248, 0.15);
+      --gradient: linear-gradient(135deg, #14b8a6 0%, #6366f1 60%, #8b5cf6 100%);
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      --radius: 14px;
+    }
+
+    [data-theme="light"] {
+      --bg: #eef2f7;
+      --surface: #ffffff;
+      --surface-bright: #f8fafc;
+      --surface-hover: #f1f5f9;
+      --border: rgba(15, 23, 42, 0.1);
+      --tx: #0f172a;
+      --tx-secondary: #475569;
+      --tx-muted: #94a3b8;
+      --ac: #0d9488;
+      --ac-hover: #0f766e;
+      --ac-light: rgba(13, 148, 136, 0.1);
+      --ok: #059669;
+      --ok-light: rgba(5, 150, 105, 0.1);
+      --err: #dc2626;
+      --err-light: rgba(220, 38, 38, 0.08);
+      --warn: #d97706;
+      --warn-light: rgba(217, 119, 6, 0.1);
+      --info: #0284c7;
+      --info-light: rgba(2, 132, 199, 0.1);
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans Arabic', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--tx);
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.12;
+      z-index: 0;
+      pointer-events: none;
+    }
+    body::before { width: 560px; height: 560px; background: #14b8a6; top: -220px; inset-inline-end: -140px; }
+    body::after { width: 480px; height: 480px; background: #7c3aed; bottom: -220px; inset-inline-start: -120px; }
+
+    .bp-grid-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+      background-size: 56px 56px;
+    }
+
+    .bp-shell { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+
+    /* ── Top bar ── */
+    .bp-top {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.9rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(14px);
+      margin-bottom: 1.25rem;
+    }
+    .bp-logo {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      background: var(--gradient);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+    .bp-brand { flex: 1; min-width: 0; }
+    .bp-brand-name { font-weight: 700; font-size: 1rem; }
+    .bp-brand-sub { font-size: 0.78rem; color: var(--tx-muted); margin-top: 2px; }
+
+    .bp-tools { display: flex; align-items: center; gap: 0.55rem; }
+    .bp-icon-btn {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-bright);
+      color: var(--tx-secondary);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .bp-icon-btn:hover { border-color: var(--ac); color: var(--ac); }
+    .bp-icon-btn svg { width: 18px; height: 18px; }
+    .bp-user {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.35rem 0.8rem 0.35rem 0.35rem;
+      border-radius: 12px;
+      background: var(--surface-bright);
+      border: 1px solid var(--border);
+    }
+    .bp-avatar {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: var(--gradient);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700;
+    }
+    .bp-user-info { line-height: 1.25; }
+    .bp-user-name { font-size: 0.85rem; font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bp-user-role { font-size: 0.7rem; color: var(--tx-muted); }
+
+    /* ── Cards ── */
+    .bp-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      margin-bottom: 1.25rem;
+    }
+    .bp-card-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .bp-card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .bp-card-title svg { width: 18px; height: 18px; color: var(--ac); }
+    .bp-card-body { padding: 1.25rem; }
+
+    /* ── Subscription hero ── */
+    .bp-hero {
+      position: relative;
+      overflow: hidden;
+      padding: 1.5rem;
+      border-radius: 16px;
+      background: var(--gradient);
+      color: #fff;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 12px 40px rgba(20, 184, 166, 0.28);
+    }
+    .bp-hero::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 20% 0%, rgba(255,255,255,0.16), transparent 55%);
+    }
+    .bp-hero-inner { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; justify-content: space-between; }
+    .bp-hero-plan { display: flex; align-items: center; gap: 0.9rem; }
+    .bp-hero-icon {
+      width: 54px; height: 54px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+    }
+    .bp-hero-name { font-size: 1.35rem; font-weight: 800; }
+    .bp-hero-sub { font-size: 0.82rem; opacity: 0.85; margin-top: 3px; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .bp-hero-stats { display: flex; gap: 1.75rem; flex-wrap: wrap; }
+    .bp-hero-stat { text-align: center; }
+    .bp-hero-stat .v { font-size: 1.15rem; font-weight: 800; }
+    .bp-hero-stat .l { font-size: 0.72rem; opacity: 0.85; }
+
+    /* ── KPIs ── */
+    .bp-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+    .bp-kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.05rem 1.1rem;
+      backdrop-filter: blur(14px);
+    }
+    .bp-kpi .l { font-size: 0.78rem; color: var(--tx-muted); }
+    .bp-kpi .v { font-size: 1.25rem; font-weight: 800; margin-top: 0.35rem; }
+    .bp-kpi .s { font-size: 0.72rem; color: var(--tx-muted); margin-top: 0.2rem; }
+
+    /* ── Plans grid ── */
+    .bp-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .bp-plan {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      background: var(--surface-bright);
+      display: flex; flex-direction: column; gap: 0.8rem;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .bp-plan:hover { transform: translateY(-3px); border-color: var(--ac); }
+    .bp-plan.current { border-color: var(--ac); box-shadow: 0 0 0 1px var(--ac); }
+    .bp-plan-icon { font-size: 1.6rem; }
+    .bp-plan-name { font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .bp-plan-badge {
+      font-size: 0.68rem; font-weight: 700;
+      padding: 0.2rem 0.55rem; border-radius: 999px;
+    }
+    .bp-plan-desc { font-size: 0.82rem; color: var(--tx-secondary); line-height: 1.6; flex: 1; }
+    .bp-plan-feats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .bp-plan-chip {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 8px;
+      background: var(--ac-light);
+      color: var(--ac);
+    }
+    .bp-plan-price { font-size: 1.3rem; font-weight: 800; }
+    .bp-plan-price small { font-size: 0.72rem; font-weight: 500; color: var(--tx-muted); }
+
+    /* ── Buttons ── */
+    .bp-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+      padding: 0.6rem 1.15rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-bright);
+      color: var(--tx);
+      font-family: inherit;
+      font-size: 0.88rem; font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .bp-btn:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+    .bp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .bp-btn.primary {
+      background: var(--gradient);
+      color: #fff;
+      border: none;
+    }
+    .bp-btn.primary:hover:not(:disabled) { color: #fff; opacity: 0.92; }
+    .bp-btn.danger { background: var(--err-light); color: var(--err); border-color: rgba(248, 113, 113, 0.25); }
+    .bp-btn.danger:hover:not(:disabled) { background: var(--err); color: #fff; border-color: var(--err); }
+    .bp-btn.full { width: 100%; }
+    .bp-btn .spin {
+      display: none; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+      border-radius: 50%; animation: bp-spin 0.6s linear infinite;
+    }
+    .bp-btn.loading .spin { display: block; }
+    .bp-btn.loading .bp-btn-text { display: none; }
+    @keyframes bp-spin { to { transform: rotate(360deg); } }
+
+    /* ── Table ── */
+    .bp-table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { text-align: start; padding: 0.75rem 0.9rem; font-size: 0.85rem; }
+    thead th {
+      color: var(--tx-muted);
+      font-weight: 600; font-size: 0.76rem;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-hover); }
+
+    .bp-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.72rem; font-weight: 700;
+      padding: 0.28rem 0.6rem; border-radius: 999px;
+      white-space: nowrap;
+    }
+    .bp-badge.ok { background: var(--ok-light); color: var(--ok); }
+    .bp-badge.err { background: var(--err-light); color: var(--err); }
+    .bp-badge.warn { background: var(--warn-light); color: var(--warn); }
+    .bp-badge.info { background: var(--info-light); color: var(--info); }
+    .bp-badge.muted { background: var(--surface-bright); color: var(--tx-muted); }
+
+    .bp-empty { text-align: center; color: var(--tx-muted); font-size: 0.85rem; padding: 1.5rem 0; }
+
+    /* ── Pagination ── */
+    .bp-pager { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+    .bp-page-btns { display: flex; gap: 0.35rem; align-items: center; }
+    .bp-page-btn {
+      min-width: 32px; height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-bright);
+      color: var(--tx-secondary);
+      font-family: inherit; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer;
+      padding: 0 0.5rem;
+      transition: all 0.2s;
+    }
+    .bp-page-btn:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+    .bp-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .bp-page-btn.active { background: var(--gradient); color: #fff; border: none; }
+    .bp-pager-info { font-size: 0.78rem; color: var(--tx-muted); }
+
+    /* ── Filter bar ── */
+    .bp-toolbar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .bp-select {
+      padding: 0.5rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-bright);
+      color: var(--tx);
+      font-family: inherit; font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .bp-select:focus { outline: none; border-color: var(--ac); }
+
+    /* ── Modal ── */
+    .bp-mask {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .bp-mask.open { display: flex; }
+    .bp-modal {
+      width: 100%; max-width: 440px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      animation: bp-pop 0.18s ease-out;
+    }
+    @keyframes bp-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+    .bp-modal-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.5rem; }
+    .bp-modal-sub { font-size: 0.85rem; color: var(--tx-muted); line-height: 1.6; margin-bottom: 1.1rem; }
+    .bp-modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; }
+
+    .bp-cycle-opt {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-bright);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 0.6rem;
+    }
+    .bp-cycle-opt:hover { border-color: var(--ac); }
+    .bp-cycle-opt.selected { border-color: var(--ac); box-shadow: 0 0 0 1px var(--ac); background: var(--ac-light); }
+    .bp-cycle-opt .t { font-weight: 700; font-size: 0.92rem; }
+    .bp-cycle-opt .d { font-size: 0.75rem; color: var(--tx-muted); margin-top: 2px; }
+    .bp-cycle-opt .p { font-weight: 800; font-size: 1.05rem; }
+
+    /* ── Skeleton ── */
+    .bp-skeleton {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      background: var(--surface-bright);
+      min-height: 14px;
+    }
+    .bp-skeleton::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+      animation: bp-shimmer 1.3s infinite;
+    }
+    @keyframes bp-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+    /* ── Toast ── */
+    .bp-toasts {
+      position: fixed; bottom: 1.25rem; inset-inline-end: 1.25rem; z-index: 100;
+      display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .bp-toast {
+      min-width: 260px; max-width: 360px;
+      padding: 0.85rem 1.1rem;
+      border-radius: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      font-size: 0.88rem;
+      display: flex; align-items: center; gap: 0.6rem;
+      animation: bp-pop 0.2s ease-out;
+    }
+    .bp-toast.ok { border-color: rgba(52, 211, 153, 0.4); }
+    .bp-toast.err { border-color: rgba(248, 113, 113, 0.45); }
+    .bp-toast.warn { border-color: rgba(251, 191, 36, 0.4); }
+    .bp-toast .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .bp-toast.ok .dot { background: var(--ok); }
+    .bp-toast.err .dot { background: var(--err); }
+    .bp-toast.warn .dot { background: var(--warn); }
+
+    .bp-note {
+      display: flex; align-items: flex-start; gap: 0.6rem;
+      font-size: 0.82rem; color: var(--tx-secondary);
+      background: var(--surface-bright);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      line-height: 1.6;
+    }
+
+    .bp-denied {
+      text-align: center;
+      padding: 4rem 1rem;
+    }
+    .bp-denied h2 { margin-bottom: 0.5rem; }
+    .bp-denied p { color: var(--tx-muted); margin-bottom: 1.25rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 860px) {
+      .bp-kpis { grid-template-columns: repeat(2, 1fr); }
+      .bp-plans { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 540px) {
+      .bp-kpis { grid-template-columns: 1fr; }
+      .bp-hero-stats { gap: 1rem; }
+      .bp-user-name { max-width: 110px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bp-grid-bg" aria-hidden="true"></div>
+
+  <!-- Top bar -->
+  <div class="bp-shell">
+    <header class="bp-top">
+      <div class="bp-logo" style="overflow:hidden;background:transparent;"><img src="/static/img/logo-mark.svg" alt="2TO" style="width:100%;height:100%;border-radius:12px;object-fit:cover;"></div>
+      <div class="bp-brand">
+        <div class="bp-brand-name">بوابة الفوترة — 2TO ERP</div>
+        <div class="bp-brand-sub" id="company-name">شركتك</div>
+      </div>
+      <div class="bp-tools">
+        <button class="bp-icon-btn" id="theme-toggle" title="تبديل المظهر">
+          <svg class="theme-icon-dark" style="display:none;" viewBox="0 0 24 24"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 01-4.4 2.26 5.403 5.403 0 01-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="theme-icon-light" viewBox="0 0 24 24"><path d="M12 7a5 5 0 100 10 5 5 0 000-10zm0-5a1 1 0 011 1v2a1 1 0 01-2 0V3a1 1 0 011-1zm0 18a1 1 0 011 1v2a1 1 0 01-2 0v-2a1 1 0 011-1zm9-9a1 1 0 01-1 1h-2a1 1 0 010-2h2a1 1 0 011 1zM5 12a1 1 0 01-1 1H2a1 1 0 010-2h2a1 1 0 011 1zm14.36 6.36a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM5.05 5.05a1 1 0 010 1.41L3.64 7.87a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zm12.02 12.02a1 1 0 010 1.41l-1.41 1.41a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0zM7.87 7.87a1 1 0 010 1.41L6.46 9.7a1 1 0 01-1.41-1.41l1.41-1.41a1 1 0 011.41 0z"/></svg>
+        </button>
+        <button class="bp-icon-btn" id="logout-btn" title="تسجيل الخروج">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+        <div class="bp-user">
+          <div class="bp-avatar" id="user-avatar">؟</div>
+          <div class="bp-user-info">
+            <div class="bp-user-name" id="user-name">—</div>
+            <div class="bp-user-role" id="user-role">—</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Unauthorized -->
+    <div class="bp-card" id="denied-card" style="display:none;">
+      <div class="bp-denied">
+        <h2>🔒 مطلوب تسجيل الدخول كشركة</h2>
+        <p>يجب تسجيل الدخول بحساب شركة للوصول إلى بوابة الفوترة.</p>
+        <button class="bp-btn primary" onclick="location.href='/admin/'">العودة لتسجيل الدخول</button>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div id="bp-main">
+
+      <!-- Subscription hero -->
+      <div class="bp-hero">
+        <div class="bp-hero-inner">
+          <div class="bp-hero-plan">
+            <div class="bp-hero-icon" id="plan-icon">📦</div>
+            <div>
+              <div class="bp-hero-name" id="plan-name">—</div>
+              <div class="bp-hero-sub">
+                <span id="plan-badge" class="bp-badge muted">—</span>
+                <span>تنتهي في <b id="plan-end">—</b></span>
+                <span id="auto-renew-chip" style="display:none;">· تجديد تلقائي ✓</span>
+              </div>
+            </div>
+          </div>
+          <div class="bp-hero-stats">
+            <div class="bp-hero-stat"><div class="v" id="days-remaining">—</div><div class="l">يوم متبقٍ</div></div>
+            <div class="bp-hero-stat"><div class="v" id="users-used">—</div><div class="l">المستخدمون / الحد الأقصى</div></div>
+            <div class="bp-hero-stat"><div class="v" id="projects-used">—</div><div class="l">مشاريع</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="bp-kpis">
+        <div class="bp-kpi"><div class="l">الفترة القادمة</div><div class="v" id="kpi-next">—</div><div class="s" id="kpi-next-s">—</div></div>
+        <div class="bp-kpi"><div class="l">إجمالي المدفوع</div><div class="v" id="kpi-paid">—</div><div class="s">EGP</div></div>
+        <div class="bp-kpi"><div class="l">قيد الانتظار</div><div class="v" id="kpi-pending">—</div><div class="s">EGP</div></div>
+        <div class="bp-kpi"><div class="l">عدد الفواتير</div><div class="v" id="kpi-invoices">—</div><div class="s">فاتورة</div></div>
+      </div>
+
+      <!-- Plans -->
+      <div class="bp-card">
+        <div class="bp-card-head">
+          <div class="bp-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            الباقات المتاحة
+          </div>
+        </div>
+        <div class="bp-card-body">
+          <div class="bp-plans" id="plans-grid">
+            <div class="bp-skeleton" style="height:150px;"></div>
+            <div class="bp-skeleton" style="height:150px;"></div>
+            <div class="bp-skeleton" style="height:150px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoices -->
+      <div class="bp-card">
+        <div class="bp-card-head">
+          <div class="bp-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            الفواتير والمدفوعات
+          </div>
+          <select class="bp-select" id="invoice-status" title="تصفية حسب الحالة">
+            <option value="">كل الحالات</option>
+            <option value="confirmed">مدفوعة</option>
+            <option value="pending">قيد الانتظار</option>
+            <option value="failed">فاشلة</option>
+            <option value="refunded">مسترجع</option>
+          </select>
+        </div>
+        <div class="bp-card-body" style="padding-top:0;">
+          <div class="bp-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>رقم الفاتورة</th>
+                  <th>المبلغ</th>
+                  <th>طريقة الدفع</th>
+                  <th>مرجع الدفع</th>
+                  <th>تاريخ الدفع</th>
+                  <th>الحالة</th>
+                </tr>
+              </thead>
+              <tbody id="invoices-body">
+                <tr><td colspan="6"><div class="bp-skeleton" style="height:24px;max-width:90%;margin:0 auto;"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="bp-pager">
+            <div class="bp-pager-info" id="pager-info">—</div>
+            <div class="bp-page-btns" id="pager-btns"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment methods -->
+      <div class="bp-card">
+        <div class="bp-card-head">
+          <div class="bp-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            طرق الدفع
+          </div>
+        </div>
+        <div class="bp-card-body">
+          <div class="bp-note" id="pm-note">يتم تحميل طرق الدفع...</div>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div class="bp-card">
+        <div class="bp-card-head">
+          <div class="bp-card-title" style="color:var(--err);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            إدارة الاشتراك
+          </div>
+        </div>
+        <div class="bp-card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+            <div style="font-size:0.88rem;color:var(--tx-secondary);line-height:1.6;max-width:520px;">
+              يمكنك إلغاء الاشتراك في أي وقت. إذا اخترت «بنهاية الفترة» ستظل باقاتك متاحة حتى نهاية فترة الفوترة الحالية.
+            </div>
+            <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+              <button class="bp-btn primary" id="btn-refresh">↻ تحديث البيانات</button>
+              <button class="bp-btn danger" id="btn-cancel">إلغاء الاشتراك</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Upgrade modal -->
+  <div class="bp-mask" id="upgrade-mask">
+    <div class="bp-modal">
+      <div class="bp-modal-title">تغيير الباقة</div>
+      <div class="bp-modal-sub" id="upgrade-sub">—</div>
+      <div id="cycle-options"></div>
+      <div class="bp-modal-actions">
+        <button class="bp-btn" data-close="upgrade-mask">إلغاء</button>
+        <button class="bp-btn primary" id="btn-confirm-upgrade">
+          <span class="bp-btn-text">تأكيد التغيير</span>
+          <span class="spin"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cancel modal -->
+  <div class="bp-mask" id="cancel-mask">
+    <div class="bp-modal">
+      <div class="bp-modal-title" style="color:var(--err);">إلغاء الاشتراك</div>
+      <div class="bp-modal-sub">هل تريد إلغاء اشتراكك؟ أخبرنا متى تريد إنهاء الوصول؟</div>
+      <div id="cancel-options">
+        <div class="bp-cycle-opt" data-immediate="false">
+          <div>
+            <div class="t">بنهاية الفترة الحالية</div>
+            <div class="d">يبقى الوصول متاحاً حتى نهاية فترة الفوترة الحالية</div>
+          </div>
+        </div>
+        <div class="bp-cycle-opt" data-immediate="true">
+          <div>
+            <div class="t">فوراً</div>
+            <div class="d">ينتهي الوصول اليوم ولا يتم تجديد الاشتراك</div>
+          </div>
+        </div>
+      </div>
+      <div class="bp-modal-actions">
+        <button class="bp-btn" data-close="cancel-mask">رجوع</button>
+        <button class="bp-btn danger" id="btn-confirm-cancel">
+          <span class="bp-btn-text">تأكيد الإلغاء</span>
+          <span class="spin"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bp-toasts" id="toasts"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+      // ── State ──
+      var state = {
+        canUpgrade: false,
+        canCancel: false,
+        adminRole: false,
+        selectedPlan: null,
+        selectedCycle: 'monthly',
+        cancelImmediate: false,
+        invoicePage: 1,
+        invoicePerPage: 10,
+        invoicePages: 0,
+        invoiceTotal: 0,
+      };
+
+      // ── Helpers ──
+      function api(method, path, body) {
+        var headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF };
+        var opts = { method: method, headers: headers, credentials: 'same-origin' };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        return fetch(path, opts).then(function (res) {
+          return res.json().then(function (data) {
+            if (res.status === 401) {
+              var e401 = new Error((data && (data.message || data.error)) || 'Unauthorized');
+              e401.status = 401;
+              throw e401;
+            }
+            if (res.status >= 400) {
+              var e4 = new Error((data && (data.message || data.error)) || 'Request failed');
+              e4.status = res.status; e4.data = data;
+              throw e4;
+            }
+            if (data && typeof data === 'object' && 'success' in data && !data.success) {
+              var e5 = new Error(data.message || 'Request failed');
+              e5.status = res.status; e5.data = data;
+              throw e5;
+            }
+            return data;
+          });
+        });
+      }
+
+      function esc(v) {
+        return String(v == null ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function money(v, cur) {
+        if (v == null) return '—';
+        var n = Number(v);
+        var s = n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        return cur ? s + ' ' + cur : s;
+      }
+
+      function dateOnly(iso) {
+        return iso ? String(iso).slice(0, 10) : '—';
+      }
+
+      var STATUS_LABELS = {
+        active: { label: 'نشطة', cls: 'ok' },
+        trial: { label: 'تجريبية', cls: 'info' },
+        grace: { label: 'فترة سماح', cls: 'warn' },
+        expired: { label: 'منتهية', cls: 'err' },
+        cancelled: { label: 'ملغاة', cls: 'muted' },
+        pending: { label: 'قيد الانتظار', cls: 'warn' },
+        confirmed: { label: 'مدفوعة', cls: 'ok' },
+        failed: { label: 'فاشلة', cls: 'err' },
+        refunded: { label: 'مسترجع', cls: 'muted' },
+      };
+
+      function badge(status) {
+        var meta = STATUS_LABELS[status] || { label: status, cls: 'muted' };
+        return '<span class="bp-badge ' + meta.cls + '">' + esc(meta.label) + '</span>';
+      }
+
+      function toast(msg, type) {
+        var box = document.getElementById('toasts');
+        var el = document.createElement('div');
+        el.className = 'bp-toast ' + (type || 'ok');
+        el.innerHTML = '<span class="dot"></span><span>' + esc(msg) + '</span>';
+        box.appendChild(el);
+        setTimeout(function () { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 3500);
+        setTimeout(function () { el.remove(); }, 3900);
+      }
+
+      function setBtnLoading(btn, on) {
+        btn.classList.toggle('loading', !!on);
+        btn.disabled = !!on;
+      }
+
+      function openMask(id) { document.getElementById(id).classList.add('open'); }
+      function closeMask(id) { document.getElementById(id).classList.remove('open'); }
+
+      document.querySelectorAll('[data-close]').forEach(function (b) {
+        b.addEventListener('click', function () { closeMask(b.getAttribute('data-close')); });
+      });
+      document.querySelectorAll('.bp-mask').forEach(function (m) {
+        m.addEventListener('click', function (e) {
+          if (e.target === m) m.classList.remove('open');
+        });
+      });
+
+      // ── Theme ──
+      var themeToggle = document.getElementById('theme-toggle');
+      function syncThemeIcon() {
+        var dark = document.documentElement.dataset.theme === 'light';
+        document.querySelectorAll('.theme-icon-dark').forEach(function (s) { s.style.display = dark ? 'none' : ''; });
+        document.querySelectorAll('.theme-icon-light').forEach(function (s) { s.style.display = dark ? '' : 'none'; });
+      }
+      themeToggle.addEventListener('click', function () {
+        var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('dp-theme', next);
+        syncThemeIcon();
+      });
+      syncThemeIcon();
+
+      // ── Header user ──
+      function renderUser(me) {
+        var name = me.full_name || me.email || '—';
+        document.getElementById('user-name').textContent = name;
+        document.getElementById('user-avatar').textContent = (name[0] || '؟').toUpperCase();
+        document.getElementById('user-role').textContent = me.role || '—';
+        var company = document.getElementById('company-name');
+        if (me.company_name) company.textContent = 'شركة ' + me.company_name;
+        state.adminRole = (me.role === 'admin' || me.role === 'owner');
+      }
+// ── Subscription hero ──
+      function renderSubscription(resp) {
+        var sub = resp.subscription || {};
+        var userCount = resp.user_count;
+        var plan = sub.plan || {};
+
+        document.getElementById('plan-icon').textContent = plan.icon || '📦';
+        document.getElementById('plan-name').textContent = plan.name_ar || plan.name || '—';
+
+        var badgeEl = document.getElementById('plan-badge');
+        var badgeMeta = STATUS_LABELS[sub.computed_status || sub.status] || { label: sub.status || '—', cls: 'muted' };
+        badgeEl.textContent = badgeMeta.label;
+        badgeEl.className = 'bp-badge ' + badgeMeta.cls;
+        if (plan.badge) {
+          badgeEl.textContent = plan.badge;
+          if (plan.badge_color) badgeEl.style.color = plan.badge_color;
+          if (plan.badge_bg) badgeEl.style.background = plan.badge_bg;
+        }
+
+        document.getElementById('plan-end').textContent = dateOnly(sub.end_date);
+        var renewEl = document.getElementById('auto-renew-chip');
+        renewEl.style.display = sub.auto_renew ? 'inline' : 'none';
+
+        var days = (sub.days_remaining == null) ? '—' : Math.max(0, sub.days_remaining);
+        document.getElementById('days-remaining').textContent = days;
+
+        var maxU = plan.max_users == null ? 0 : plan.max_users;
+        document.getElementById('users-used').textContent = (userCount == null ? '—' : userCount) + ' / ' + maxU;
+        document.getElementById('projects-used').textContent = plan.max_projects == null ? '—' : plan.max_projects;
+
+        state.canUpgrade = !!resp.can_upgrade;
+        state.canCancel = !!resp.can_cancel;
+      }
+
+      // ── KPIs ──
+      function renderSummary(summary) {
+        document.getElementById('kpi-next').textContent = dateOnly(summary.next_billing_date);
+        document.getElementById('kpi-next-s').textContent = summary.auto_renew ? 'تجديد تلقائي مفعّل' : 'بدون تجديد تلقائي';
+        document.getElementById('kpi-paid').textContent = money(summary.total_paid);
+        document.getElementById('kpi-pending').textContent = money(summary.total_pending);
+        document.getElementById('kpi-invoices').textContent = summary.invoice_count == null ? '—' : summary.invoice_count;
+      }
+
+      // ── Plans ──
+      function moduleChips(modules) {
+        if (!modules) return '';
+        var keys = Array.isArray(modules) ? modules : Object.keys(modules).filter(function (k) { return modules[k]; });
+        return keys.slice(0, 6).map(function (k) {
+          return '<span class="bp-plan-chip">' + esc(k) + '</span>';
+        }).join('');
+      }
+
+      function renderPlans(plans) {
+        var grid = document.getElementById('plans-grid');
+        if (!plans.length) {
+          grid.innerHTML = '<div class="bp-empty" style="grid-column:1/-1;">لا توجد باقات متاحة حالياً</div>';
+          return;
+        }
+        grid.innerHTML = plans.map(function (p) {
+          var priceM = p.price_monthly != null ? money(p.price_monthly) : '—';
+          var priceY = p.price_yearly != null ? money(p.price_yearly) : '—';
+          var btn;
+          if (p.is_current) {
+            btn = '<button class="bp-btn full" disabled>الباقة الحالية ✓</button>';
+          } else {
+            var action = p.is_downgrade ? 'تخفيض' : 'ترقية';
+            btn = '<button class="bp-btn primary full" data-plan=\'' + JSON.stringify({ code: p.code, name_ar: p.name_ar || p.name, price_monthly: p.price_monthly, price_yearly: p.price_yearly }) + '\'>' + action + '</button>';
+          }
+          return '' +
+            '<div class="bp-plan' + (p.is_current ? ' current' : '') + '">' +
+              '<div class="bp-plan-icon">' + esc(p.icon || '📦') + '</div>' +
+              '<div class="bp-plan-name">' + esc(p.name_ar || p.name) +
+                (p.badge ? '<span class="bp-plan-badge" style="' + (p.badge_bg ? 'background:' + p.badge_bg + ';' : '') + (p.badge_color ? 'color:' + p.badge_color + ';' : '') + '">' + esc(p.badge) + '</span>' : '') +
+              '</div>' +
+              '<div class="bp-plan-desc">' + esc(p.description_ar || p.description || '') + '</div>' +
+              '<div class="bp-plan-feats">' +
+                '<span class="bp-plan-chip">👤 ' + p.max_users + ' مستخدم</span>' +
+                '<span class="bp-plan-chip">📁 ' + p.max_projects + ' مشروع</span>' +
+                '<span class="bp-plan-chip">💾 ' + p.max_storage_mb + ' م.ب</span>' +
+                moduleChips(p.modules) +
+              '</div>' +
+              '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;">' +
+                '<div class="bp-plan-price">' + priceM + '<small> / شهرياً</small></div>' +
+                '<div class="bp-plan-price" style="font-size:1rem;">' + priceY + '<small> / سنوياً</small></div>' +
+              '</div>' +
+              btn +
+            '</div>';
+        }).join('');
+
+        grid.querySelectorAll('button[data-plan]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            if (!state.canUpgrade) { toast('لا يمكن تغيير الباقة حالياً', 'warn'); return; }
+            if (!state.adminRole) { toast('تغيير الباقة يتطلب صلاحية مدير', 'warn'); return; }
+            state.selectedPlan = JSON.parse(b.getAttribute('data-plan'));
+            openUpgradeModal();
+          });
+        });
+      }
+
+      // ── Upgrade modal ──
+      function openUpgradeModal() {
+        var plan = state.selectedPlan;
+        if (!plan) return;
+        document.getElementById('upgrade-sub').textContent = 'تغيير الباقة إلى «' + plan.name_ar + '» — اختر دورة الفوترة.';
+        var box = document.getElementById('cycle-options');
+        box.innerHTML = '' +
+          '<div class="bp-cycle-opt" data-cycle="monthly">' +
+            '<div><div class="t">شهرياً</div><div class="d">يُفوتر كل شهر</div></div>' +
+            '<div class="p">' + money(plan.price_monthly) + '</div>' +
+          '</div>' +
+          '<div class="bp-cycle-opt" data-cycle="yearly">' +
+            '<div><div class="t">سنوياً</div><div class="d">يُفوتر كل سنة (خصم مناسب)</div></div>' +
+            '<div class="p">' + money(plan.price_yearly) + '</div>' +
+          '</div>';
+        state.selectedCycle = 'monthly';
+        box.querySelectorAll('.bp-cycle-opt').forEach(function (opt) {
+          opt.classList.toggle('selected', opt.getAttribute('data-cycle') === state.selectedCycle);
+          opt.addEventListener('click', function () {
+            state.selectedCycle = opt.getAttribute('data-cycle');
+            box.querySelectorAll('.bp-cycle-opt').forEach(function (o) { o.classList.toggle('selected', o === opt); });
+          });
+        });
+        openMask('upgrade-mask');
+      }
+
+      document.getElementById('btn-confirm-upgrade').addEventListener('click', function () {
+        var btn = this;
+        if (!state.selectedPlan) return;
+        setBtnLoading(btn, true);
+        api('POST', '/billing/api/upgrade', {
+          plan_code: state.selectedPlan.code,
+          billing_cycle: state.selectedCycle,
+        }).then(function (data) {
+          toast(data.message || 'تم تغيير الباقة بنجاح');
+          closeMask('upgrade-mask');
+          refreshAll();
+        }).catch(function (err) {
+          toast(err.message || 'فشل تغيير الباقة', 'err');
+        }).finally(function () {
+          setBtnLoading(btn, false);
+        });
+      });
+
+      // ── Cancel ──
+      document.getElementById('btn-cancel').addEventListener('click', function () {
+        if (!state.canCancel) { toast('لا يمكن إلغاء الاشتراك في هذا الوضع', 'warn'); return; }
+        if (!state.adminRole) { toast('إلغاء الاشتراك يتطلب صلاحية مدير', 'warn'); return; }
+        state.cancelImmediate = false;
+        document.querySelectorAll('#cancel-options .bp-cycle-opt').forEach(function (o) {
+          o.classList.toggle('selected', o.getAttribute('data-immediate') === 'false');
+        });
+        openMask('cancel-mask');
+      });
+
+      document.querySelectorAll('#cancel-options .bp-cycle-opt').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          state.cancelImmediate = opt.getAttribute('data-immediate') === 'true';
+          document.querySelectorAll('#cancel-options .bp-cycle-opt').forEach(function (o) {
+            o.classList.toggle('selected', o === opt);
+          });
+        });
+      });
+
+      document.getElementById('btn-confirm-cancel').addEventListener('click', function () {
+        var btn = this;
+        setBtnLoading(btn, true);
+        api('POST', '/billing/api/cancel', { immediate: state.cancelImmediate })
+          .then(function (data) {
+            toast(data.message || 'تم إلغاء الاشتراك');
+            closeMask('cancel-mask');
+            refreshAll();
+          }).catch(function (err) {
+            toast(err.message || 'فشل إلغاء الاشتراك', 'err');
+          }).finally(function () {
+            setBtnLoading(btn, false);
+          });
+      });
+
+      // ── Invoices ──
+      function renderInvoices(data) {
+        var body = document.getElementById('invoices-body');
+        var invoices = data.invoices || [];
+        var pg = data.pagination || { page: 1, per_page: 10, total: 0, pages: 0 };
+        state.invoicePage = pg.page || 1;
+        state.invoiceTotal = pg.total || 0;
+        state.invoicePages = Math.max(1, pg.pages || 1);
+
+        if (!invoices.length) {
+          body.innerHTML = '<tr><td colspan="6"><div class="bp-empty">لا توجد فواتير</div></td></tr>';
+        } else {
+          body.innerHTML = invoices.map(function (inv) {
+            return '' +
+              '<tr>' +
+                '<td>' + esc(inv.invoice_number || ('INV-' + String(inv.id).padStart(6, '0'))) + '</td>' +
+                '<td><b>' + money(inv.amount, inv.currency) + '</b></td>' +
+                '<td>' + esc(inv.payment_method || '—') + '</td>' +
+                '<td>' + esc(inv.reference_no || '—') + '</td>' +
+                '<td>' + dateOnly(inv.paid_at || inv.created_at) + '</td>' +
+                '<td>' + badge(inv.status) + '</td>' +
+              '</tr>';
+          }).join('');
+        }
+
+        document.getElementById('pager-info').textContent =
+          'إجمالي ' + state.invoiceTotal + ' فاتورة — صفحة ' + state.invoicePage + ' من ' + state.invoicePages;
+
+        var pager = document.getElementById('pager-btns');
+        var btns = [];
+        btns.push('<button class="bp-page-btn" data-page="' + (state.invoicePage - 1) + '" ' + (state.invoicePage <= 1 ? 'disabled' : '') + '>‹ السابق</button>');
+        var start = Math.max(1, state.invoicePage - 2);
+        var end = Math.min(state.invoicePages, start + 4);
+        start = Math.max(1, end - 4);
+        for (var i = start; i <= end; i++) {
+          btns.push('<button class="bp-page-btn' + (i === state.invoicePage ? ' active' : '') + '" data-page="' + i + '">' + i + '</button>');
+        }
+        btns.push('<button class="bp-page-btn" data-page="' + (state.invoicePage + 1) + '" ' + (state.invoicePage >= state.invoicePages ? 'disabled' : '') + '>التالي ›</button>');
+        pager.innerHTML = btns.join('');
+        pager.querySelectorAll('button[data-page]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var page = parseInt(b.getAttribute('data-page'), 10);
+            if (page < 1 || page > state.invoicePages || page === state.invoicePage) return;
+            loadInvoices(page);
+          });
+        });
+      }
+
+      function loadInvoices(page) {
+        var status = document.getElementById('invoice-status').value;
+        var qs = 'page=' + (page || 1) + '&per_page=' + state.invoicePerPage;
+        if (status) qs += '&status=' + encodeURIComponent(status);
+        document.getElementById('invoices-body').innerHTML =
+          '<tr><td colspan="6"><div class="bp-skeleton" style="height:24px;max-width:90%;margin:0 auto;"></div></td></tr>';
+        return api('GET', '/billing/api/invoices?' + qs)
+          .then(renderInvoices)
+          .catch(function (err) {
+            document.getElementById('invoices-body').innerHTML =
+              '<tr><td colspan="6"><div class="bp-empty">' + esc(err.message) + '</div></td></tr>';
+          });
+      }
+
+      document.getElementById('invoice-status').addEventListener('change', function () {
+        loadInvoices(1);
+      });
+
+      // ── Payment methods ──
+      function renderPaymentMethods(data) {
+        var note = document.getElementById('pm-note');
+        var methods = data.payment_methods || [];
+        if (!methods.length) {
+          note.className = 'bp-note';
+          note.innerHTML = '💳 <span>' + esc(data.message || 'لم يتم تفعيل طرق الدفع بعد. سيتم إضافة بوابات الدفع قريباً.') + '</span>';
+        } else {
+          note.className = 'bp-note';
+          note.innerHTML = methods.map(function (m) {
+            return '<span>' + esc(m.type || '—') + ' ····· ' + esc(m.last4 || '****') + '</span>';
+          }).join('');
+        }
+      }
+
+      // ── Refresh ──
+      function refreshAll() {
+        return Promise.all([
+          api('GET', '/billing/api/summary').then(function (d) { renderSummary(d.summary || {}); }),
+          api('GET', '/billing/api/subscription').then(renderSubscription),
+          api('GET', '/billing/api/plans').then(function (d) { renderPlans(d.plans || []); }),
+          loadInvoices(1),
+          api('GET', '/billing/api/payment-methods').then(renderPaymentMethods),
+        ]);
+      }
+
+      // ── Logout / login ──
+      document.getElementById('logout-btn').addEventListener('click', function () {
+        var h = { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF };
+        fetch('/logout', { method: 'POST', headers: h, credentials: 'same-origin' })
+          .catch(function () {})
+          .finally(function () { location.href = '/admin/'; });
+      });
+
+      document.getElementById('btn-refresh').addEventListener('click', function () {
+        var btn = this;
+        setBtnLoading(btn, true);
+        refreshAll().catch(function () {}).finally(function () { setBtnLoading(btn, false); toast('تم تحديث البيانات'); });
+      });
+
+      // ── Init ──
+      api('GET', '/api/me')
+        .then(function (me) {
+          renderUser(me);
+          return refreshAll();
+        })
+        .catch(function (err) {
+          if (err.status === 401) {
+            document.getElementById('denied-card').style.display = 'block';
+            document.getElementById('bp-main').style.display = 'none';
+          } else {
+            toast(err.message || 'حدث خطأ في تحميل البيانات', 'err');
+          }
+        });
+    })();
+  </script>
+</body>
+</html>

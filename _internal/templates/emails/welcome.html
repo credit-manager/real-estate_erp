@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مرحباً بك في 2TO ERP</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a14;font-family:'Segoe UI','Tahoma','Arial',sans-serif;direction:rtl;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a14;padding:24px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+  <tr><td style="padding:0 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#14b8a6,#0d9488);border-radius:16px 16px 0 0;padding:32px 40px;">
+      <tr><td style="padding:32px 40px;">
+        <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:700;">مرحباً بك في 2TO ERP</h1>
+        <p style="margin:6px 0 0;color:rgba(255,255,255,.85);font-size:14px;">تم إنشاء حسابك بنجاح</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#111120;border-radius:0 0 16px 16px;padding:36px 40px;">
+      <tr><td style="padding:36px 40px;color:#e4e4e7;font-size:15px;line-height:1.8;">
+        <p style="margin:0 0 12px;">مرحباً <strong style="color:#14b8a6;">{{ admin_name }}</strong>،</p>
+        <p style="margin:0 0 16px;color:#a1a1aa;">تم إنشاء حسابك بنجاح. مرحباً بك في <strong style="color:#e4e4e7;">2TO ERP</strong>.</p>
+        <p style="margin:0 0 8px;color:#a1a1aa;">بيانات حسابك:</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);padding:16px 20px;margin:0 0 16px;">
+          <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;">الشركة</td><td style="padding:8px 0;color:#e4e4e7;font-size:13px;text-align:left;">{{ company_name }}</td></tr>
+          <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;border-top:1px solid rgba(255,255,255,.06);">البريد الإلكتروني</td><td style="padding:8px 0;color:#e4e4e7;font-size:13px;border-top:1px solid rgba(255,255,255,.06);text-align:left;">{{ email }}</td></tr>
+          <tr><td style="padding:8px 0;color:#a1a1aa;font-size:13px;border-top:1px solid rgba(255,255,255,.06);">الخطة</td><td style="padding:8px 0;color:#e4e4e7;font-size:13px;border-top:1px solid rgba(255,255,255,.06);text-align:left;">{{ plan_name }}</td></tr>
+        </table>
+        {% if is_trial %}
+        <div style="background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.25);border-radius:10px;padding:20px;margin:20px 0;">
+          <p style="margin:0 0 6px;color:#14b8a6;font-weight:600;font-size:14px;">  فترة التجربة المجانية</p>
+          <p style="margin:0;color:#a1a1aa;font-size:14px;">مدة التجربة: <strong style="color:#e4e4e7;">{{ trial_days }} يوم</strong></p>
+        </div>
+        {% endif %}
+        <p style="margin:0;color:#a1a1aa;font-size:14px;">يمكنك تسجيل الدخول من خلال لوحة التحكم للبدء.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="padding:20px 40px;">
+      <tr><td style="color:#52525b;font-size:12px;line-height:1.7;text-align:center;padding:20px 40px;">
+        <p style="margin:0 0 8px;">هذه رسالة تلقائية من نظام 2TO ERP — لا حاجة بالرد عليها.</p>
+        <p style="margin:0;color:#3f3f46;font-size:11px;">&copy; {{ year }} 2TO ERP. جميع الحقوق محفوظة.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
