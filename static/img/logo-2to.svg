@@ -1,25 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-labelledby="title desc">
-  <title id="title">2TO</title>
-  <desc id="desc">2TO enterprise shield mark</desc>
-  <defs>
-    <linearGradient id="shield" x1="22" y1="8" x2="155" y2="162" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#18364F"/><stop offset=".55" stop-color="#0B243A"/><stop offset="1" stop-color="#071A2B"/>
-    </linearGradient>
-    <linearGradient id="edge" x1="18" y1="12" x2="160" y2="170" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#91A6B5"/><stop offset=".5" stop-color="#D5DEE4"/><stop offset="1" stop-color="#5D7485"/>
-    </linearGradient>
-    <linearGradient id="metal" x1="48" y1="24" x2="112" y2="120" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF"/><stop offset=".28" stop-color="#D7E0E5"/><stop offset=".55" stop-color="#8C9DA8"/><stop offset=".78" stop-color="#F5F7F8"/><stop offset="1" stop-color="#AAB9C2"/>
-    </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
-      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#061525" flood-opacity=".35"/>
-    </filter>
-  </defs>
-  <g filter="url(#shadow)">
-    <path d="M18 14H162V96L90 142L18 96Z" fill="url(#shield)" stroke="url(#edge)" stroke-width="3"/>
-    <path d="M18 96L90 142L162 96V110L90 162L18 110Z" fill="#071A2B" stroke="#667D8D" stroke-width="2"/>
-    <path d="M18 96L90 142L162 96" fill="none" stroke="#B5C4CD" stroke-width="2"/>
-    <path d="M46 57C46 35 61 23 83 23C106 23 120 37 120 57C120 73 111 83 95 96L74 113H120V130H37V110L77 75C85 68 92 63 92 56C92 49 87 45 79 45C69 45 63 50 62 59Z" fill="url(#metal)" stroke="#FFFFFF" stroke-opacity=".25"/>
-    <path d="M45 57C45 36 60 23 83 23C106 23 120 37 120 57" fill="none" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="2"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-labelledby="title desc">
+<title id="title">2TO</title>
+<desc id="desc">2TO enterprise shield with the number 2</desc>
+<defs>
+  <linearGradient id="face" x1="34" y1="20" x2="190" y2="155" gradientUnits="userSpaceOnUse"><stop stop-color="#132D43"/><stop offset=".55" stop-color="#173C57"/><stop offset="1" stop-color="#0A2236"/></linearGradient>
+  <linearGradient id="side" x1="28" y1="22" x2="197" y2="170" gradientUnits="userSpaceOnUse"><stop stop-color="#071A2A"/><stop offset=".55" stop-color="#0B2438"/><stop offset="1" stop-color="#061624"/></linearGradient>
+  <linearGradient id="metal" x1="77" y1="45" x2="137" y2="161" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset=".28" stop-color="#DCE5EA"/><stop offset=".54" stop-color="#9BAAB4"/><stop offset=".72" stop-color="#F7F9FA"/><stop offset="1" stop-color="#B5C1C8"/></linearGradient>
+  <linearGradient id="edge" x1="25" y1="22" x2="198" y2="190" gradientUnits="userSpaceOnUse"><stop stop-color="#718B9C"/><stop offset=".45" stop-color="#D5DEE3"/><stop offset="1" stop-color="#526A7B"/></linearGradient>
+  <filter id="shadow" x="-25%" y="-25%" width="150%" height="165%"><feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#061522" flood-opacity=".42"/></filter>
+</defs>
+<g filter="url(#shadow)">
+  <path d="M28 22 L190 44 L189 151 L110 194 L28 151 Z" fill="url(#face)" stroke="#071A2A" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M28 22 L190 44 L189 151" fill="none" stroke="url(#edge)" stroke-width="3"/>
+  <path d="M28 22 L22 28 L22 157 L110 204 L110 194 L28 151 Z" fill="url(#side)" opacity=".92"/>
+  <path d="M22 157 L110 204 L198 153 L198 177 L110 218 L22 174 Z" fill="url(#side)" stroke="#526B7D" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M22 157 L110 204 L198 153" fill="none" stroke="#D2DCE2" stroke-width="2.5"/>
+  <path d="M64 78 C64 53 81 39 108 39 C136 39 154 55 154 80 C154 99 144 112 126 128 L99 151 L154 151 L154 174 L55 174 L55 148 L104 104 C114 95 121 89 121 80 C121 72 115 67 105 67 C94 67 87 73 86 84 Z" fill="url(#metal)" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M65 78 C65 54 82 40 108 40 C136 40 153 55 153 80" fill="none" stroke="#FFFFFF" stroke-opacity=".48" stroke-width="2"/>
+</g>
 </svg>
