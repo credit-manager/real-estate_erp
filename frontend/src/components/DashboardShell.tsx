@@ -26,15 +26,16 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
   return (
     <aside className={`fixed top-0 right-0 h-screen bg-slate-900 border-l border-slate-800 flex flex-col z-50 transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
       <div className="flex items-center justify-between p-4 border-b border-slate-800">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Shield className="w-4 h-4 text-white" />
+        <Link href="/" className="flex items-center gap-3 min-w-0" aria-label="2TO Control Center">
+          <img src="/2to-logo.svg" alt="2TO" className={`${collapsed ? "w-9 h-9" : "w-10 h-10"} object-contain flex-shrink-0`} />
+          {!collapsed && (
+            <div className="min-w-0">
+              <span className="text-white font-black tracking-tight text-lg leading-none block">2TO</span>
+              <span className="text-slate-400 text-[9px] uppercase tracking-[0.18em] leading-none block mt-1">Enterprise Control</span>
             </div>
-            <span className="text-white font-bold text-sm">ERP Control</span>
-          </div>
-        )}
-        <button onClick={onToggle} className="text-slate-400 hover:text-white p-1">
+          )}
+        </Link>
+        <button onClick={onToggle} className="text-slate-400 hover:text-white p-1 flex-shrink-0" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
           {collapsed ? <Menu className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
         </button>
       </div>
@@ -86,7 +87,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+        <img src="/2to-logo.svg" alt="2TO" className="w-14 h-14 object-contain animate-pulse" />
       </div>
     );
   }
