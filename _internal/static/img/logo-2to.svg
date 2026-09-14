@@ -17,33 +17,25 @@
       <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.15" />
     </filter>
   </defs>
-  <g filter="url(#subtleShadow)">
-    <!-- Shield + Number 2 -->
+  <g transform="translate(0,187) scale(0.1,-0.1)" filter="url(#subtleShadow)">
     <path d="M560 1628 c0 -24 7 -52 15 -62 13 -17 15 -90 15 -476 l0 -456 301
 -162 c165 -89 306 -162 312 -162 7 0 147 74 312 163 l300 162 3 460 c2 392 4
 465 18 493 8 18 14 43 12 55 l-3 22 -642 3 -643 2 0 -42z m777 -139 c121 -40
 188 -130 186 -249 -1 -118 -44 -184 -227 -345 -68 -60 -125 -112 -125 -115 -1
 -3 59 -4 131 -2 73 2 161 1 196 -3 l62 -7 0 -84 0 -84 -350 0 -350 0 0 73 0
 73 206 189 c158 144 211 199 226 232 68 155 -138 233 -275 105 l-27 -26 -65
-35 c-108 57 -106 52 -55 105 89 90 170 122 316 123 66 1 106 -4 151 -20z"
-      fill="url(#shieldNavy)" transform="translate(0,187) scale(0.1,-0.1)" />
-    <!-- Letter O -->
+35 c-108 57 -106 52 -55 105 89 90 170 122 316 123 66 1 106 -4 151 -20z" fill="url(#shieldNavy)" />
     <path d="M3465 1519 c-181 -30 -354 -154 -425 -304 -166 -351 36 -742 420
 -811 320 -58 618 114 704 405 25 87 21 233 -9 328 -87 273 -378 434 -690 382z
 m270 -251 c67 -35 118 -90 152 -163 23 -51 28 -73 28 -145 0 -71 -5 -94 -27
 -141 -35 -76 -88 -133 -156 -166 -50 -24 -69 -28 -147 -28 -76 0 -98 4 -147
 27 -115 54 -178 150 -186 284 -8 141 38 242 142 312 67 44 97 52 201 48 74 -2
-99 -7 140 -28z"
-      fill="url(#silverMetallic)" transform="translate(0,187) scale(0.1,-0.1)" />
-    <!-- Letter T -->
+99 -7 140 -28z" fill="url(#silverMetallic)" />
     <path d="M1985 1402 l0 -107 173 -3 172 -2 0 -440 0 -440 130 0 130 0 0 440 0
-440 173 2 172 3 3 108 3 107 -478 0 -478 0 0 -108z"
-      fill="url(#silverMetallic)" transform="translate(0,187) scale(0.1,-0.1)" />
-    <!-- Decorative V Accent -->
+440 173 2 172 3 3 108 3 107 -478 0 -478 0 0 -108z" fill="url(#silverMetallic)" />
     <path d="M510 546 l0 -64 278 -150 c152 -82 309 -166 348 -187 l70 -37 100 54
 c54 30 210 114 347 187 l247 133 0 65 c0 58 -2 64 -17 59 -16 -6 -463 -246
--618 -332 l-61 -33 -343 184 c-189 102 -345 185 -347 185 -2 0 -4 -29 -4 -64z"
-      fill="url(#techBlue)" transform="translate(0,187) scale(0.1,-0.1)" />
+-618 -332 l-61 -33 -343 184 c-189 102 -345 185 -347 185 -2 0 -4 -29 -4 -64z" fill="url(#techBlue)" />
   </g>
-  <text x="232" y="180" text-anchor="middle" font-family="'Segoe UI','Arial',sans-serif" font-size="9" font-weight="700" fill="#00AEEF" letter-spacing="3">ENTERPRISE OS</text>
+  <text x="232" y="182" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" fill="#00AEEF" letter-spacing="3">ENTERPRISE OS</text>
 </svg>
