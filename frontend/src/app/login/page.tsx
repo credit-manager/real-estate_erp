@@ -71,14 +71,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-center mb-5">
+            <img src="/2to-logo.svg" alt="2TO" className="w-28 h-28 object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-white">ERP Control Center</h1>
-          <p className="text-slate-400 mt-1">Master Admin Portal</p>
+          <h1 className="text-3xl font-black tracking-tight text-white">2TO</h1>
+          <p className="text-slate-400 mt-1 text-sm uppercase tracking-[0.18em]">Enterprise Control Center</p>
         </div>
 
         <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
@@ -109,8 +109,8 @@ export default function LoginPage() {
           ) : (
             <form onSubmit={handle2FA} className="space-y-5">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-amber-500/20 rounded-xl mb-3">
-                  <Shield className="w-6 h-6 text-amber-400" />
+                <div className="flex items-center justify-center mb-3">
+                  <img src="/2to-logo.svg" alt="2TO" className="w-14 h-14 object-contain" />
                 </div>
                 <p className="text-slate-300">
                   {mfaSetupRequired ? "إعداد المصادقة الثنائية مطلوب قبل دخول لوحة التحكم" : "أدخل رمز المصادقة الثنائية"}
