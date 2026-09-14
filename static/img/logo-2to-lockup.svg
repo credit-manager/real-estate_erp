@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" role="img" aria-labelledby="title desc">
+  <title id="title">2TO Enterprise Systems</title>
+  <desc id="desc">2TO shield symbol and professional wordmark</desc>
+  <defs>
+    <linearGradient id="shield" x1="18" y1="10" x2="110" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B2239"/>
+      <stop offset="1" stop-color="#123E5B"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="24" y1="16" x2="104" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6B8293"/>
+      <stop offset="1" stop-color="#D8E1E7"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="38" y1="25" x2="88" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#B7C4CE"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 4)">
+    <path d="M14 10h100v59c0 20-12 37-30 48l-20 12-20-12C26 106 14 89 14 69V10Z" fill="url(#shield)" stroke="url(#edge)" stroke-width="2.5"/>
+    <path d="M14 69 64 97l50-28v16c0 17-11 32-28 43l-22 14-22-14C25 100 14 85 14 69Z" fill="#081A2B" opacity=".92"/>
+    <path d="M31 47c0-11 8-18 20-18h11c12 0 21 7 21 18 0 8-4 14-12 20L50 83h35" fill="none" stroke="url(#metal)" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter"/>
+    <path d="M23 69 64 92l41-23" fill="none" stroke="#90A6B6" stroke-width="2" opacity=".72"/>
+  </g>
+  <g font-family="Plus Jakarta Sans, Inter, Arial, sans-serif">
+    <text x="150" y="79" fill="#0B2239" font-size="74" font-weight="800" letter-spacing="-4">TO</text>
+    <text x="154" y="106" fill="#5D7283" font-size="13" font-weight="700" letter-spacing="3.2">ENTERPRISE SYSTEMS</text>
+    <path d="M154 117h230" stroke="#C6D0D7" stroke-width="2"/>
+    <text x="154" y="133" fill="#7A8A96" font-size="9" font-weight="600" letter-spacing="2.2">POWER • GOVERNANCE • PROFESSIONALISM</text>
+  </g>
+</svg>
