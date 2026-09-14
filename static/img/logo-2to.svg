@@ -1,19 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" role="img" aria-labelledby="title desc">
   <title id="title">2TO</title>
-  <desc id="desc">2TO enterprise software mark</desc>
+  <desc id="desc">2TO enterprise shield mark with 2, T and O wordmark</desc>
   <defs>
-    <linearGradient id="bg" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#082F49"/>
-      <stop offset="1" stop-color="#0B5C66"/>
+    <linearGradient id="shield" x1="18" y1="12" x2="104" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B2239"/>
+      <stop offset="1" stop-color="#123E5B"/>
     </linearGradient>
-    <linearGradient id="accent" x1="31" y1="34" x2="101" y2="96" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5EEAD4"/>
-      <stop offset="1" stop-color="#2DD4BF"/>
+    <linearGradient id="edge" x1="18" y1="20" x2="106" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5E778B"/>
+      <stop offset="1" stop-color="#D7E0E6"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="38" y1="26" x2="86" y2="82" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFC"/>
+      <stop offset="0.48" stop-color="#B9C6D0"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
     </linearGradient>
   </defs>
-  <rect x="5" y="5" width="118" height="118" rx="30" fill="url(#bg)"/>
-  <path d="M30 45c0-10 8-17 19-17h15c12 0 21 7 21 18 0 8-4 13-12 19L49 84h37" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M91 36v45M78 36h26" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
-  <circle cx="93" cy="94" r="10" fill="none" stroke="url(#accent)" stroke-width="7"/>
-  <path d="M104 94h9" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
+  <g transform="translate(8 4)">
+    <path d="M16 10h88v58c0 19-12 35-29 45L60 122 45 113C28 103 16 87 16 68V10Z" fill="url(#shield)" stroke="url(#edge)" stroke-width="2.5"/>
+    <path d="M16 68 60 93l44-25v17c0 17-11 31-26 40L60 133 42 123C27 114 16 100 16 85V68Z" fill="#0A1D30" opacity=".95"/>
+    <path d="M31 48c0-10 8-17 19-17h11c12 0 20 7 20 18 0 8-4 13-11 19L49 87h34" fill="none" stroke="url(#metal)" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+    <path d="M25 68 60 88l35-20" fill="none" stroke="#8FA5B5" stroke-width="2" opacity=".75"/>
+  </g>
+  <g fill="#0B2239" font-family="Plus Jakarta Sans, Inter, Arial, sans-serif" font-weight="800" letter-spacing="-3">
+    <text x="142" y="83" font-size="72">TO</text>
+  </g>
+  <g fill="#5D7283" font-family="Plus Jakarta Sans, Inter, Arial, sans-serif" font-weight="700" letter-spacing="3">
+    <text x="146" y="106" font-size="11">ENTERPRISE SYSTEMS</text>
+  </g>
 </svg>
