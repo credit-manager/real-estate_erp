@@ -1,82 +1,87 @@
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 512 512"
-  width="512"
-  height="512"
-  fill="none"
-  role="img"
-  aria-labelledby="title desc"
-  shape-rendering="geometricPrecision"
->
-  <title id="title">2TO Enterprise Governance</title>
-  <desc id="desc">2TO Enterprise Governance master shield identity</desc>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">2TO Signature Enterprise Shield</title>
+  <desc id="desc">2TO signature shield mark with integrated geometric numeral 2</desc>
   <defs>
-    <linearGradient id="gShield" x1="86" y1="52" x2="426" y2="458" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#405F77"/>
-      <stop offset="0.34" stop-color="#2D4661"/>
-      <stop offset="0.68" stop-color="#213A52"/>
-      <stop offset="1" stop-color="#11283D"/>
+    <linearGradient id="shield" x1="94" y1="54" x2="416" y2="452" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#46677F"/>
+      <stop offset="0.28" stop-color="#2D4661"/>
+      <stop offset="0.62" stop-color="#20384F"/>
+      <stop offset="1" stop-color="#0E263A"/>
     </linearGradient>
-
-    <linearGradient id="gDepth" x1="72" y1="110" x2="438" y2="474" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1A354B"/>
-      <stop offset="0.5" stop-color="#0D2438"/>
+    <linearGradient id="depth" x1="74" y1="100" x2="424" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#27455C"/>
+      <stop offset="0.5" stop-color="#112A40"/>
       <stop offset="1" stop-color="#061725"/>
     </linearGradient>
-
-    <linearGradient id="gMetal" x1="184" y1="126" x2="336" y2="382" gradientUnits="userSpaceOnUse">
+    <linearGradient id="metal" x1="180" y1="128" x2="338" y2="374" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="0.16" stop-color="#EEF3F6"/>
-      <stop offset="0.36" stop-color="#B8C4CC"/>
-      <stop offset="0.51" stop-color="#FDFEFF"/>
-      <stop offset="0.69" stop-color="#D4DDE2"/>
-      <stop offset="0.84" stop-color="#9AA9B3"/>
-      <stop offset="1" stop-color="#E9EEF1"/>
+      <stop offset="0.16" stop-color="#DCE5EA"/>
+      <stop offset="0.33" stop-color="#97A9B5"/>
+      <stop offset="0.48" stop-color="#FBFDFE"/>
+      <stop offset="0.63" stop-color="#C6D1D8"/>
+      <stop offset="0.82" stop-color="#8497A4"/>
+      <stop offset="1" stop-color="#EEF2F5"/>
     </linearGradient>
-
-    <linearGradient id="gEdge" x1="76" y1="50" x2="438" y2="442" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#B6C6D0"/>
-      <stop offset="0.38" stop-color="#EEF3F6"/>
-      <stop offset="0.72" stop-color="#7E94A3"/>
-      <stop offset="1" stop-color="#526A7A"/>
+    <linearGradient id="edge" x1="82" y1="48" x2="430" y2="438" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DCE6EB"/>
+      <stop offset="0.36" stop-color="#8FA4B2"/>
+      <stop offset="0.72" stop-color="#E8EEF2"/>
+      <stop offset="1" stop-color="#5A7282"/>
     </linearGradient>
-
-    <linearGradient id="gSymbolLight" x1="198" y1="136" x2="314" y2="218" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>
+    <linearGradient id="glow" x1="198" y1="136" x2="320" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".96"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
-
-    <filter id="fShadow" x="-24%" y="-24%" width="148%" height="160%" color-interpolation-filters="sRGB">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur"/>
-      <feOffset in="blur" dx="0" dy="15" result="offset"/>
-      <feColorMatrix in="offset" type="matrix" values="0 0 0 0 0.02  0 0 0 0 0.09  0 0 0 0 0.14  0 0 0 .38 0" result="shadow"/>
-      <feMerge>
-        <feMergeNode in="shadow"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="shadow" x="-24%" y="-22%" width="148%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="11"/>
+      <feOffset dy="14"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.015 0 0 0 0 0.065 0 0 0 0 0.11 0 0 0 .38 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-
-    <filter id="fSymbol" x="-12%" y="-12%" width="124%" height="132%">
-      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#071927" flood-opacity=".28"/>
+    <filter id="symbolShadow" x="-18%" y="-18%" width="136%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#041421" flood-opacity=".30"/>
     </filter>
-
-    <clipPath id="shieldClip">
-      <path d="M256 28 L458 91 V263 C458 365 382 429 256 482 C130 429 54 365 54 263 V91 Z"/>
+    <clipPath id="clipShield">
+      <path d="M256 24 L462 88 V263 C462 369 383 433 256 486 C129 433 50 369 50 263 V88 Z"/>
     </clipPath>
   </defs>
 
-  <g filter="url(#fShadow)">
-    <path d="M256 28 L458 91 V263 C458 365 382 429 256 482 C130 429 54 365 54 263 V91 Z" fill="url(#gShield)" stroke="#172E43" stroke-width="8" stroke-linejoin="round"/>
-    <path d="M54 91 L74 106 V265 C74 349 140 409 256 462 V482 C130 429 54 365 54 263 Z" fill="url(#gDepth)" opacity=".94"/>
-    <path d="M74 265 C74 349 140 409 256 462 C372 409 438 349 438 265 V304 C438 389 372 449 256 498 C140 449 74 389 74 304 Z" fill="url(#gDepth)" opacity=".9"/>
-    <path d="M256 39 L447 98 V262 C447 356 376 418 256 469" stroke="url(#gEdge)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity=".72"/>
-    <path d="M103 118 V258 C103 329 158 377 256 421 C354 377 409 329 409 258 V118" stroke="#6F8798" stroke-width="2" stroke-opacity=".20" stroke-linecap="round" fill="none"/>
-    <g filter="url(#fSymbol)">
-      <path d="M165 205 C165 158 201 130 257 130 C314 130 348 161 348 207 C348 240 331 262 301 288 L261 322 H350 V365 H159 V318 L251 238 C266 225 276 215 276 204 C276 190 267 181 253 181 C237 181 226 191 225 208 H165 Z" fill="url(#gMetal)" stroke="#FFFFFF" stroke-width="2.5" stroke-opacity=".32" stroke-linejoin="round"/>
-      <path d="M174 201 C178 162 210 139 256 139 C303 139 332 163 339 199" stroke="url(#gSymbolLight)" stroke-width="7" stroke-linecap="round"/>
-      <path d="M177 343 H330" stroke="#FFFFFF" stroke-width="3" stroke-opacity=".26" stroke-linecap="round"/>
+  <g filter="url(#shadow)">
+    <!-- Primary shield architecture -->
+    <path d="M256 24 L462 88 V263 C462 369 383 433 256 486 C129 433 50 369 50 263 V88 Z" fill="url(#shield)" stroke="#122B40" stroke-width="8" stroke-linejoin="round"/>
+
+    <!-- Structural depth planes -->
+    <path d="M50 88 L71 104 V264 C71 351 141 411 256 463 V486 C129 433 50 369 50 263 Z" fill="url(#depth)" opacity=".96"/>
+    <path d="M71 263 C71 350 141 410 256 463 C371 410 441 350 441 263 V306 C441 393 371 451 256 501 C141 451 71 393 71 306 Z" fill="#071A2B" opacity=".82"/>
+
+    <!-- Precision perimeter -->
+    <path d="M256 39 L448 98 V262 C448 359 377 420 256 470 C135 420 64 359 64 262 V98 Z" stroke="url(#edge)" stroke-width="4" opacity=".86"/>
+    <path d="M95 119 V257 C95 327 153 379 256 426 C359 379 417 327 417 257 V119" stroke="#91A4B0" stroke-width="2" stroke-opacity=".18"/>
+
+    <!-- Signature internal frame: creates a distinct architectural identity -->
+    <path d="M129 146 H383" stroke="#D5E0E6" stroke-width="2" stroke-opacity=".15"/>
+    <path d="M129 146 V262 C129 309 170 348 256 388 C342 348 383 309 383 262 V146" stroke="#D5E0E6" stroke-width="2" stroke-opacity=".12"/>
+
+    <!-- Integrated 2: deliberately geometric, open, and optically centered -->
+    <g filter="url(#symbolShadow)">
+      <path d="M163 213 C163 161 201 126 257 126 C315 126 350 159 350 210 C350 242 334 264 305 289 L268 320 H351 V368 H158 V313 L248 235 C266 220 276 211 276 201 C276 186 266 178 252 178 C237 178 227 189 225 208 H163 Z" fill="url(#metal)" stroke="#FFFFFF" stroke-opacity=".34" stroke-width="2.5" stroke-linejoin="round"/>
+
+      <!-- Carved inner channel: makes the mark feel engineered rather than typographic -->
+      <path d="M194 211 C197 176 220 153 257 153 C300 153 326 176 326 208 C326 229 316 244 291 265 L236 313" stroke="#526A7A" stroke-opacity=".42" stroke-width="7" stroke-linecap="round"/>
+      <path d="M194 211 C197 176 220 153 257 153 C300 153 326 176 326 208" stroke="url(#glow)" stroke-width="4" stroke-linecap="round"/>
+
+      <!-- Structural T/O cues embedded in the base -->
+      <path d="M158 368 H351" stroke="#FFFFFF" stroke-opacity=".72" stroke-width="3"/>
+      <path d="M194 343 H318" stroke="#7F919C" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>
+      <path d="M232 350 H280" stroke="#FFFFFF" stroke-opacity=".70" stroke-width="2" stroke-linecap="round"/>
     </g>
-    <path d="M159 389 H350" stroke="#00AEEF" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+
+    <!-- Controlled brand accent -->
+    <path d="M158 395 H351" stroke="#00AEEF" stroke-width="5" stroke-linecap="round" opacity=".88"/>
+    <path d="M212 395 H297" stroke="#B7EEFF" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+
+    <!-- Micro highlight only; no decorative noise -->
+    <path d="M119 112 L164 98" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity=".26"/>
+    <path d="M349 98 L395 112" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity=".12"/>
   </g>
 </svg>
