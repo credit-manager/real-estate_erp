@@ -1,72 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 465 187" width="100%" height="100%"><defs>
-  <linearGradient id="shieldNavy" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#1E3A50"/>
-    <stop offset="40%" stop-color="#283C4E"/>
-    <stop offset="100%" stop-color="#162535"/>
-  </linearGradient>
-  <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#FFFFFF"/>
-    <stop offset="40%" stop-color="#E8ECF0"/>
-    <stop offset="100%" stop-color="#C8CED6"/>
-  </linearGradient>
-  <linearGradient id="silverDark" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#8A96A2"/>
-    <stop offset="100%" stop-color="#5A6672"/>
-  </linearGradient>
-  <linearGradient id="navyWord" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#1E3A50"/>
-    <stop offset="100%" stop-color="#283C4E"/>
-  </linearGradient>
-  <linearGradient id="steelSub" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#4E6478"/>
-    <stop offset="100%" stop-color="#33465A"/>
-  </linearGradient>
-  <linearGradient id="tBlue" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0%" stop-color="#00AEEF"/>
-    <stop offset="100%" stop-color="#0072CE"/>
-  </linearGradient>
-<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#001229" flood-opacity="0.45"/></filter></defs><g filter="url(#glow)" transform="translate(6,6) scale(0.54)">
-  <defs>
-    <linearGradient id="shieldNavy" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1E3A50"/>
-      <stop offset="40%" stop-color="#283C4E"/>
-      <stop offset="100%" stop-color="#162535"/>
-    </linearGradient>
-    <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="40%" stop-color="#E8ECF0"/>
-      <stop offset="100%" stop-color="#C8CED6"/>
-    </linearGradient>
-    <linearGradient id="silverDark" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8A96A2"/>
-      <stop offset="100%" stop-color="#5A6672"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Shield body: flat top, straight sides, deep smooth V chevron -->
-  <path d="M16,12 L184,12 L184,165 C184,165 148,168 100,250 C52,168 16,165 16,165 Z"
-        fill="url(#shieldNavy)"/>
-
-  <!-- Inner border line 1 -->
-  <path d="M22,18 L178,18 L178,162 C178,162 144,165 100,238 C56,165 22,162 22,162 Z"
-        fill="none" stroke="#3A5A72" stroke-width="1.2" opacity="0.55"/>
-  <!-- Inner border line 2 -->
-  <path d="M27,23 L173,23 L173,159 C173,159 141,162 100,230 C59,162 27,159 27,159 Z"
-        fill="none" stroke="#3A5A72" stroke-width="0.7" opacity="0.30"/>
-
-  <!-- Number 2: shadow -->
-  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
-        transform="translate(0,5)"
-        fill="none" stroke="#0A1520" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" opacity="0.28"/>
-
-  <!-- Number 2: bevel -->
-  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
-        fill="none" stroke="url(#silverDark)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Number 2: main silver fill -->
-  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
-        fill="none" stroke="url(#silverGrad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Separator line -->
-  <path d="M44,212 L156,212" stroke="#4A6A82" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
-</g><rect x="124" y="30" width="4" height="100" rx="2" fill="url(#tBlue)"/><text x="144" y="96" font-family="Tahoma, Arial, Helvetica, sans-serif" font-size="78" font-weight="800" letter-spacing="-1" fill="url(#navyWord)">2TO</text><text x="148" y="140" font-family="Tahoma, Arial, Helvetica, sans-serif" font-size="24" font-weight="700" letter-spacing="8" fill="url(#steelSub)">ENTERPRISE</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 465 187" width="100%" height="100%"><defs><filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#1A2A3A" flood-opacity="0.4"/></filter></defs><g filter="url(#glow)" transform="translate(6,6) scale(0.52)">
+  <!-- Shield: hexagonal with chevron bottom -->
+  <path d="M10,10 L250,10 L250,230 L130,310 L10,230 Z" fill="#2D4661"/>
+  
+  <!-- White chevron stripe -->
+  <path d="M10,222 L130,300 L250,222" fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round"/>
+  
+  <!-- 2TO text: bold white, centered -->
+  <text x="130" y="195" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="130" fill="#FFFFFF">2TO</text>
+</g><rect x="148" y="28" width="3" height="100" rx="1.5" fill="#00AEEF"/><text x="168" y="92" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="72" fill="#2D4661">2TO</text><text x="172" y="134" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="22" letter-spacing="7" fill="#4E6478">ENTERPRISE</text></svg>
