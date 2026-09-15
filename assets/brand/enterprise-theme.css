@@ -1,0 +1,22 @@
+/* enterprise-theme.css — 2TO Brand Identity System */
+
+:root {
+  /* Primary Identity Colors */
+  --2to-navy-primary: #2D4661;    /* Enterprise Navy — Governance */
+  --2to-blue-accent: #00AEEF;     /* Tech Blue — Innovation & Intelligence */
+  
+  /* Supporting Palette */
+  --2to-graphite: #1E293B;
+  --2to-cool-grey: #F1F5F9;
+  --2to-silver-border: #CBD5E1;
+  --2to-white-surface: #FFFFFF;
+}
+
+.brand-governance-header {
+  background-color: var(--2to-navy-primary);
+  color: var(--2to-white-surface);
+  display: flex;
+  align-items: center;
+  padding: 1rem 2rem;
+  border-bottom: 2px solid var(--2to-blue-accent);
+}
