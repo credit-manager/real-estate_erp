@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
-  <title id="title">2TO Enterprise Shield</title>
-  <desc id="desc">2TO monochrome shield identity for stamps and documents</desc>
-  <path d="M256 28 L458 91 V263 C458 365 382 429 256 482 C130 429 54 365 54 263 V91 Z" fill="currentColor"/>
-  <path d="M165 205 C165 158 201 130 257 130 C314 130 348 161 348 207 C348 240 331 262 301 288 L261 322 H350 V365 H159 V318 L251 238 C266 225 276 215 276 204 C276 190 267 181 253 181 C237 181 226 191 225 208 H165 Z" fill="#FFFFFF"/>
+  <title id="title">2TO Signature Enterprise Shield</title>
+  <desc id="desc">2TO monochrome signature shield for stamps and documents</desc>
+  <path d="M256 24 L462 88 V263 C462 369 383 433 256 486 C129 433 50 369 50 263 V88 Z" fill="currentColor"/>
+  <path d="M163 213 C163 161 201 126 257 126 C315 126 350 159 350 210 C350 242 334 264 305 289 L268 320 H351 V368 H158 V313 L248 235 C266 220 276 211 276 201 C276 186 266 178 252 178 C237 178 227 189 225 208 H163 Z" fill="#FFFFFF"/>
+  <path d="M158 395 H351" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
 </svg>
