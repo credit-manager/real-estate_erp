@@ -1,26 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" width="100%" height="100%"><defs><defs>
-  <linearGradient id="shieldNavy" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#0B2545"/>
-    <stop offset="50%" stop-color="#134074"/>
-    <stop offset="100%" stop-color="#001229"/>
-  </linearGradient>
-  <linearGradient id="shieldEdge" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#2E5FA3"/>
-    <stop offset="60%" stop-color="#1B3F74"/>
-    <stop offset="100%" stop-color="#081C38"/>
-  </linearGradient>
-  <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#FFFFFF"/>
-    <stop offset="55%" stop-color="#D8DFE6"/>
-    <stop offset="100%" stop-color="#C0C5CC"/>
-  </linearGradient>
-  <linearGradient id="silverDark" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#9AA6B0"/>
-    <stop offset="100%" stop-color="#6B7988"/>
-  </linearGradient>
-  <linearGradient id="techBlue" x1="96" y1="228" x2="144" y2="228" gradientUnits="userSpaceOnUse">
-    <stop offset="0%" stop-color="#00AEEF"/>
-    <stop offset="100%" stop-color="#0072CE"/>
-  </linearGradient>
-</defs>
-</defs><g transform="translate(8.6,4) scale(0.2388)"><g id="emblem"><path d="M120 4 C58 4 22 40 22 88 C22 134 54 176 82 212 C100 240 112 258 120 268 C128 258 140 240 158 212 C186 176 218 134 218 88 C218 40 182 4 120 4 Z" fill="url(#shieldEdge)"/><path d="M120 10 C63 10 30 44 30 88 C30 131 60 172 87 207 C104 233 116 251 120 260 C124 251 136 233 153 207 C180 172 210 131 210 88 C210 44 177 10 120 10 Z" fill="url(#shieldNavy)"/><path d="M120 20 C70 20 42 50 42 88 C42 126 68 164 93 196 C108 218 117 235 120 243 C123 235 132 218 147 196 C172 164 198 126 198 88 C198 50 170 20 120 20 Z" fill="none" stroke="#D8DFE6" stroke-width="2.5" opacity="0.35"/><path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" transform="translate(0,4)" fill="none" stroke="#06203F" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/><path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" fill="none" stroke="url(#silverDark)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/><path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" fill="none" stroke="url(#silverGrad)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/><text x="120" y="212" text-anchor="middle" font-family="Tahoma, Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="7" fill="url(#silverGrad)">TO</text><path d="M 96 228 L 144 228" stroke="url(#techBlue)" stroke-width="7" stroke-linecap="round"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" width="100%" height="100%">
+  <defs>
+    <linearGradient id="shieldNavy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E3A50"/>
+      <stop offset="40%" stop-color="#283C4E"/>
+      <stop offset="100%" stop-color="#162535"/>
+    </linearGradient>
+    <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="40%" stop-color="#E8ECF0"/>
+      <stop offset="100%" stop-color="#C8CED6"/>
+    </linearGradient>
+    <linearGradient id="silverDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8A96A2"/>
+      <stop offset="100%" stop-color="#5A6672"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield body: flat top, straight sides, deep smooth V chevron -->
+  <path d="M16,12 L184,12 L184,165 C184,165 148,168 100,250 C52,168 16,165 16,165 Z"
+        fill="url(#shieldNavy)"/>
+
+  <!-- Inner border line 1 -->
+  <path d="M22,18 L178,18 L178,162 C178,162 144,165 100,238 C56,165 22,162 22,162 Z"
+        fill="none" stroke="#3A5A72" stroke-width="1.2" opacity="0.55"/>
+  <!-- Inner border line 2 -->
+  <path d="M27,23 L173,23 L173,159 C173,159 141,162 100,230 C59,162 27,159 27,159 Z"
+        fill="none" stroke="#3A5A72" stroke-width="0.7" opacity="0.30"/>
+
+  <!-- Number 2: shadow -->
+  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
+        transform="translate(0,5)"
+        fill="none" stroke="#0A1520" stroke-width="38" stroke-linecap="round" stroke-linejoin="round" opacity="0.28"/>
+
+  <!-- Number 2: bevel -->
+  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
+        fill="none" stroke="url(#silverDark)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Number 2: main silver fill -->
+  <path d="M92,55 C122,55 148,72 148,100 C148,124 130,140 110,150 L54,196 L146,196"
+        fill="none" stroke="url(#silverGrad)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Separator line -->
+  <path d="M44,212 L156,212" stroke="#4A6A82" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+</svg>
