@@ -1,33 +1,80 @@
-/* enterprise-theme.css — 2TO Brand Identity Tokens */
+/*
+ * 2TO Enterprise Brand Tokens
+ * Canonical design tokens for the enterprise identity layer.
+ * Keep component styling downstream from these tokens; do not duplicate brand hex values.
+ */
 
 :root {
-  /* Primary Identity Colors */
+  /* Identity */
   --2to-navy-primary: #2D4661;
   --2to-navy-deep: #1A2D40;
   --2to-navy-dark: #11283D;
+  --2to-navy-ink: #061725;
   --2to-blue-accent: #00AEEF;
 
-  /* Metallic */
-  --2to-silver-light: #E9EEF1;
+  /* Metallic surface family */
+  --2to-silver-light: #FDFEFF;
+  --2to-silver-soft: #EEF3F6;
   --2to-silver-mid: #B8C4CC;
   --2to-silver-dark: #8D9DA7;
+  --2to-silver-edge: #526A7A;
 
-  /* Supporting */
+  /* Neutral UI */
   --2to-graphite: #1E293B;
   --2to-cool-grey: #F1F5F9;
   --2to-silver-border: #CBD5E1;
   --2to-white-surface: #FFFFFF;
 
-  /* Shadows */
-  --2to-shadow-primary: rgba(6, 21, 34, 0.42);
-  --2to-shadow-symbol: rgba(7, 25, 39, 0.28);
+  /* Interaction */
+  --2to-focus-ring: rgba(0, 174, 239, 0.35);
+  --2to-accent-soft: rgba(0, 174, 239, 0.12);
+
+  /* Elevation */
+  --2to-shadow-primary: 0 15px 32px rgba(6, 21, 34, 0.42);
+  --2to-shadow-symbol: 0 5px 12px rgba(7, 25, 39, 0.28);
+
+  /* Shape */
+  --2to-radius-sm: 0.375rem;
+  --2to-radius-md: 0.625rem;
+  --2to-radius-lg: 0.875rem;
+
+  /* Motion */
+  --2to-transition-fast: 140ms ease;
+  --2to-transition-base: 220ms ease;
 }
 
 .brand-governance-header {
-  background-color: var(--2to-navy-primary);
-  color: var(--2to-white-surface);
   display: flex;
   align-items: center;
+  gap: 1rem;
   padding: 1rem 2rem;
+  color: var(--2to-white-surface);
+  background: var(--2to-navy-primary);
   border-bottom: 2px solid var(--2to-blue-accent);
+}
+
+.brand-surface {
+  background: var(--2to-white-surface);
+  border: 1px solid var(--2to-silver-border);
+  border-radius: var(--2to-radius-md);
+}
+
+.brand-accent {
+  color: var(--2to-blue-accent);
+}
+
+.brand-focus:focus-visible {
+  outline: 3px solid var(--2to-focus-ring);
+  outline-offset: 2px;
+}
+
+.brand-elevation {
+  box-shadow: var(--2to-shadow-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --2to-transition-fast: none;
+    --2to-transition-base: none;
+  }
 }
