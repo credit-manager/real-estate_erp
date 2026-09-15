@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
-  <title id="title">2TO Enterprise Shield</title>
-  <desc id="desc">2TO flat production shield identity</desc>
-  <path d="M256 28 L458 91 V263 C458 365 382 429 256 482 C130 429 54 365 54 263 V91 Z" fill="#2D4661" stroke="#172E43" stroke-width="8" stroke-linejoin="round"/>
-  <path d="M165 205 C165 158 201 130 257 130 C314 130 348 161 348 207 C348 240 331 262 301 288 L261 322 H350 V365 H159 V318 L251 238 C266 225 276 215 276 204 C276 190 267 181 253 181 C237 181 226 191 225 208 H165 Z" fill="#FFFFFF"/>
-  <path d="M159 389 H350" stroke="#00AEEF" stroke-width="8" stroke-linecap="round"/>
+  <title id="title">2TO Signature Enterprise Shield</title>
+  <desc id="desc">2TO flat production signature shield</desc>
+  <path d="M256 24 L462 88 V263 C462 369 383 433 256 486 C129 433 50 369 50 263 V88 Z" fill="#2D4661" stroke="#122B40" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M50 88 L71 104 V264 C71 351 141 411 256 463 V486 C129 433 50 369 50 263 Z" fill="#112A40"/>
+  <path d="M71 263 C71 350 141 410 256 463 C371 410 441 350 441 263 V306 C441 393 371 451 256 501 C141 451 71 393 71 306 Z" fill="#071A2B" opacity=".78"/>
+  <path d="M256 39 L448 98 V262 C448 359 377 420 256 470 C135 420 64 359 64 262 V98 Z" stroke="#6F8798" stroke-width="3" stroke-opacity=".72"/>
+  <path d="M129 146 H383" stroke="#FFFFFF" stroke-width="2" stroke-opacity=".16"/>
+  <path d="M129 146 V262 C129 309 170 348 256 388 C342 348 383 309 383 262 V146" stroke="#FFFFFF" stroke-width="2" stroke-opacity=".11"/>
+  <path d="M163 213 C163 161 201 126 257 126 C315 126 350 159 350 210 C350 242 334 264 305 289 L268 320 H351 V368 H158 V313 L248 235 C266 220 276 211 276 201 C276 186 266 178 252 178 C237 178 227 189 225 208 H163 Z" fill="#FFFFFF"/>
+  <path d="M194 211 C197 176 220 153 257 153 C300 153 326 176 326 208 C326 229 316 244 291 265 L236 313" stroke="#2D4661" stroke-width="6" stroke-linecap="round" opacity=".28"/>
+  <path d="M158 368 H351" stroke="#DCE5EA" stroke-width="3"/>
+  <path d="M158 395 H351" stroke="#00AEEF" stroke-width="7" stroke-linecap="round"/>
 </svg>
