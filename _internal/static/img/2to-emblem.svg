@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 272" width="100%" height="100%">
+  <defs>
+    <linearGradient id="shieldNavy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0B2545"/>
+      <stop offset="50%" stop-color="#134074"/>
+      <stop offset="100%" stop-color="#001229"/>
+    </linearGradient>
+    <linearGradient id="shieldEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2E5FA3"/>
+      <stop offset="60%" stop-color="#1B3F74"/>
+      <stop offset="100%" stop-color="#081C38"/>
+    </linearGradient>
+    <linearGradient id="silverGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#D8DFE6"/>
+      <stop offset="100%" stop-color="#C0C5CC"/>
+    </linearGradient>
+    <linearGradient id="silverDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9AA6B0"/>
+      <stop offset="100%" stop-color="#6B7988"/>
+    </linearGradient>
+    <linearGradient id="techBlue" x1="96" y1="228" x2="144" y2="228" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00AEEF"/>
+      <stop offset="100%" stop-color="#0072CE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield outer glow/rim layer -->
+  <path d="M120 4 C58 4 22 40 22 88 C22 134 54 176 82 212 C100 240 112 258 120 268 C128 258 140 240 158 212 C186 176 218 134 218 88 C218 40 182 4 120 4 Z" fill="url(#shieldEdge)"/>
+  <!-- Shield body -->
+  <path d="M120 10 C63 10 30 44 30 88 C30 131 60 172 87 207 C104 233 116 251 120 260 C124 251 136 233 153 207 C180 172 210 131 210 88 C210 44 177 10 120 10 Z" fill="url(#shieldNavy)"/>
+  <!-- Inner rim highlight -->
+  <path d="M120 20 C70 20 42 50 42 88 C42 126 68 164 93 196 C108 218 117 235 120 243 C123 235 132 218 147 196 C172 164 198 126 198 88 C198 50 170 20 120 20 Z" fill="none" stroke="url(#silverGrad)" stroke-width="2.5" opacity="0.35"/>
+
+  <!-- Number 2: the core of the logo -->
+  <!-- shadow -->
+  <path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" transform="translate(0,4)" fill="none" stroke="#06203F" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/>
+  <!-- outer bevel -->
+  <path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" fill="none" stroke="url(#silverDark)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- main 2 -->
+  <path d="M118 46 C148 46 164 60 164 84 C164 104 148 120 126 130 L 72 176 L 158 176" fill="none" stroke="url(#silverGrad)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- TO - secondary letters -->
+  <text x="120" y="212" text-anchor="middle" font-family="Tahoma, Arial, Helvetica, sans-serif" font-size="30" font-weight="800" letter-spacing="7" fill="url(#silverGrad)">TO</text>
+
+  <!-- Cosmic blue accent underline -->
+  <path d="M 96 228 L 144 228" stroke="url(#techBlue)" stroke-width="7" stroke-linecap="round"/>
+</svg>

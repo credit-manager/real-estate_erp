@@ -1,7 +1,7 @@
 ﻿/* 2TO ERP â€” Service Worker (Ø®ÙÙŠÙØŒ Ø´Ø¨ÙƒØ© Ø£ÙˆÙ„Ø§Ù‹ Ù…Ø¹ Ø³Ù‚ÙˆØ· Ù„Ù„ÙƒØ§Ø´) */
 "use strict";
 
-var CACHE_NAME = "2to-cache-v13";
+var CACHE_NAME = "2to-cache-v14";
 var PRECACHE = [
   "/static/manifest.webmanifest",
   "/static/img/icon-192.png",
