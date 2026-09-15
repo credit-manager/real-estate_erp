@@ -1,0 +1,17 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 512 512"
+  width="512"
+  height="512"
+  fill="none"
+  role="img"
+  aria-labelledby="title desc"
+  shape-rendering="geometricPrecision"
+>
+  <title id="title">2TO Enterprise Governance</title>
+  <desc id="desc">2TO monochrome shield</desc>
+
+  <path d="M256 28 L458 91 V263 C458 365 382 429 256 482 C130 429 54 365 54 263 V91 Z" fill="#1A1A1A"/>
+  <path d="M165 205 C165 158 201 130 257 130 C314 130 348 161 348 207 C348 240 331 262 301 288 L261 322 H350 V365 H159 V318 L251 238 C266 225 276 215 276 204 C276 190 267 181 253 181 C237 181 226 191 225 208 H165 Z" fill="#FFFFFF"/>
+  <path d="M159 389 H350" stroke="#1A1A1A" stroke-width="5" stroke-linecap="round"/>
+</svg>
